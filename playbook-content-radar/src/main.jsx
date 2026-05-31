@@ -8,6 +8,12 @@ import {
   ThumbsUp, ThumbsDown, Lightbulb, MoreHorizontal
 } from 'lucide-react';
 import './styles.css';
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = 'https://xcihctupmfawtawbzwvm.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjaWhjdHVwbWZhd3Rhd2J6d3ZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNTY1MTIsImV4cCI6MjA5NTgzMjUxMn0.GFVSHYY0S9nwfunxUyGGio5EQgsZE04nvFZAFz-L4Ow';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Custom Linkedin logo component for brand header
 const LinkedinIcon = ({ size = 24, ...props }) => (
@@ -88,53 +94,70 @@ function parseLinkedInUrl(url) {
   try {
     if (!url) return null;
     
+    // Check if it's a linkedin url
+    if (!url.toLowerCase().includes('linkedin.com')) {
+      return null;
+    }
+    
     // Split query parameters
     const cleanUrl = url.split('?')[0]; 
     const parts = cleanUrl.split('/posts/');
-    if (parts.length < 2) return null;
     
-    const slug = parts[1]; 
-    const slugParts = slug.split('_');
-    
-    let rawAuthor = slugParts[0] || 'Autor LinkedIn';
-    let rawTitle = slugParts[1] || '';
-    
-    // Capitalize author name and replace dashes/underscores with spaces
-    let author = rawAuthor
-      .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ')
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-      
-    // Inject spaces in camelCase usernames
-    author = author.replace(/([A-Z])/g, ' $1').replace(/\s+/g, ' ').trim();
-    
-    // Format Title
+    let author = 'Conexão do LinkedIn';
     let title = 'Referência de Conteúdo';
-    if (rawTitle) {
-      let cleanTitle = rawTitle.split('-share-')[0].split('-activity-')[0];
-      cleanTitle = cleanTitle.replace(/-\d+$/, '');
+    let category = 'LinkedIn';
+    
+    if (parts.length >= 2) {
+      const slug = parts[1]; 
+      const slugParts = slug.split('_');
       
-      title = cleanTitle
+      let rawAuthor = slugParts[0] || 'Autor LinkedIn';
+      let rawTitle = slugParts[1] || '';
+      
+      // Capitalize author name and replace dashes/underscores with spaces
+      author = rawAuthor
         .split('-')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ')
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
+        
+      // Inject spaces in camelCase usernames
+      author = author.replace(/([A-Z])/g, ' $1').replace(/\s+/g, ' ').trim();
+      
+      // Format Title
+      if (rawTitle) {
+        let cleanTitle = rawTitle;
+        // Strip everything from ugcPost/activity/share/etc. onwards
+        cleanTitle = cleanTitle.split(/-(?:ugcPost|activity|share|view|update)/i)[0];
+        // Strip ending hashes/numbers (like -7466926641567649792-YOqg)
+        cleanTitle = cleanTitle.replace(/-\d+.*$/, '');
+        cleanTitle = cleanTitle.replace(/-[a-zA-Z0-9]+$/, ''); // Strip last short hash if exists
+        
+        title = cleanTitle
+          .split('-')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+      }
+    } else {
+      // Try to parse feed/update/urn format: extract number or use a generic title
+      title = 'Insight de Negócios Mapeado';
+      author = 'Líder de GTM';
     }
     
     // Smart Category Inference
-    let category = 'LinkedIn';
     const lowerTitle = title.toLowerCase();
-    if (lowerTitle.includes('ia') || lowerTitle.includes('ai') || lowerTitle.includes('gpt') || lowerTitle.includes('chat')) {
+    const lowerUrl = url.toLowerCase();
+    if (lowerTitle.includes('ia') || lowerTitle.includes('ai') || lowerTitle.includes('gpt') || lowerTitle.includes('chat') || lowerUrl.includes('ia') || lowerUrl.includes('ai') || lowerUrl.includes('gpt')) {
       category = 'IA';
-    } else if (lowerTitle.includes('agente') || lowerTitle.includes('agent')) {
+    } else if (lowerTitle.includes('agente') || lowerTitle.includes('agent') || lowerUrl.includes('agente') || lowerUrl.includes('agent')) {
       category = 'Agentes de IA';
-    } else if (lowerTitle.includes('venda') || lowerTitle.includes('sale') || lowerTitle.includes('sdr') || lowerTitle.includes('comercial')) {
+    } else if (lowerTitle.includes('venda') || lowerTitle.includes('sale') || lowerTitle.includes('sdr') || lowerTitle.includes('comercial') || lowerUrl.includes('venda') || lowerUrl.includes('sale')) {
       category = 'Vendas';
-    } else if (lowerTitle.includes('auto') || lowerTitle.includes('make') || lowerTitle.includes('zapier')) {
+    } else if (lowerTitle.includes('auto') || lowerTitle.includes('make') || lowerUrl.includes('auto') || lowerUrl.includes('make')) {
       category = 'Automação';
-    } else if (lowerTitle.includes('vaga') || lowerTitle.includes('oportunidade') || lowerTitle.includes('engenhe')) {
+    } else if (lowerTitle.includes('vaga') || lowerTitle.includes('oportunidade') || lowerTitle.includes('engenhe') || lowerUrl.includes('vaga') || lowerUrl.includes('oportunidade') || lowerUrl.includes('engenhe')) {
       category = 'Bastidores Playbook';
     }
     
@@ -145,7 +168,7 @@ function parseLinkedInUrl(url) {
     
     return {
       author,
-      title: `${title} (Mapeado)`,
+      title: title.includes('Mapeado') ? title : `${title} (Mapeado)`,
       category,
       mockLikes,
       mockCommentsCount,
@@ -358,6 +381,7 @@ function App() {
   const [toasts, setToasts] = useState([]);
   const [curatorFilter, setCuratorFilter] = useState('todos');
   const [activeFilter, setActiveFilter] = useState('todas');
+  const [isLoading, setIsLoading] = useState(false);
 
   function addToast(message, type = 'success') {
     const id = generateUUID();
@@ -367,10 +391,189 @@ function App() {
     }, 3000);
   }
 
+  // Load authoritative shared data from Supabase
+  async function loadData() {
+    try {
+      setIsLoading(true);
+      const { data: dbIdeas, error: ideasErr } = await supabase
+        .from('ideas')
+        .select('*')
+        .order('created_at', { ascending: false });
+        
+      if (ideasErr) throw ideasErr;
+      
+      const { data: dbVotes, error: votesErr } = await supabase
+        .from('votes')
+        .select('*');
+        
+      if (votesErr) throw votesErr;
+      
+      // Seed Supabase with starter ideas if it's empty
+      if (!dbIdeas || dbIdeas.length === 0) {
+        const formattedSeed = seedIdeas.map(idea => ({
+          id: idea.id,
+          title: idea.title,
+          linkedin_url: idea.linkedinUrl,
+          source_author: idea.sourceAuthor,
+          author_headline: idea.authorHeadline,
+          author_avatar: idea.authorAvatar,
+          summary: idea.summary,
+          playbook_angle: idea.playbookAngle,
+          category: idea.category,
+          content_type: idea.contentType,
+          image_url: idea.imageUrl,
+          initial_priority: idea.initialPriority,
+          internal_notes: idea.internalNotes,
+          status: idea.status,
+          manual_status: idea.manualStatus,
+          mock_likes: idea.mockLikes,
+          mock_comments_count: idea.mockCommentsCount,
+          mock_reposts_count: idea.mockRepostsCount
+        }));
+        
+        const { error: seedErr } = await supabase
+          .from('ideas')
+          .insert(formattedSeed);
+          
+        if (seedErr) {
+          console.error('Seeding error:', seedErr);
+        } else {
+          // Fetch freshly inserted seeds
+          const { data: freshIdeas } = await supabase
+            .from('ideas')
+            .select('*')
+            .order('created_at', { ascending: false });
+          setState({ ideas: freshIdeas || [], votes: [] });
+          return;
+        }
+      }
+
+      // Map postgres snake_case to camelCase variables
+      const mappedIdeas = (dbIdeas || []).map(item => ({
+        id: item.id,
+        createdAt: item.created_at,
+        title: item.title,
+        linkedinUrl: item.linkedin_url,
+        sourceAuthor: item.source_author,
+        authorHeadline: item.author_headline,
+        authorAvatar: item.author_avatar,
+        summary: item.summary,
+        playbookAngle: item.playbook_angle,
+        category: item.category,
+        contentType: item.content_type,
+        imageUrl: item.image_url,
+        initialPriority: item.initial_priority,
+        internalNotes: item.internal_notes,
+        status: item.status,
+        manualStatus: item.manual_status,
+        mockLikes: item.mock_likes,
+        mockCommentsCount: item.mock_comments_count,
+        mockRepostsCount: item.mock_reposts_count
+      }));
+      
+      const mappedVotes = (dbVotes || []).map(item => ({
+        id: item.id,
+        createdAt: item.created_at,
+        ideaId: item.idea_id,
+        voterName: item.voter_name,
+        vote: item.vote,
+        comment: item.comment
+      }));
+
+      setState({ ideas: mappedIdeas, votes: mappedVotes });
+    } catch (err) {
+      console.error('Error loading Supabase:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // Load authoritative data on mount
+  React.useEffect(() => {
+    loadData();
+  }, []);
+
+  // Background diff-based sync to Supabase
+  async function syncToSupabase(prev, next) {
+    try {
+      // 1. Add new ideas
+      const addedIdeas = next.ideas.filter(ni => !prev.ideas.some(pi => pi.id === ni.id));
+      for (const idea of addedIdeas) {
+        await supabase.from('ideas').insert([{
+          id: idea.id,
+          created_at: idea.createdAt || new Date().toISOString(),
+          title: idea.title,
+          linkedin_url: idea.linkedinUrl,
+          source_author: idea.sourceAuthor,
+          author_headline: idea.authorHeadline,
+          author_avatar: idea.authorAvatar,
+          summary: idea.summary,
+          playbook_angle: idea.playbookAngle,
+          category: idea.category,
+          content_type: idea.contentType,
+          image_url: idea.imageUrl,
+          initial_priority: idea.initialPriority,
+          internal_notes: idea.internalNotes,
+          status: idea.status || 'pendente',
+          manual_status: idea.manualStatus || null,
+          mock_likes: idea.mockLikes || 0,
+          mock_comments_count: idea.mockCommentsCount || 0,
+          mock_reposts_count: idea.mockRepostsCount || 0
+        }]);
+      }
+
+      // 2. Delete ideas
+      const deletedIdeas = prev.ideas.filter(pi => !next.ideas.some(ni => ni.id === pi.id));
+      for (const idea of deletedIdeas) {
+        await supabase.from('ideas').delete().eq('id', idea.id);
+      }
+
+      // 3. Update ideas (manual_status)
+      for (const nextIdea of next.ideas) {
+        const prevIdea = prev.ideas.find(pi => pi.id === nextIdea.id);
+        if (prevIdea && prevIdea.manualStatus !== nextIdea.manualStatus) {
+          await supabase.from('ideas')
+            .update({ manual_status: nextIdea.manualStatus })
+            .eq('id', nextIdea.id);
+        }
+      }
+
+      // 4. Upsert votes
+      const changedVotes = next.votes.filter(nv => {
+        const prevVote = prev.votes.find(pv => pv.id === nv.id);
+        return !prevVote || prevVote.vote !== nv.vote || prevVote.comment !== nv.comment;
+      });
+      for (const vote of changedVotes) {
+        await supabase.from('votes')
+          .delete()
+          .eq('idea_id', vote.ideaId)
+          .eq('voter_name', vote.voterName);
+          
+        await supabase.from('votes').insert([{
+          id: vote.id,
+          created_at: vote.createdAt || new Date().toISOString(),
+          idea_id: vote.ideaId,
+          voter_name: vote.voterName,
+          vote: vote.vote,
+          comment: vote.comment || ''
+        }]);
+      }
+
+      // 5. Delete votes
+      const deletedVotes = prev.votes.filter(pv => !next.votes.some(nv => nv.id === pv.id));
+      for (const vote of deletedVotes) {
+        await supabase.from('votes').delete().eq('id', vote.id);
+      }
+    } catch (err) {
+      console.error('Error syncing to Supabase:', err);
+    }
+  }
+
   function updateState(updater) {
     setState(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       saveState(next);
+      syncToSupabase(prev, next);
       return next;
     });
   }
@@ -425,7 +628,21 @@ function App() {
             <div className="brand-logo-circle"><LinkedinIcon size={16} /></div>
             <div className="brand-text">
               <h1>Content Radar</h1>
-              <p>Playbook Lab</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                Playbook Lab
+                <span 
+                  onClick={loadData} 
+                  className={isLoading ? "sync-dot loading" : "sync-dot synced"}
+                  style={{ 
+                    cursor: 'pointer', 
+                    fontSize: '11px',
+                    lineHeight: 1
+                  }}
+                  title={isLoading ? "Sincronizando com Supabase..." : "Sincronizado com Supabase! Clique para atualizar."}
+                >
+                  ●
+                </span>
+              </p>
             </div>
           </div>
 
@@ -435,7 +652,15 @@ function App() {
 
           <div className="user-panel">
             <div className="user-panel-avatar" style={{ padding: 0, overflow: 'hidden' }}>
-              <img src={USER_AVATARS[user]} alt={user} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+              <img 
+                src={USER_AVATARS[user]} 
+                alt={user} 
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user)}&background=0a66c2&color=fff&bold=true`;
+                }}
+              />
             </div>
             <div className="user-panel-info">
               <strong>{user}</strong>
@@ -727,7 +952,16 @@ function IdentityScreen({ selectUser, ideas, votes }) {
         <div className="identity-grid">
           <button onClick={() => selectUser('Victor')}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <img className="avatar-initial" src={USER_AVATARS.Victor} alt="Victor" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+              <img 
+                className="avatar-initial" 
+                src={USER_AVATARS.Victor} 
+                alt="Victor" 
+                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} 
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = `https://ui-avatars.com/api/?name=Victor&background=057642&color=fff&bold=true`;
+                }}
+              />
               Victor
             </span>
             {pendingFor('Victor') > 0 ? (
@@ -739,7 +973,16 @@ function IdentityScreen({ selectUser, ideas, votes }) {
           
           <button onClick={() => selectUser('Fernando')}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <img className="avatar-initial" src={USER_AVATARS.Fernando} alt="Fernando" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+              <img 
+                className="avatar-initial" 
+                src={USER_AVATARS.Fernando} 
+                alt="Fernando" 
+                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} 
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = `https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff&bold=true`;
+                }}
+              />
               Fernando
             </span>
             {pendingFor('Fernando') > 0 ? (
@@ -751,7 +994,16 @@ function IdentityScreen({ selectUser, ideas, votes }) {
 
           <button className="admin-btn" onClick={() => selectUser('Felipe')}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <img className="avatar-initial" src={USER_AVATARS.Felipe} alt="Felipe" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+              <img 
+                className="avatar-initial" 
+                src={USER_AVATARS.Felipe} 
+                alt="Felipe" 
+                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} 
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = `https://ui-avatars.com/api/?name=Felipe&background=0a66c2&color=fff&bold=true`;
+                }}
+              />
               Felipe
             </span>
             <span style={{ fontSize: '12px', color: 'var(--linkedin-mid-gray)', fontWeight: 600 }}>Painel Admin</span>
@@ -924,17 +1176,6 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
       <div className="playbook-desktop-grid">
         <div className="playbook-feed-main">
           <div className="swipe-container">
-            {/* Playbook Curation Float Header Panel */}
-            <div className="playbook-curation-header">
-              <span>Formato: {current.contentType || 'Post LinkedIn'}</span>
-              <span className="playbook-curation-badge">Tópico: {current.category || 'GTM'}</span>
-              {current.initialPriority && (
-                <span style={{ color: current.initialPriority === 'Alta' ? '#dc2626' : '#d97706' }}>
-                  Prioridade {current.initialPriority}
-                </span>
-              )}
-            </div>
-
             <div className="swipe-wrap">
               <AnimatePresence mode="wait">
                 <motion.div
@@ -1031,7 +1272,15 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
           <div className="sidebar-widget curador-widget">
             <div className="curador-header-cover"></div>
             <div className="curador-badge-avatar" style={{ padding: 0, overflow: 'hidden' }}>
-              <img src={USER_AVATARS[user]} alt={user} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+              <img 
+                src={USER_AVATARS[user]} 
+                alt={user} 
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user)}&background=0a66c2&color=fff&bold=true`;
+                }}
+              />
             </div>
             <div className="curador-badge-body">
               <h4>{user}</h4>
@@ -1133,7 +1382,15 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
       <div className="li-post-header">
         <div className="li-post-author-row">
           {idea.authorAvatar ? (
-            <img className="li-post-avatar-img" src={idea.authorAvatar} alt={idea.sourceAuthor} />
+            <img 
+              className="li-post-avatar-img" 
+              src={idea.authorAvatar} 
+              alt={idea.sourceAuthor} 
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(idea.sourceAuthor || 'Autor')}&background=0a66c2&color=fff&bold=true`;
+              }}
+            />
           ) : (
             <div className="li-post-avatar-fallback">{idea.sourceAuthor ? idea.sourceAuthor.charAt(0) : 'L'}</div>
           )}
@@ -1166,6 +1423,37 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
         {idea.summary || ''}
       </div>
 
+      {/* Direct LinkedIn Outbound Link CTA Button */}
+      {idea.linkedinUrl && (
+        <div style={{ padding: '0 20px 16px 20px', display: 'flex' }}>
+          <a 
+            href={idea.linkedinUrl} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="li-direct-post-btn"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              fontWeight: 700,
+              color: '#ffffff',
+              background: '#0a66c2',
+              padding: '6px 16px',
+              borderRadius: '100px',
+              textDecoration: 'none',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 4px rgba(10, 102, 194, 0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onMouseOver={(e) => e.currentTarget.style.background = '#004182'}
+            onMouseOut={(e) => e.currentTarget.style.background = '#0a66c2'}
+          >
+            <ExternalLink size={12} /> Acessar Post no LinkedIn ↗
+          </a>
+        </div>
+      )}
+
       {/* Edge to Edge Image inside card */}
       {idea.imageUrl && (
         <div className="li-post-image-wrap">
@@ -1196,7 +1484,15 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
           {comments.map(c => (
             <div key={c.id} className="li-comment-item">
               <div className="li-comment-avatar" style={{ padding: 0, overflow: 'hidden' }}>
-                <img src={USER_AVATARS[c.voterName] || USER_AVATARS.Felipe} alt={c.voterName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                <img 
+                  src={USER_AVATARS[c.voterName] || USER_AVATARS.Felipe} 
+                  alt={c.voterName} 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.voterName)}&background=0a66c2&color=fff&bold=true`;
+                  }}
+                />
               </div>
               <div className="li-comment-bubble">
                 <div className="li-comment-user-name">
@@ -1230,12 +1526,12 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
             e.stopPropagation(); 
             if (idea.linkedinUrl) {
               navigator.clipboard.writeText(idea.linkedinUrl);
-              if (addToast) {
-                addToast("Link original copiado para a área de transferência!", "success");
-              }
+              addToast("Link copiado para a área de transferência!", "success");
+            } else {
+              addToast("Link do LinkedIn indisponível para cópia.", "error");
             }
           }} 
-          title="Enviar"
+          title="Copiar link do post"
         >
           <SendIcon size={16} />
           <span>Enviar</span>
@@ -1504,7 +1800,15 @@ function DashboardView({ ideas, votes, onNavigateToIdeas }) {
                     return (
                       <div key={v.id} className="li-activity-item">
                         <div className="li-activity-avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <img src={USER_AVATARS[v.voterName] || USER_AVATARS.Felipe} alt={v.voterName} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                          <img 
+                            src={USER_AVATARS[v.voterName] || USER_AVATARS.Felipe} 
+                            alt={v.voterName} 
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(v.voterName)}&background=0a66c2&color=fff&bold=true`;
+                            }}
+                          />
                         </div>
                         <div className="li-activity-details">
                           <p>
@@ -1522,14 +1826,14 @@ function DashboardView({ ideas, votes, onNavigateToIdeas }) {
             </div>
           )}
         </main>
-
+ 
         {/* Right Column: Pending voters / Curation boxes */}
         <aside className="li-column-right">
           <div className="li-sidebar-widget shadow-li">
             <h3>Pendências por Votante</h3>
             <p className="desc">Ações pendentes na caixa de entrada</p>
             <hr className="divider" />
-            
+             
             <div className="li-pending-voters-list">
               <button 
                 type="button"
@@ -1538,7 +1842,15 @@ function DashboardView({ ideas, votes, onNavigateToIdeas }) {
               >
                 <div className="voter-info">
                   <div className="avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <img src={USER_AVATARS.Victor} alt="Victor" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                    <img 
+                      src={USER_AVATARS.Victor} 
+                      alt="Victor" 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = `https://ui-avatars.com/api/?name=Victor&background=057642&color=fff&bold=true`;
+                      }}
+                    />
                   </div>
                   <div>
                     <h4>Victor</h4>
@@ -1547,7 +1859,7 @@ function DashboardView({ ideas, votes, onNavigateToIdeas }) {
                 </div>
                 <strong className="badge">{pendingVictor}</strong>
               </button>
-
+ 
               <button 
                 type="button"
                 className="li-pending-voter-card fernando"
@@ -1555,7 +1867,15 @@ function DashboardView({ ideas, votes, onNavigateToIdeas }) {
               >
                 <div className="voter-info">
                   <div className="avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <img src={USER_AVATARS.Fernando} alt="Fernando" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                    <img 
+                      src={USER_AVATARS.Fernando} 
+                      alt="Fernando" 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = `https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff&bold=true`;
+                      }}
+                    />
                   </div>
                   <div>
                     <h4>Fernando</h4>
@@ -1599,46 +1919,110 @@ function NewIdeaView({ updateState, setView, addToast }) {
     setForm(prev => ({ ...prev, [field]: value }));
   }
 
-  function handleAutofill() {
+  async function handleAutofill() {
     if (!form.linkedinUrl) {
       addToast('Insira uma URL válida primeiro!', 'error');
       return;
     }
+
+    if (!form.linkedinUrl.toLowerCase().includes('linkedin.com')) {
+      addToast('A URL precisa ser do LinkedIn (linkedin.com).', 'error');
+      return;
+    }
     
     setIsImporting(true);
-    
-    setTimeout(() => {
+    addToast('Buscando dados reais do post no LinkedIn...', 'success');
+
+    try {
+      const response = await fetch('https://xcihctupmfawtawbzwvm.supabase.co/functions/v1/scrape-linkedin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url: form.linkedinUrl })
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha na resposta do servidor.');
+      }
+
+      const data = await response.json();
+      if (!data || !data.success) {
+        throw new Error(data?.error || 'Não foi possível extrair os dados do post.');
+      }
+
+      // Build a clean title from the description or parsed title
+      let cleanTitle = '';
+      if (data.description) {
+        const firstLine = data.description.split('\n').find(l => l.trim().length > 5) || '';
+        cleanTitle = firstLine.slice(0, 80).trim();
+        if (firstLine.length > 80) cleanTitle += '...';
+      }
+      if (!cleanTitle) {
+        cleanTitle = data.title ? data.title.split('|')[0].trim().slice(0, 80) : '';
+      }
+
+      // Smart category inference
+      const lowerContent = ((data.description || '') + ' ' + (cleanTitle || '')).toLowerCase();
+      let category = 'IA'; // default or smart match
+      if (lowerContent.includes('vaga') || lowerContent.includes('hiring') || lowerContent.includes('recrutamento') || lowerContent.includes('oportunidade')) {
+        category = 'Bastidores Playbook';
+      } else if (lowerContent.includes('ia ') || lowerContent.includes('ai ') || lowerContent.includes('gpt') || lowerContent.includes('inteligência artificial')) {
+        category = 'IA';
+      } else if (lowerContent.includes('agente') || lowerContent.includes('agent')) {
+        category = 'Agentes de IA';
+      } else if (lowerContent.includes('venda') || lowerContent.includes('sales') || lowerContent.includes('sdr')) {
+        category = 'Vendas';
+      } else if (lowerContent.includes('automação') || lowerContent.includes('automation') || lowerContent.includes('zapier') || lowerContent.includes('make')) {
+        category = 'Automação';
+      } else if (lowerContent.includes('revops') || lowerContent.includes('hubspot') || lowerContent.includes('crm')) {
+        category = 'RevOps';
+      } else if (lowerContent.includes('gtm') || lowerContent.includes('go-to-market')) {
+        category = 'GTM';
+      } else if (lowerContent.includes('conteúdo') || lowerContent.includes('content') || lowerContent.includes('marketing')) {
+        category = 'Conteúdo';
+      } else {
+        category = 'LinkedIn';
+      }
+
+      setForm(prev => ({
+        ...prev,
+        title: cleanTitle || prev.title,
+        sourceAuthor: data.author || prev.sourceAuthor,
+        authorHeadline: data.authorHeadline || prev.authorHeadline,
+        authorAvatar: data.authorAvatar || prev.authorAvatar,
+        summary: data.description || prev.summary,
+        imageUrl: data.image || prev.imageUrl,
+        category: category,
+        mockLikes: data.mockLikes || prev.mockLikes,
+        mockCommentsCount: data.mockCommentsCount || prev.mockCommentsCount,
+        mockRepostsCount: data.mockRepostsCount || prev.mockRepostsCount
+      }));
+
+      addToast('✅ Post real importado do LinkedIn com sucesso!', 'success');
+
+    } catch (err) {
+      console.error('LinkedIn scrape failed:', err);
+      
+      // Fallback: use the URL parser for basic metadata
       const parsed = parseLinkedInUrl(form.linkedinUrl);
       if (parsed) {
         setForm(prev => ({
           ...prev,
-          title: parsed.title,
-          sourceAuthor: parsed.author,
-          authorHeadline: 'Tech Recruiter & HR Business Partner Specialist',
-          authorAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150', // high quality placeholder
-          summary: `🚀 Oportunidade em Aberto Mapeada: ${parsed.title.replace(' (Mapeado)', '')}
-
-📍 Modelo de trabalho: Híbrido / Remoto
-💼 Contrato: CLT ou PJ de alta remuneração
-🏢 Setor: Tecnologia e Automação de GTM
-
-Requisitos Técnicos essenciais:
-✔ Vivência consolidada na função
-✔ Sólido conhecimento de ferramentas ágeis
-✔ Foco absoluto em métricas de produtividade comercial
-
-Mande seu contato e portfólio no inbox!`,
-          playbookAngle: `Ponto comercial chave para a Playbook Lab se posicionar. Podemos gerar um post autoral argumentando sobre como a escassez de recursos de engenharia é remediada implantando automações de negócios de alto nível.`,
+          title: prev.title || parsed.title,
+          sourceAuthor: prev.sourceAuthor || parsed.author,
+          category: parsed.category,
           mockLikes: parsed.mockLikes,
           mockCommentsCount: parsed.mockCommentsCount,
           mockRepostsCount: parsed.mockRepostsCount
         }));
-        addToast('Link importado! Cole o texto real do post no campo abaixo.', 'success');
+        addToast('⚠️ Não foi possível ler o post completo. Dados básicos da URL foram extraídos. Cole o texto do post manualmente.', 'error');
       } else {
-        addToast('Formato de URL do LinkedIn inválido para auto-fill.', 'error');
+        addToast('❌ Falha ao importar. Verifique se o link é público e tente novamente.', 'error');
       }
+    } finally {
       setIsImporting(false);
-    }, 1000);
+    }
   }
 
   function submit(e) {
@@ -1667,6 +2051,26 @@ Mande seu contato e portfólio no inbox!`,
     }));
 
     addToast('Nova ideia de LinkedIn inserida no radar!');
+    
+    // Clear and reset form state to prevent duplicate/cached inputs on next view
+    setForm({
+      title: '',
+      linkedinUrl: '',
+      sourceAuthor: '',
+      authorHeadline: '',
+      authorAvatar: '',
+      summary: '',
+      playbookAngle: '',
+      category: 'IA',
+      contentType: 'Post LinkedIn',
+      imageUrl: '',
+      initialPriority: 'Média',
+      internalNotes: '',
+      mockLikes: 0,
+      mockCommentsCount: 0,
+      mockRepostsCount: 0
+    });
+
     setView('ideas');
   }
 
@@ -1675,7 +2079,7 @@ Mande seu contato e portfólio no inbox!`,
       <div className="admin-view-header">
         <p className="eyebrow">Radar Editor</p>
         <h2>Cadastrar Referência</h2>
-        <p>Insira novos posts do LinkedIn para a avaliação de Victor e Fernando.</p>
+        <p>Cole o link do LinkedIn e importe automaticamente o autor, texto e imagem do post real.</p>
       </div>
 
       <form className="idea-form" onSubmit={submit}>
@@ -1689,18 +2093,21 @@ Mande seu contato e portfólio no inbox!`,
                 disabled={isImporting}
                 style={{ 
                   fontSize: '11px', 
-                  color: 'var(--linkedin-blue)', 
+                  color: '#ffffff', 
                   fontWeight: 700, 
                   display: 'inline-flex', 
                   alignItems: 'center', 
                   gap: '4px', 
-                  padding: '3px 10px', 
+                  padding: '5px 14px', 
                   borderRadius: '100px', 
-                  background: 'var(--linkedin-blue-light)',
-                  border: '1px solid var(--linkedin-blue)'
+                  background: isImporting ? '#8bb7e0' : '#0a66c2',
+                  border: 'none',
+                  cursor: isImporting ? 'wait' : 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 1px 3px rgba(10, 102, 194, 0.3)'
                 }}
               >
-                {isImporting ? '⚡ Importando...' : '⚡ Importação Mágica'}
+                {isImporting ? '⏳ Buscando post real...' : '🔗 Importar do LinkedIn'}
               </button>
             )}
           </div>
@@ -1750,6 +2157,9 @@ Mande seu contato e portfólio no inbox!`,
               onChange={e => update('authorAvatar', e.target.value)} 
               placeholder="https://exemplo.com/foto.jpg" 
             />
+            <span style={{ fontSize: '11.5px', color: 'var(--linkedin-blue)', fontWeight: 600, marginTop: '4px', display: 'block', lineHeight: 1.3 }}>
+              💡 <strong>Dica da Foto Real:</strong> Clique com o botão direito na foto do autor no LinkedIn, selecione <strong>"Copiar endereço da imagem"</strong> e cole neste campo!
+            </span>
           </label>
 
           <label>
@@ -2216,26 +2626,7 @@ function IdeasListView({
                       <span style={{ fontSize: '12px', color: 'var(--linkedin-mid-gray)' }}>{idea.suggestedDecision}</span>
                     </div>
                   </div>
-
-                  {/* Playbook Curation Float Panel - Topic & Format info */}
-                  <div className="playbook-curation-header" style={{ border: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)', borderRadius: 0, padding: '10px 20px', background: '#fafafa' }}>
-                    <span style={{ fontSize: '12.5px' }}>Formato: {idea.contentType || 'Post LinkedIn'}</span>
-                    <span className="playbook-curation-badge">Tópico: {idea.category || 'GTM'}</span>
-                    {idea.initialPriority && (
-                      <span style={{ fontSize: '12.5px', color: idea.initialPriority === 'Alta' ? '#dc2626' : '#d97706' }}>
-                        Prioridade {idea.initialPriority}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Playbook Angle Banner inside feed card */}
-                  {idea.playbookAngle && (
-                    <div className="playbook-angle-panel" style={{ border: 'none', borderBottom: '1px solid rgba(0,0,0,0.06)', borderRadius: 0, padding: '12px 20px' }}>
-                      <strong>🎯 ÂNGULO DE POSICIONAMENTO PLAYBOOK:</strong>
-                      <p style={{ marginTop: '2px' }}>{idea.playbookAngle}</p>
-                    </div>
-                  )}
-
+ 
                   {/* High Fidelity LinkedInCard */}
                   <LinkedInCard 
                     idea={idea} 
