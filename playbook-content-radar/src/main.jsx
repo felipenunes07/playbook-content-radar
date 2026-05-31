@@ -5,7 +5,8 @@ import {
   ExternalLink, Plus, BarChart3, UserRound, Check, X, Star, RotateCcw, 
   Search, Download, Trash2, AlertCircle, MessageSquare, FileText, 
   CheckCircle2, XCircle, AlertTriangle, ArrowLeft, Archive,
-  ThumbsUp, ThumbsDown, Lightbulb, MoreHorizontal, Calendar
+  ThumbsUp, ThumbsDown, Lightbulb, MoreHorizontal, Calendar,
+  TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock
 } from 'lucide-react';
 import './styles.css';
 import { createClient } from '@supabase/supabase-js';
@@ -833,6 +834,9 @@ function App() {
             <DashboardView 
               ideas={enrichedIdeas} 
               votes={state.votes} 
+              updateState={updateState}
+              addToast={addToast}
+              onScheduleIdea={(idea) => setSchedulingIdea(idea)}
               onNavigateToIdeas={(filter) => {
                 setCuratorFilter(filter);
                 setActiveFilter('todas');
@@ -1704,38 +1708,61 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
 }
 
 // ==================== ADMIN: DASHBOARD VIEW ====================
-function DashboardView({ ideas, votes, onNavigateToIdeas }) {
+function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, onNavigateToIdeas }) {
   const [activeTab, setActiveTab] = useState('curation');
 
+  // Basic stats
   const stats = useMemo(() => {
+    const total = ideas.length;
+    const aprovados = ideas.filter(i => i.computedStatus === 'aprovado').length;
+    const emProducao = ideas.filter(i => i.computedStatus === 'em_producao').length;
+    const publicadas = ideas.filter(i => i.computedStatus === 'publicada').length;
+    const rejeitadas = ideas.filter(i => i.computedStatus === 'rejeitado').length;
+    const divergentes = ideas.filter(i => i.computedStatus === 'divergente').length;
+    const pendentes = ideas.filter(i => i.computedStatus === 'pendente' || i.computedStatus === 'aguardando outro voto').length;
+    
+    // Calculated KPI indices
+    const totalVotos = votes.length;
+    const aprovacaoRate = total > 0 ? Math.round((aprovados / total) * 100) : 0;
+    
+    // Decisions efficiency: fraction of items with a concrete non-pending status (approved, rejected, production, published)
+    const comDecisao = ideas.filter(i => ['aprovado', 'rejeitado', 'em_producao', 'publicada'].includes(i.computedStatus)).length;
+    const decisaoRate = total > 0 ? Math.round((comDecisao / total) * 100) : 0;
+    
+    // Pending items count across both curators
+    const pendingVictorCount = ideas.filter(i => i.computedStatus !== 'arquivada' && i.computedStatus !== 'publicada' && !votes.some(v => v.ideaId === i.id && v.voterName === 'Victor')).length;
+    const pendingFernandoCount = ideas.filter(i => i.computedStatus !== 'arquivada' && i.computedStatus !== 'publicada' && !votes.some(v => v.ideaId === i.id && v.voterName === 'Fernando')).length;
+    const totalPendencias = pendingVictorCount + pendingFernandoCount;
+
     return {
-      total: ideas.length,
-      pendentes: ideas.filter(i => i.computedStatus === 'pendente' || i.computedStatus === 'aguardando outro voto').length,
-      aprovados: ideas.filter(i => i.computedStatus === 'aprovado').length,
-      divergentes: ideas.filter(i => i.computedStatus === 'divergente').length,
-      rejeitadas: ideas.filter(i => i.computedStatus === 'rejeitado').length,
-      emProducao: ideas.filter(i => i.computedStatus === 'em_producao').length,
-      publicadas: ideas.filter(i => i.computedStatus === 'publicada').length
+      total,
+      pendentes,
+      aprovados,
+      divergentes,
+      rejeitadas,
+      emProducao,
+      publicadas,
+      aprovacaoRate,
+      decisaoRate,
+      totalPendencias,
+      pendingVictorCount,
+      pendingFernandoCount
     };
-  }, [ideas]);
+  }, [ideas, votes]);
 
   const approvedBoth = useMemo(() => ideas.filter(i => i.computedStatus === 'aprovado'), [ideas]);
   const divergentIdeas = useMemo(() => ideas.filter(i => i.computedStatus === 'divergente'), [ideas]);
-  const evaluatingIdeas = useMemo(() => ideas.filter(i => i.computedStatus === 'avaliar'), [ideas]);
+  const evaluatingIdeas = useMemo(() => ideas.filter(i => i.computedStatus === 'avaliar' || i.computedStatus === 'aguardando outro voto' || i.computedStatus === 'pendente'), [ideas]);
 
-  const pendingVictor = useMemo(() => {
-    return ideas.filter(i => i.computedStatus !== 'arquivada' && i.computedStatus !== 'publicada' && !votes.some(v => v.ideaId === i.id && v.voterName === 'Victor')).length;
-  }, [ideas, votes]);
+  const pendingVictor = stats.pendingVictorCount;
+  const pendingFernando = stats.pendingFernandoCount;
 
-  const pendingFernando = useMemo(() => {
-    return ideas.filter(i => i.computedStatus !== 'arquivada' && i.computedStatus !== 'publicada' && !votes.some(v => v.ideaId === i.id && v.voterName === 'Fernando')).length;
-  }, [ideas, votes]);
-
+  // Visual breakdown metrics
   const categoryRanking = useMemo(() => {
     const counts = {};
     ideas.forEach(i => {
       if (!i.category) return;
-      if (i.computedStatus === 'aprovado') {
+      if (i.computedStatus === 'aprovado' || i.computedStatus === 'em_producao' || i.computedStatus === 'publicada') {
         counts[i.category] = (counts[i.category] || 0) + 1.5;
       } else if (i.computedStatus !== 'rejeitado') {
         counts[i.category] = (counts[i.category] || 0) + 0.5;
@@ -1754,28 +1781,101 @@ function DashboardView({ ideas, votes, onNavigateToIdeas }) {
     }));
   }, [ideas]);
 
+  const priorityBreakdown = useMemo(() => {
+    const total = ideas.length;
+    if (total === 0) return { alta: 0, media: 0, baixa: 0, altaPct: 0, mediaPct: 0, baixaPct: 0 };
+    const alta = ideas.filter(i => i.initialPriority === 'Alta').length;
+    const media = ideas.filter(i => i.initialPriority === 'Média').length;
+    const baixa = ideas.filter(i => i.initialPriority === 'Baixa').length;
+    return {
+      alta,
+      media,
+      baixa,
+      altaPct: Math.round((alta / total) * 100),
+      mediaPct: Math.round((media / total) * 100),
+      baixaPct: Math.round((baixa / total) * 100)
+    };
+  }, [ideas]);
+
+  const formatBreakdown = useMemo(() => {
+    const counts = {};
+    ideas.forEach(i => {
+      if (!i.contentType) return;
+      counts[i.contentType] = (counts[i.contentType] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([fmt, val]) => ({ label: fmt, count: val }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4);
+  }, [ideas]);
+
+  // Executive Actions (Conciliador & Quick Decisions)
+  const handleConciliation = (ideaId, finalDecision) => {
+    // Override autoStatus/divergence by forcing manualStatus in Supabase/local state
+    updateState(prev => {
+      const updatedIdeas = prev.ideas.map(idea => {
+        if (idea.id === ideaId) {
+          return {
+            ...idea,
+            manualStatus: finalDecision // 'aprovado' or 'rejeitado'
+          };
+        }
+        return idea;
+      });
+      return {
+        ...prev,
+        ideas: updatedIdeas
+      };
+    });
+    addToast(
+      finalDecision === 'aprovado' 
+        ? "Pauta conciliada e aprovada com sucesso!" 
+        : "Pauta conciliada e arquivada com sucesso!",
+      "success"
+    );
+  };
+
+  const handleManualAction = (ideaId, actionType) => {
+    updateState(prev => {
+      const updated = prev.ideas.map(idea => {
+        if (idea.id === ideaId) {
+          return {
+            ...idea,
+            manualStatus: actionType // 'aprovado', 'rejeitado', 'arquivada', etc.
+          };
+        }
+        return idea;
+      });
+      return { ...prev, ideas: updated };
+    });
+    addToast(`Pauta marcada como ${actionType === 'aprovado' ? 'aprovada' : 'arquivada'}!`, "success");
+  };
+
   return (
     <section className="li-dashboard-container">
       {/* LinkedIn Company Admin Header Profile Card */}
       <header className="li-company-card shadow-li">
-        <div className="li-company-banner"></div>
+        <div className="li-company-banner" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #0a66c2 100%)' }}></div>
         <div className="li-company-profile-row">
-          <div className="li-company-avatar">P</div>
+          <div className="li-company-avatar" style={{ borderRadius: '12px', background: '#0a66c2', fontSize: '36px', border: '3px solid #ffffff' }}>P</div>
           <div className="li-company-info">
             <div className="li-company-title-row">
-              <h2>Playbook Lab</h2>
-              <span className="li-verified-badge" title="Página Corporativa Verificada">✓</span>
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Playbook Lab
+                <span className="li-verified-badge" title="Página Corporativa Verificada" style={{ background: '#0a66c2', fontSize: '10px' }}>✓</span>
+              </h2>
             </div>
             <p className="li-company-tagline">Content Radar • Hub de Inteligência Editorial</p>
-            <p className="li-company-details">Serviços de tecnologia empresarial • São Paulo, SP • 43 funcionários</p>
+            <p className="li-company-details">Serviços de consultoria empresarial • São Paulo, SP • 43 funcionários</p>
           </div>
-          <div className="li-company-actions">
+          <div className="li-company-actions" style={{ gap: '10px' }}>
             <button 
               type="button" 
               className="li-btn-primary" 
               onClick={() => onNavigateToIdeas && onNavigateToIdeas('todos')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 20px', borderRadius: '100px' }}
             >
-              Visualizar Acervo
+              <FileText size={14} /> Visualizar Acervo
             </button>
           </div>
         </div>
@@ -1786,55 +1886,105 @@ function DashboardView({ ideas, votes, onNavigateToIdeas }) {
             type="button"
             className={activeTab === 'curation' ? 'li-admin-tab active' : 'li-admin-tab'}
             onClick={() => setActiveTab('curation')}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            Curation Hub
+            <Zap size={14} /> Curation Hub
           </button>
           <button 
             type="button"
             className={activeTab === 'analytics' ? 'li-admin-tab active' : 'li-admin-tab'}
             onClick={() => setActiveTab('analytics')}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            Métricas & Analytics
+            <BarChart3 size={14} /> Métricas & Analytics
           </button>
           <button 
             type="button"
             className={activeTab === 'activity' ? 'li-admin-tab active' : 'li-admin-tab'}
             onClick={() => setActiveTab('activity')}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
-            Atividade Recente
+            <Clock size={14} /> Atividade Recente
           </button>
         </div>
       </header>
+
+      {/* NEW: upper premium KPI Grid */}
+      <div className="li-kpis-grid">
+        <div className="li-kpi-card kpi-mapped">
+          <div className="li-kpi-icon-wrap mapped"><FileText size={20} /></div>
+          <div className="li-kpi-details">
+            <span className="li-kpi-label">Total Mapeado</span>
+            <span className="li-kpi-value">{stats.total}</span>
+            <span className="li-kpi-trend info">Referências no Radar</span>
+          </div>
+        </div>
+
+        <div className="li-kpi-card kpi-approved">
+          <div className="li-kpi-icon-wrap approved"><CheckCircle2 size={20} /></div>
+          <div className="li-kpi-details">
+            <span className="li-kpi-label">Taxa Aprovação</span>
+            <span className="li-kpi-value">{stats.aprovacaoRate}%</span>
+            <span className="li-kpi-trend up">⭐ {stats.aprovados} pautas aprovadas</span>
+          </div>
+        </div>
+
+        <div className="li-kpi-card kpi-divergent">
+          <div className="li-kpi-icon-wrap divergent"><AlertTriangle size={20} /></div>
+          <div className="li-kpi-details">
+            <span className="li-kpi-label">Decisão Eficiente</span>
+            <span className="li-kpi-value">{stats.decisaoRate}%</span>
+            <span className="li-kpi-trend warn">📊 {ideas.length - stats.pendentes} tratadas</span>
+          </div>
+        </div>
+
+        <div className="li-kpi-card kpi-pending">
+          <div className="li-kpi-icon-wrap pending"><Clock size={20} /></div>
+          <div className="li-kpi-details">
+            <span className="li-kpi-label">Ações Pendentes</span>
+            <span className="li-kpi-value" style={{ color: stats.totalPendencias > 0 ? '#d13022' : 'inherit' }}>
+              {stats.totalPendencias}
+            </span>
+            <span className="li-kpi-trend" style={{ color: stats.totalPendencias > 0 ? '#d13022' : '#057642' }}>
+              {stats.totalPendencias > 0 ? '⚠️ Caixa de curadoria cheia' : '🎉 Tudo limpo!'}
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* 3-Column LinkedIn Feed Style Layout */}
       <div className="li-three-columns">
         
         {/* Left Column: Metrics and Stats widget */}
         <aside className="li-column-left">
-          <div className="li-sidebar-widget shadow-li">
-            <h3>Painel do Criador</h3>
-            <p className="desc">Desempenho editorial das referências</p>
+          <div className="li-sidebar-widget shadow-li" style={{ borderRadius: '12px' }}>
+            <h3 style={{ fontSize: '13px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.04em' }}>Painel do Criador</h3>
+            <p className="desc" style={{ fontSize: '11px', color: '#94a3b8' }}>Desempenho editorial das referências</p>
             <hr className="divider" />
             
             <div className="li-metric-row">
-              <span>Mapeadas</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FileText size={13} /> Mapeadas</span>
               <strong>{stats.total}</strong>
             </div>
             <div className="li-metric-row">
-              <span>Aprovadas</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Check size={13} className="text-green" /> Aprovadas</span>
               <strong className="text-green">{stats.aprovados}</strong>
             </div>
             <div className="li-metric-row">
-              <span>Divergentes</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AlertTriangle size={13} className="text-amber" /> Divergentes</span>
               <strong className="text-amber">{stats.divergentes}</strong>
             </div>
             <div className="li-metric-row">
-              <span>Rejeitadas</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><X size={13} className="text-red" /> Rejeitadas</span>
               <strong className="text-red">{stats.rejeitadas}</strong>
             </div>
             <div className="li-metric-row">
-              <span>Em Produção</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={13} /> Em Produção</span>
               <strong>{stats.emProducao}</strong>
+            </div>
+            <div className="li-metric-row" style={{ borderBottom: 'none' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Award size={13} className="text-green" style={{ color: '#0a66c2' }} /> Publicadas</span>
+              <strong style={{ color: '#0a66c2' }}>{stats.publicadas}</strong>
             </div>
           </div>
         </aside>
@@ -1844,79 +1994,207 @@ function DashboardView({ ideas, votes, onNavigateToIdeas }) {
           {activeTab === 'curation' && (
             <>
               {/* Section: Aprovadas por Ambos */}
-              <div className="li-feed-card shadow-li">
-                <div className="card-header">
-                  <h3>Aprovadas por Ambos</h3>
-                  <span className="badge-pill success">Prontos para Sheets</span>
+              <div className="li-feed-card shadow-li" style={{ borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div className="card-header" style={{ marginBottom: '12px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>Aprovadas por Ambos</h3>
+                  <span className="badge-pill success">Prontas para Sheets / Agendamento</span>
                 </div>
                 {approvedBoth.length === 0 ? (
                   <p className="li-empty-text">Nenhuma pauta aprovada por ambos ainda.</p>
                 ) : (
                   <div className="li-feed-list">
                     {approvedBoth.map(item => (
-                      <div key={item.id} className="li-feed-item">
+                      <div key={item.id} className="li-feed-item" style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '8px' }}>
                         <div className="item-meta">
-                          <h4>{item.title}</h4>
-                          <span>{item.category} • {item.contentType}</span>
+                          <h4 style={{ color: '#0f172a', fontWeight: 600 }}>{item.title}</h4>
+                          <span style={{ color: '#64748b' }}>{item.category} • {item.contentType}</span>
                         </div>
-                        <button 
-                          type="button"
-                          className="li-feed-action-btn"
-                          onClick={() => onNavigateToIdeas && onNavigateToIdeas('todos')}
-                        >
-                          Ver Detalhes
-                        </button>
+                        <div className="li-action-btn-group">
+                          <button 
+                            type="button"
+                            className="li-btn-quick-action schedule-direct"
+                            onClick={() => onScheduleIdea && onScheduleIdea(item)}
+                            title="Agendar diretamente no Calendário Editorial"
+                          >
+                            <Calendar size={12} /> Agendar
+                          </button>
+                          <button 
+                            type="button"
+                            className="li-feed-action-btn"
+                            onClick={() => onNavigateToIdeas && onNavigateToIdeas('todos')}
+                            style={{ padding: '5px 12px', fontSize: '11.5px' }}
+                          >
+                            Ver Detalhes
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Section: Divergentes */}
-              <div className="li-feed-card shadow-li">
+              {/* NEW/SMART: Divergência de Votos com Conciliação Executiva (Voto de Minerva) */}
+              <div className="li-feed-card shadow-li" style={{ borderRadius: '12px', border: '1px solid #fca5a5' }}>
                 <div className="card-header">
-                  <h3>Divergência de Votos</h3>
-                  <span className="badge-pill warning">Requer Conciliação</span>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#991b1b' }}>Divergência de Votos</h3>
+                  <span className="badge-pill warning" style={{ background: '#fee2e2', color: '#991b1b' }}>Requer Conciliação Admin</span>
                 </div>
                 {divergentIdeas.length === 0 ? (
                   <p className="li-empty-text">Nenhuma divergência identificada no radar.</p>
                 ) : (
                   <div className="li-feed-list">
-                    {divergentIdeas.map(item => (
-                      <div key={item.id} className="li-feed-item">
-                        <div className="item-meta">
-                          <h4>{item.title}</h4>
-                          <span>{item.category} • {item.contentType}</span>
+                    {divergentIdeas.map(item => {
+                      const victorVote = votes.find(v => v.ideaId === item.id && v.voterName === 'Victor');
+                      const fernandoVote = votes.find(v => v.ideaId === item.id && v.voterName === 'Fernando');
+                      
+                      return (
+                        <div key={item.id} className="li-feed-item divergent-item" style={{ borderRadius: '8px', padding: '14px' }}>
+                          <div className="divergent-item-row-top">
+                            <div className="item-meta">
+                              <h4 style={{ color: '#0f172a', fontSize: '14px' }}>{item.title}</h4>
+                              <span style={{ color: '#64748b' }}>{item.category} • {item.contentType}</span>
+                              {item.playbookAngle && (
+                                <p style={{ fontSize: '11.5px', color: '#b45309', background: '#fffbeb', padding: '6px 8px', borderRadius: '4px', marginTop: '6px', borderLeft: '2px solid #f59e0b' }}>
+                                  🎯 <strong>Ângulo Playbook:</strong> {item.playbookAngle}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="divergent-item-row-bottom">
+                            {/* Voters detailed view */}
+                            <div className="li-curators-mini-status">
+                              <div className="curator-status-avatar-row">
+                                <img 
+                                  src={USER_AVATARS.Victor} 
+                                  alt="Victor" 
+                                  className="curator-mini-avatar"
+                                  onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Victor&background=057642&color=fff"; }}
+                                />
+                                <span className={`curator-mini-status-text ${victorVote?.vote === 'like' ? 'liked' : 'disliked'}`}>
+                                  Victor: {victorVote?.vote === 'like' ? '👍 Gostou' : '👎 Rejeitou'}
+                                </span>
+                              </div>
+                              <div className="curator-status-avatar-row">
+                                <img 
+                                  src={USER_AVATARS.Fernando} 
+                                  alt="Fernando" 
+                                  className="curator-mini-avatar"
+                                  onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff"; }}
+                                />
+                                <span className={`curator-mini-status-text ${fernandoVote?.vote === 'like' ? 'liked' : 'disliked'}`}>
+                                  Fernando: {fernandoVote?.vote === 'like' ? '👍 Gostou' : '👎 Rejeitou'}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {/* Executive Decision Buttons (Voto de minerva) */}
+                            <div className="li-action-btn-group">
+                              <button 
+                                type="button" 
+                                className="li-btn-quick-action approve-conciliate"
+                                onClick={() => handleConciliation(item.id, 'aprovado')}
+                              >
+                                <Check size={12} /> Aprovar
+                              </button>
+                              <button 
+                                type="button" 
+                                className="li-btn-quick-action reject-conciliate"
+                                onClick={() => handleConciliation(item.id, 'rejeitado')}
+                              >
+                                <X size={12} /> Recusar
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* Voter comments below */}
+                          {(victorVote?.comment || fernandoVote?.comment) && (
+                            <div style={{ marginTop: '8px', padding: '8px 10px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '11px', color: '#475569' }}>
+                              {victorVote?.comment && <p><strong>Victor:</strong> "{victorVote.comment}"</p>}
+                              {fernandoVote?.comment && <p style={{ marginTop: victorVote?.comment ? '4px' : '0' }}><strong>Fernando:</strong> "{fernandoVote.comment}"</p>}
+                            </div>
+                          )}
                         </div>
-                        <div className="item-voters-row">
-                          <span className="voter-badge green">Victor: Gostou</span>
-                          <span className="voter-badge red">Fernando: Rejeitou</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
-              {/* Section: Sob Avaliação */}
-              <div className="li-feed-card shadow-li">
+              {/* Section: Sob Avaliação Editorial with detailed status */}
+              <div className="li-feed-card shadow-li" style={{ borderRadius: '12px', border: '1px solid #cbd5e1' }}>
                 <div className="card-header">
-                  <h3>Sob Avaliação Editorial</h3>
-                  <span className="badge-pill info">Score &lt; 2</span>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#334155' }}>Fila Geral de Avaliação</h3>
+                  <span className="badge-pill info">Aguardando Decisões</span>
                 </div>
                 {evaluatingIdeas.length === 0 ? (
                   <p className="li-empty-text">Nenhuma pauta sob avaliação aguardando.</p>
                 ) : (
                   <div className="li-feed-list">
-                    {evaluatingIdeas.map(item => (
-                      <div key={item.id} className="li-feed-item">
-                        <div className="item-meta">
-                          <h4>{item.title}</h4>
-                          <span>{item.category} • {item.contentType}</span>
+                    {evaluatingIdeas.map(item => {
+                      const victorVote = votes.find(v => v.ideaId === item.id && v.voterName === 'Victor');
+                      const fernandoVote = votes.find(v => v.ideaId === item.id && v.voterName === 'Fernando');
+                      
+                      return (
+                        <div key={item.id} className="li-feed-item evaluating-item" style={{ borderRadius: '8px', padding: '12px' }}>
+                          <div className="divergent-item-row-top">
+                            <div className="item-meta">
+                              <h4 style={{ color: '#0f172a', fontSize: '13.5px' }}>{item.title}</h4>
+                              <span style={{ color: '#64748b' }}>{item.category} • {item.contentType}</span>
+                            </div>
+                            <span className="score-tag" style={{ background: '#f1f5f9', color: '#475569' }}>Score {item.score}</span>
+                          </div>
+                          
+                          <div className="evaluation-votes-grid">
+                            <div className="evaluation-voter-col">
+                              <img 
+                                src={USER_AVATARS.Victor} 
+                                alt="Victor" 
+                                className="curator-mini-avatar"
+                                onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Victor&background=057642&color=fff"; }}
+                              />
+                              <span>Victor:</span>
+                              <span className={victorVote ? (victorVote.vote === 'like' ? 'text-green' : victorVote.vote === 'maybe' ? 'text-amber' : 'text-red') : 'text-muted'} style={{ fontWeight: 700 }}>
+                                {victorVote ? (victorVote.vote === 'like' ? 'Gostou' : victorVote.vote === 'maybe' ? 'Talvez' : 'Rejeitou') : '⏳ Aguardando'}
+                              </span>
+                            </div>
+                            
+                            <div className="evaluation-voter-col">
+                              <img 
+                                src={USER_AVATARS.Fernando} 
+                                alt="Fernando" 
+                                className="curator-mini-avatar"
+                                onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff"; }}
+                              />
+                              <span>Fernando:</span>
+                              <span className={fernandoVote ? (fernandoVote.vote === 'like' ? 'text-green' : fernandoVote.vote === 'maybe' ? 'text-amber' : 'text-red') : 'text-muted'} style={{ fontWeight: 700 }}>
+                                {fernandoVote ? (fernandoVote.vote === 'like' ? 'Gostou' : fernandoVote.vote === 'maybe' ? 'Talvez' : 'Rejeitou') : '⏳ Aguardando'}
+                              </span>
+                            </div>
+
+                            {/* Direct Admin Overrides */}
+                            <div className="li-action-btn-group" style={{ marginLeft: 'auto' }}>
+                              <button 
+                                type="button" 
+                                className="li-btn-quick-action approve-conciliate" 
+                                style={{ padding: '3px 10px', fontSize: '10px' }}
+                                onClick={() => handleManualAction(item.id, 'aprovado')}
+                              >
+                                Forçar Aprovação
+                              </button>
+                              <button 
+                                type="button" 
+                                className="li-btn-quick-action reject-conciliate" 
+                                style={{ padding: '3px 10px', fontSize: '10px' }}
+                                onClick={() => handleManualAction(item.id, 'arquivada')}
+                              >
+                                Arquivar
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <span className="score-tag">Score {item.score}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1924,61 +2202,140 @@ function DashboardView({ ideas, votes, onNavigateToIdeas }) {
           )}
 
           {activeTab === 'analytics' && (
-            <div className="li-feed-card shadow-li">
-              <div className="card-header">
-                <h3>Desempenho por Categoria</h3>
-              </div>
-              {categoryRanking.length === 0 ? (
-                <p className="li-empty-text">Sem dados estatísticos de categorias no momento.</p>
-              ) : (
-                <div className="li-charts-list">
-                  {categoryRanking.map(item => (
-                    <div key={item.name} className="li-chart-item">
-                      <div className="li-chart-label">
-                        <span>{item.name}</span>
-                        <strong>{item.score} pontos</strong>
-                      </div>
-                      <div className="li-chart-bar-outer">
-                        <div className="li-chart-bar-inner" style={{ width: `${item.percentage}%` }}></div>
-                      </div>
-                    </div>
-                  ))}
+            <div className="metrics-section-grid">
+              {/* Left Column: Category Ranking */}
+              <div className="li-feed-card shadow-li" style={{ borderRadius: '12px' }}>
+                <div className="card-header">
+                  <h3 style={{ fontWeight: 700 }}>Desempenho por Categoria</h3>
                 </div>
-              )}
+                {categoryRanking.length === 0 ? (
+                  <p className="li-empty-text">Sem dados estatísticos de categorias no momento.</p>
+                ) : (
+                  <div className="li-charts-list" style={{ gap: '18px' }}>
+                    {categoryRanking.map(item => (
+                      <div key={item.name} className="li-chart-item">
+                        <div className="li-chart-label" style={{ fontSize: '13px', fontWeight: 600 }}>
+                          <span>{item.name}</span>
+                          <strong style={{ color: '#0a66c2' }}>{item.score} pontos</strong>
+                        </div>
+                        <div className="li-chart-bar-outer" style={{ height: '8px', background: '#f1f5f9' }}>
+                          <div 
+                            className="li-chart-bar-inner" 
+                            style={{ 
+                              width: `${item.percentage}%`,
+                              background: 'linear-gradient(to right, #0a66c2, #3b82f6)',
+                              boxShadow: '0 1px 3px rgba(10, 102, 194, 0.3)'
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: Breakdown metrics */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                {/* Priority distribution */}
+                <div className="metrics-secondary-card shadow-li" style={{ borderRadius: '12px' }}>
+                  <h3>Distribuição de Prioridades</h3>
+                  <div className="priority-distribution-list">
+                    <div className="priority-dist-item">
+                      <div className="priority-dist-color alta"></div>
+                      <span className="priority-dist-label">Alta</span>
+                      <div className="priority-dist-bar-wrap">
+                        <div className="priority-dist-bar-fill" style={{ width: `${priorityBreakdown.altaPct}%`, background: 'linear-gradient(90deg, #d13022, #f87171)' }}></div>
+                      </div>
+                      <span className="priority-dist-count">{priorityBreakdown.alta} ({priorityBreakdown.altaPct}%)</span>
+                    </div>
+
+                    <div className="priority-dist-item">
+                      <div className="priority-dist-color media"></div>
+                      <span className="priority-dist-label">Média</span>
+                      <div className="priority-dist-bar-wrap">
+                        <div className="priority-dist-bar-fill" style={{ width: `${priorityBreakdown.mediaPct}%`, background: 'linear-gradient(90deg, #b26200, #f59e0b)' }}></div>
+                      </div>
+                      <span className="priority-dist-count">{priorityBreakdown.media} ({priorityBreakdown.mediaPct}%)</span>
+                    </div>
+
+                    <div className="priority-dist-item">
+                      <div className="priority-dist-color baixa"></div>
+                      <span className="priority-dist-label">Baixa</span>
+                      <div className="priority-dist-bar-wrap">
+                        <div className="priority-dist-bar-fill" style={{ width: `${priorityBreakdown.baixaPct}%`, background: 'linear-gradient(90deg, #057642, #10b981)' }}></div>
+                      </div>
+                      <span className="priority-dist-count">{priorityBreakdown.baixa} ({priorityBreakdown.baixaPct}%)</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Formats Breakdown grid */}
+                <div className="metrics-secondary-card shadow-li" style={{ borderRadius: '12px' }}>
+                  <h3>Formatos Populares</h3>
+                  <div className="formats-distribution-grid">
+                    {formatBreakdown.length === 0 ? (
+                      <p className="li-empty-text" style={{ gridColumn: 'span 2' }}>Sem dados.</p>
+                    ) : (
+                      formatBreakdown.map(fmt => (
+                        <div key={fmt.label} className="format-stat-box">
+                          <span className="format-stat-count">{fmt.count}</span>
+                          <span className="format-stat-label" title={fmt.label}>{fmt.label}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+              </div>
             </div>
           )}
 
           {activeTab === 'activity' && (
-            <div className="li-feed-card shadow-li">
-              <div className="card-header">
-                <h3>Atividade Recente de Curadoria</h3>
+            <div className="li-feed-card shadow-li" style={{ borderRadius: '12px' }}>
+              <div className="card-header" style={{ marginBottom: '20px' }}>
+                <h3 style={{ fontWeight: 700 }}>Histórico Recente de Atividades</h3>
               </div>
               {votes.length === 0 ? (
-                <p className="li-empty-text">Nenhuma votação recente registrada.</p>
+                <p className="li-empty-text">Nenhuma atividade registrada.</p>
               ) : (
-                <div className="li-activity-feed">
+                <div className="li-activity-timeline">
                   {votes.slice(0, 10).map(v => {
-                    const ideaTitle = ideas.find(i => i.id === v.ideaId)?.title || 'Pauta Mapeada';
+                    const idea = ideas.find(i => i.id === v.ideaId);
+                    const ideaTitle = idea?.title || 'Pauta Mapeada';
+                    
                     return (
-                      <div key={v.id} className="li-activity-item">
-                        <div className="li-activity-avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <img 
-                            src={USER_AVATARS[v.voterName] || USER_AVATARS.Felipe} 
-                            alt={v.voterName} 
-                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(v.voterName)}&background=0a66c2&color=fff&bold=true`;
-                            }}
-                          />
-                        </div>
-                        <div className="li-activity-details">
-                          <p>
-                            <strong>{v.voterName}</strong> votou <strong>{v.vote === 'like' ? 'Gostei' : v.vote === 'maybe' ? 'Talvez' : 'Não Gostei'}</strong> em:
-                          </p>
-                          <span className="li-activity-pauta-title">"{ideaTitle}"</span>
-                          {v.comment && <p className="li-activity-comment">"{v.comment}"</p>}
-                          <span className="li-activity-time">{new Date(v.createdAt).toLocaleString('pt-BR')}</span>
+                      <div key={v.id} className="activity-timeline-item">
+                        <div className="activity-timeline-node"></div>
+                        <div className="timeline-item-inner">
+                          <div className="timeline-avatar-wrap">
+                            <img 
+                              src={USER_AVATARS[v.voterName] || USER_AVATARS.Felipe} 
+                              alt={v.voterName} 
+                              className="timeline-avatar-img"
+                              onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(v.voterName)}&background=0a66c2&color=fff`; }}
+                            />
+                          </div>
+                          
+                          <div className="timeline-content-wrap">
+                            <div className="timeline-content-top">
+                              <span className="timeline-user-info">
+                                <strong>{v.voterName}</strong> ({v.voterName === 'Felipe' ? 'Administrador' : 'Curador'})
+                              </span>
+                              <span className={`timeline-action-badge ${v.vote}`}>
+                                {voteLabel(v.vote)}
+                              </span>
+                            </div>
+                            
+                            <span className="timeline-time-ago">{new Date(v.createdAt).toLocaleString('pt-BR')}</span>
+                            <p className="timeline-target-title">Pauta: "{ideaTitle}"</p>
+                            
+                            {v.comment && (
+                              <div className="timeline-comment-box">
+                                "{v.comment}"
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -1991,16 +2348,17 @@ function DashboardView({ ideas, votes, onNavigateToIdeas }) {
  
         {/* Right Column: Pending voters / Curation boxes */}
         <aside className="li-column-right">
-          <div className="li-sidebar-widget shadow-li">
-            <h3>Pendências por Votante</h3>
-            <p className="desc">Ações pendentes na caixa de entrada</p>
+          <div className="li-sidebar-widget shadow-li" style={{ borderRadius: '12px' }}>
+            <h3 style={{ fontSize: '13px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.04em' }}>Pendências</h3>
+            <p className="desc" style={{ fontSize: '11px', color: '#94a3b8' }}>Ações pendentes na caixa de entrada</p>
             <hr className="divider" />
              
-            <div className="li-pending-voters-list">
+            <div className="li-pending-voters-list" style={{ gap: '10px' }}>
               <button 
                 type="button"
                 className="li-pending-voter-card victor"
                 onClick={() => onNavigateToIdeas && onNavigateToIdeas('victor_pending')}
+                style={{ borderRadius: '8px', borderLeft: '3px solid #057642' }}
               >
                 <div className="voter-info">
                   <div className="avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -2008,24 +2366,24 @@ function DashboardView({ ideas, votes, onNavigateToIdeas }) {
                       src={USER_AVATARS.Victor} 
                       alt="Victor" 
                       style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = `https://ui-avatars.com/api/?name=Victor&background=057642&color=fff&bold=true`;
-                      }}
+                      onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=Victor&background=057642&color=fff&bold=true`; }}
                     />
                   </div>
                   <div>
-                    <h4>Victor</h4>
-                    <p>Curador de Conteúdo</p>
+                    <h4 style={{ fontWeight: 600 }}>Victor</h4>
+                    <p style={{ fontSize: '10.5px' }}>Curador Editorial</p>
                   </div>
                 </div>
-                <strong className="badge">{pendingVictor}</strong>
+                <strong className="badge" style={{ background: pendingVictor > 0 ? '#ef4444' : '#e6f4ea', color: pendingVictor > 0 ? '#ffffff' : '#137333' }}>
+                  {pendingVictor}
+                </strong>
               </button>
  
               <button 
                 type="button"
                 className="li-pending-voter-card fernando"
                 onClick={() => onNavigateToIdeas && onNavigateToIdeas('fernando_pending')}
+                style={{ borderRadius: '8px', borderLeft: '3px solid #b26200' }}
               >
                 <div className="voter-info">
                   <div className="avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -2033,18 +2391,17 @@ function DashboardView({ ideas, votes, onNavigateToIdeas }) {
                       src={USER_AVATARS.Fernando} 
                       alt="Fernando" 
                       style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = `https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff&bold=true`;
-                      }}
+                      onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff&bold=true`; }}
                     />
                   </div>
                   <div>
-                    <h4>Fernando</h4>
-                    <p>Curador de Conteúdo</p>
+                    <h4 style={{ fontWeight: 600 }}>Fernando</h4>
+                    <p style={{ fontSize: '10.5px' }}>Curador Editorial</p>
                   </div>
                 </div>
-                <strong className="badge">{pendingFernando}</strong>
+                <strong className="badge" style={{ background: pendingFernando > 0 ? '#ef4444' : '#e6f4ea', color: pendingFernando > 0 ? '#ffffff' : '#137333' }}>
+                  {pendingFernando}
+                </strong>
               </button>
             </div>
           </div>
