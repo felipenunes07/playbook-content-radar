@@ -6,6 +6,19 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+// Helper to decode XML/HTML entities
+const decodeHtmlEntities = (str: string): string => {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x2F;/g, '/');
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -67,16 +80,22 @@ Deno.serve(async (req: Request) => {
       try {
         const jsonData = JSON.parse(jsonLdMatch[1]);
         
-        // 1. Author name
+        // 1. Author/Creator name
         if (jsonData.author?.name) {
           authorName = jsonData.author.name;
+        } else if (jsonData.creator?.name) {
+          authorName = jsonData.creator.name;
         }
         
-        // 2. Author avatar picture
+        // 2. Author avatar picture from JSON-LD
         if (jsonData.author?.image?.url) {
           authorAvatar = jsonData.author.image.url;
         } else if (typeof jsonData.author?.image === 'string') {
           authorAvatar = jsonData.author.image;
+        } else if (jsonData.creator?.image?.url) {
+          authorAvatar = jsonData.creator.image.url;
+        } else if (typeof jsonData.creator?.image === 'string') {
+          authorAvatar = jsonData.creator.image;
         }
         
         // 3. Full article/post body
@@ -108,11 +127,27 @@ Deno.serve(async (req: Request) => {
       } catch { /* ignore and parse next JSON-LD */ }
     }
 
-    // Fallbacks
+    // Fallbacks for Author Name
     const bestTitle = ogTitle || pageTitle;
     if (!authorName && bestTitle) {
       const authorMatch = bestTitle.match(/^(.+?)(?:\s+on\s+LinkedIn|\s+no\s+LinkedIn|\s+posted\s+on|\s+\|\s+LinkedIn)/i);
       if (authorMatch) authorName = authorMatch[1].trim();
+    }
+
+    // Search HTML for real profile photo if not found in JSON-LD or if it is generic/empty
+    if (authorName) {
+      const escapedAuthor = authorName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Look for src/data-delayed-url in <img> tags with alt containing the author's name
+      const imgRegex1 = new RegExp(`<img\\s+[^>]*(?:data-delayed-url|data-ghost-url|src)="([^"]+)"[^>]*alt="(?:View profile for\\s+)?` + escapedAuthor + `"`, 'i');
+      const imgRegex2 = new RegExp(`<img\\s+[^>]*alt="(?:View profile for\\s+)?` + escapedAuthor + `"[^>]*(?:data-delayed-url|data-ghost-url|src)="([^"]+)"`, 'i');
+      
+      const match1 = html.match(imgRegex1);
+      const match2 = html.match(imgRegex2);
+      const matchedUrl = match1?.[1] || match2?.[1];
+      
+      if (matchedUrl && !matchedUrl.includes('static.licdn.com') && !matchedUrl.includes('ghost')) {
+        authorAvatar = matchedUrl;
+      }
     }
 
     const bestDescription = articleBody || ogDescription;
@@ -121,6 +156,11 @@ Deno.serve(async (req: Request) => {
     let postImage = ogImage;
     if (ogImage && (ogImage.includes('static.licdn.com') || ogImage.includes('favicon') || ogImage.includes('default'))) {
       postImage = '';
+    }
+
+    // Filter out generic profile avatars from authorAvatar
+    if (authorAvatar && (authorAvatar.includes('static.licdn.com') || authorAvatar.includes('ghost') || authorAvatar.includes('default'))) {
+      authorAvatar = '';
     }
 
     // Metrics simulation fallbacks if they are 0 or undefined
@@ -153,14 +193,21 @@ Deno.serve(async (req: Request) => {
       authorHeadline = 'Profissional de Tecnologia & Negócios no LinkedIn';
     }
 
+    // Decode HTML entities to guarantee standard characters and clean URLs
+    const decodedAuthor = decodeHtmlEntities(authorName || 'Autor LinkedIn');
+    const decodedTitle = decodeHtmlEntities(bestTitle || 'Post do LinkedIn');
+    const decodedDescription = decodeHtmlEntities(bestDescription);
+    const decodedAvatar = decodeHtmlEntities(authorAvatar);
+    const decodedImage = decodeHtmlEntities(postImage);
+
     const result = {
       success: !!bestDescription,
-      author: authorName || 'Autor LinkedIn',
+      author: decodedAuthor,
       authorHeadline: authorHeadline,
-      authorAvatar: authorAvatar,
-      title: bestTitle || 'Post do LinkedIn',
-      description: bestDescription,
-      image: postImage,
+      authorAvatar: decodedAvatar,
+      title: decodedTitle,
+      description: decodedDescription,
+      image: decodedImage,
       mockLikes,
       mockCommentsCount: mockComments,
       mockRepostsCount: mockReposts,

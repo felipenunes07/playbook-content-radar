@@ -5,7 +5,7 @@ import {
   ExternalLink, Plus, BarChart3, UserRound, Check, X, Star, RotateCcw, 
   Search, Download, Trash2, AlertCircle, MessageSquare, FileText, 
   CheckCircle2, XCircle, AlertTriangle, ArrowLeft, Archive,
-  ThumbsUp, ThumbsDown, Lightbulb, MoreHorizontal
+  ThumbsUp, ThumbsDown, Lightbulb, MoreHorizontal, Calendar
 } from 'lucide-react';
 import './styles.css';
 import { createClient } from '@supabase/supabase-js';
@@ -74,7 +74,7 @@ const STORAGE_KEY = 'playbook-content-radar-v3';
 const USER_AVATARS = {
   Victor: "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1781740800&v=beta&t=9c3ObEUV2RPArOaUVbvqypVwGTH4cD4yYr8oKMx9wmY",
   Fernando: "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1691368512757?e=1781740800&v=beta&t=8DPmkbjdmCK80cNFjIBlK5DHUZaAaL4co3rO-chr9r0",
-  Felipe: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
+  Felipe: "https://media.licdn.com/dms/image/v2/D4D03AQHQVwVWSBIZ9w/profile-displayphoto-scale_100_100/B4DZ2ivlzRIkAg-/0/1776551921279?e=1781740800&v=beta&t=ELKZ6ifPLz7lM1S99_QrkRfbtUrzuGr0s2pMcGbwj6w"
 };
 
 // Safe UUID helper
@@ -382,6 +382,8 @@ function App() {
   const [curatorFilter, setCuratorFilter] = useState('todos');
   const [activeFilter, setActiveFilter] = useState('todas');
   const [isLoading, setIsLoading] = useState(false);
+  const [schedulingIdea, setSchedulingIdea] = useState(null);
+  const [schedulingDate, setSchedulingDate] = useState(null);
 
   function addToast(message, type = 'success') {
     const id = generateUUID();
@@ -468,7 +470,10 @@ function App() {
         manualStatus: item.manual_status,
         mockLikes: item.mock_likes,
         mockCommentsCount: item.mock_comments_count,
-        mockRepostsCount: item.mock_reposts_count
+        mockRepostsCount: item.mock_reposts_count,
+        scheduledAt: item.scheduled_at,
+        scheduledAssignee: item.scheduled_assignee,
+        finalPostText: item.final_post_text
       }));
       
       const mappedVotes = (dbVotes || []).map(item => ({
@@ -518,7 +523,10 @@ function App() {
           manual_status: idea.manualStatus || null,
           mock_likes: idea.mockLikes || 0,
           mock_comments_count: idea.mockCommentsCount || 0,
-          mock_reposts_count: idea.mockRepostsCount || 0
+          mock_reposts_count: idea.mockRepostsCount || 0,
+          scheduled_at: idea.scheduledAt || null,
+          scheduled_assignee: idea.scheduledAssignee || null,
+          final_post_text: idea.finalPostText || null
         }]);
       }
 
@@ -528,12 +536,24 @@ function App() {
         await supabase.from('ideas').delete().eq('id', idea.id);
       }
 
-      // 3. Update ideas (manual_status)
+      // 3. Update ideas (manual_status, scheduled_at, scheduled_assignee, playbook_angle, final_post_text)
       for (const nextIdea of next.ideas) {
         const prevIdea = prev.ideas.find(pi => pi.id === nextIdea.id);
-        if (prevIdea && prevIdea.manualStatus !== nextIdea.manualStatus) {
+        if (prevIdea && (
+          prevIdea.manualStatus !== nextIdea.manualStatus ||
+          prevIdea.scheduledAt !== nextIdea.scheduledAt ||
+          prevIdea.scheduledAssignee !== nextIdea.scheduledAssignee ||
+          prevIdea.playbookAngle !== nextIdea.playbookAngle ||
+          prevIdea.finalPostText !== nextIdea.finalPostText
+        )) {
           await supabase.from('ideas')
-            .update({ manual_status: nextIdea.manualStatus })
+            .update({ 
+              manual_status: nextIdea.manualStatus,
+              scheduled_at: nextIdea.scheduledAt || null,
+              scheduled_assignee: nextIdea.scheduledAssignee || null,
+              playbook_angle: nextIdea.playbookAngle || null,
+              final_post_text: nextIdea.finalPostText || null
+            })
             .eq('id', nextIdea.id);
         }
       }
@@ -687,6 +707,12 @@ function App() {
                 >
                   <FileText size={16} /> Minhas Curadorias
                 </button>
+                <button 
+                  className={view === 'calendar' ? 'nav-link active' : 'nav-link'} 
+                  onClick={() => setView('calendar')}
+                >
+                  <Calendar size={16} /> Calendário Editorial
+                </button>
               </>
             )}
             
@@ -713,6 +739,12 @@ function App() {
                   }}
                 >
                   <FileText size={16} /> Listagem de Ideias
+                </button>
+                <button 
+                  className={view === 'calendar' ? 'nav-link active' : 'nav-link'} 
+                  onClick={() => setView('calendar')}
+                >
+                  <Calendar size={16} /> Calendário Editorial
                 </button>
                 <button 
                   className={view === 'data' ? 'nav-link active' : 'nav-link'} 
@@ -824,6 +856,17 @@ function App() {
               activeFilter={activeFilter}
               setActiveFilter={setActiveFilter}
               currentUser={user}
+              onScheduleIdea={(idea) => setSchedulingIdea(idea)}
+            />
+          )}
+          {view === 'calendar' && (
+            <CalendarView 
+              ideas={enrichedIdeas} 
+              updateState={updateState} 
+              currentUser={user}
+              onScheduleIdea={(idea) => setSchedulingIdea(idea)}
+              onScheduleDate={(date) => setSchedulingDate(date)}
+              addToast={addToast}
             />
           )}
           {view === 'data' && user === 'Felipe' && (
@@ -859,6 +902,15 @@ function App() {
               >
                 <FileText size={18} />
                 <span>Curadorias</span>
+              </button>
+
+              <button 
+                type="button" 
+                className={view === 'calendar' ? 'mobile-nav-item active' : 'mobile-nav-item'} 
+                onClick={() => setView('calendar')}
+              >
+                <Calendar size={18} />
+                <span>Agenda</span>
               </button>
 
               <button 
@@ -905,6 +957,15 @@ function App() {
 
               <button 
                 type="button" 
+                className={view === 'calendar' ? 'mobile-nav-item active' : 'mobile-nav-item'} 
+                onClick={() => setView('calendar')}
+              >
+                <Calendar size={18} />
+                <span>Agenda</span>
+              </button>
+
+              <button 
+                type="button" 
                 className="mobile-nav-item" 
                 onClick={() => setUser(null)}
               >
@@ -914,6 +975,21 @@ function App() {
             </>
           )}
         </div>
+      )}
+
+      {/* Editorial Calendar Scheduling Modal */}
+      {(schedulingIdea || schedulingDate) && (
+        <SchedulerModal 
+          idea={schedulingIdea} 
+          preselectedDate={schedulingDate}
+          unscheduledIdeas={enrichedIdeas.filter(i => !i.scheduledAt && (i.computedStatus === 'aprovado' || i.computedStatus === 'em_producao' || i.computedStatus === 'avaliar'))}
+          onClose={() => {
+            setSchedulingIdea(null);
+            setSchedulingDate(null);
+          }} 
+          updateState={updateState} 
+          addToast={addToast} 
+        />
       )}
 
       {/* Toast alert portal */}
@@ -1372,6 +1448,14 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
 
 // ==================== THE LINKEDIN CARD COMPONENT (LIGHT THEME CLONE) ====================
 function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) {
+  const [imageError, setImageError] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  React.useEffect(() => {
+    setImageError(false);
+    setLightboxOpen(false);
+  }, [idea.id]);
+
   const displayDate = useMemo(() => {
     return new Date(idea.createdAt).toLocaleDateString('pt-BR');
   }, [idea.createdAt]);
@@ -1409,9 +1493,33 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
           </div>
         </div>
         <div className="li-post-header-actions">
-          <button type="button" className="li-post-connect-btn">
-            <Plus size={14} style={{ marginRight: '2px' }} /> Connect
-          </button>
+          {idea.linkedinUrl && (
+            <a 
+              href={idea.linkedinUrl} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="li-post-connect-btn"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontSize: '12px',
+                fontWeight: 700,
+                color: '#0a66c2',
+                textDecoration: 'none',
+                padding: '5px 12px',
+                borderRadius: '100px',
+                border: '1px solid #0a66c2',
+                transition: 'all 0.2s ease',
+                background: 'transparent'
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(10, 102, 194, 0.08)'; }}
+              onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <ExternalLink size={11} /> Ver original ↗
+            </a>
+          )}
           <div className="li-post-more-btn">
             <MoreHorizontal size={16} />
           </div>
@@ -1423,43 +1531,97 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
         {idea.summary || ''}
       </div>
 
-      {/* Direct LinkedIn Outbound Link CTA Button */}
-      {idea.linkedinUrl && (
-        <div style={{ padding: '0 20px 16px 20px', display: 'flex' }}>
-          <a 
-            href={idea.linkedinUrl} 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="li-direct-post-btn"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '12px',
-              fontWeight: 700,
-              color: '#ffffff',
-              background: '#0a66c2',
-              padding: '6px 16px',
-              borderRadius: '100px',
-              textDecoration: 'none',
-              transition: 'all 0.2s ease',
-              boxShadow: '0 2px 4px rgba(10, 102, 194, 0.2)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-            onMouseOver={(e) => e.currentTarget.style.background = '#004182'}
-            onMouseOut={(e) => e.currentTarget.style.background = '#0a66c2'}
-          >
-            <ExternalLink size={12} /> Acessar Post no LinkedIn ↗
-          </a>
+      {/* Edge to Edge Image inside card */}
+      {idea.imageUrl && !imageError && (
+        <div className="li-post-image-wrap">
+          <img 
+            className="li-post-image" 
+            src={idea.imageUrl} 
+            alt="Imagem de referência do LinkedIn" 
+            onError={() => setImageError(true)}
+            onClick={() => setLightboxOpen(true)}
+            style={{ cursor: 'pointer', transition: 'transform 0.2s ease' }}
+            onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.015)'}
+            onMouseOut={(e) => e.currentTarget.style.transform = 'none'}
+          />
         </div>
       )}
 
-      {/* Edge to Edge Image inside card */}
-      {idea.imageUrl && (
-        <div className="li-post-image-wrap">
-          <img className="li-post-image" src={idea.imageUrl} alt="Imagem de referência do LinkedIn" />
-        </div>
-      )}
+      {/* Immersive Glassmorphic Lightbox Modal */}
+      <AnimatePresence>
+        {lightboxOpen && (
+          <motion.div 
+            className="playbook-lightbox-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightboxOpen(false)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.85)',
+              backdropFilter: 'blur(16px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 9999,
+              cursor: 'zoom-out',
+              padding: '24px'
+            }}
+          >
+            {/* Close Button */}
+            <button 
+              type="button"
+              className="playbook-lightbox-close"
+              onClick={(e) => { e.stopPropagation(); setLightboxOpen(false); }}
+              style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                width: '44px',
+                height: '44px',
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                zIndex: 10000
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+            >
+              <X size={20} />
+            </button>
+
+            {/* Immersive Image Frame */}
+            <motion.img 
+              src={idea.imageUrl} 
+              alt="Imagem de referência ampliada"
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxWidth: '95vw',
+                maxHeight: '90vh',
+                objectFit: 'contain',
+                borderRadius: '8px',
+                boxShadow: '0 10px 40px rgba(0, 0, 0, 0.6)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                cursor: 'default'
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Mock Social Counters Bar matching LinkedIn exact Dark Mode format */}
       <div className="li-social-counters-row">
@@ -2041,6 +2203,9 @@ function NewIdeaView({ updateState, setView, addToast }) {
           createdAt: new Date().toISOString(),
           status: 'pendente',
           manualStatus: null,
+          scheduledAt: null,
+          scheduledAssignee: null,
+          finalPostText: null,
           ...form,
           mockLikes: finalLikes,
           mockCommentsCount: finalComments,
@@ -2263,7 +2428,8 @@ function IdeasListView({
   setCuratorFilter, 
   activeFilter, 
   setActiveFilter, 
-  currentUser 
+  currentUser,
+  onScheduleIdea
 }) {
 
   const [viewMode, setViewMode] = useState(currentUser === 'Felipe' ? 'table' : 'feed');
@@ -2606,10 +2772,10 @@ function IdeasListView({
                       </span>
                       {currentUser === 'Felipe' && (
                         <select 
-                          className="status-select-td" 
+                          className={`status-select-td status-${idea.manualStatus || 'auto'}`} 
                           value={idea.manualStatus || 'auto'}
                           onChange={e => handleUpdateManualStatus(idea.id, e.target.value)}
-                          style={{ fontSize: '11px', padding: '2px 6px', border: '1px solid #dcdcdc', borderRadius: '4px' }}
+                          style={{ fontSize: '11px', padding: '2px 6px', width: 'auto', maxWidth: '150px' }}
                         >
                           <option value="auto">Automático (Votos)</option>
                           <option value="em_producao">Em Produção</option>
@@ -2620,6 +2786,28 @@ function IdeasListView({
                     </div>
                     
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      {currentUser === 'Felipe' && (
+                        <button
+                          type="button"
+                          onClick={() => onScheduleIdea && onScheduleIdea(idea)}
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            border: '1px solid ' + (idea.scheduledAt ? 'var(--linkedin-blue)' : '#cbd5e1'),
+                            background: idea.scheduledAt ? 'var(--linkedin-blue-light)' : '#ffffff',
+                            color: idea.scheduledAt ? 'var(--linkedin-blue)' : '#475569',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                          title={idea.scheduledAt ? `Agendado para ${new Date(idea.scheduledAt).toLocaleDateString('pt-BR')} (${idea.scheduledAssignee})` : "Agendar publicação"}
+                        >
+                          <Calendar size={11} /> {idea.scheduledAt ? 'Agendado' : 'Agendar'}
+                        </button>
+                      )}
                       <span className="score-meter-pill medium" style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(10, 102, 194, 0.08)', color: 'var(--linkedin-blue)' }}>
                         Score: <strong>{idea.score}</strong>
                       </span>
@@ -2696,18 +2884,20 @@ function IdeasListView({
                         )}
                       </td>
                       <td>
-                        <span style={{ fontWeight: 600, color: 'var(--linkedin-dark-gray)', display: 'block' }}>{idea.category}</span>
-                        <span style={{ fontSize: '12px', color: 'var(--linkedin-mid-gray)', display: 'block' }}>{idea.contentType}</span>
+                        <span className="table-category-badge">{idea.category}</span>
+                        <span style={{ fontSize: '12px', color: 'var(--linkedin-mid-gray)', display: 'block', marginTop: '4px' }}>{idea.contentType}</span>
                       </td>
                       <td>
-                        <span className={`vote-badge-pill ${idea.victorVote || 'empty'}`}>
-                          {idea.victorVote === 'like' ? '👍 Gostei' : idea.victorVote === 'maybe' ? '💡 Talvez' : idea.victorVote === 'dislike' ? '👎 Não gostei' : '⏳ Pendente'}
-                        </span>
+                        <div className={`table-vote-badge ${idea.victorVote || 'empty'}`}>
+                          <span className="vote-dot">●</span>
+                          <span className="vote-label">{idea.victorVote === 'like' ? 'Gostei' : idea.victorVote === 'maybe' ? 'Talvez' : idea.victorVote === 'dislike' ? 'Não gostei' : 'Pendente'}</span>
+                        </div>
                       </td>
                       <td>
-                        <span className={`vote-badge-pill ${idea.fernandoVote || 'empty'}`}>
-                          {idea.fernandoVote === 'like' ? '👍 Gostei' : idea.fernandoVote === 'maybe' ? '💡 Talvez' : idea.fernandoVote === 'dislike' ? '👎 Não gostei' : '⏳ Pendente'}
-                        </span>
+                        <div className={`table-vote-badge ${idea.fernandoVote || 'empty'}`}>
+                          <span className="vote-dot">●</span>
+                          <span className="vote-label">{idea.fernandoVote === 'like' ? 'Gostei' : idea.fernandoVote === 'maybe' ? 'Talvez' : idea.fernandoVote === 'dislike' ? 'Não gostei' : 'Pendente'}</span>
+                        </div>
                       </td>
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -2717,14 +2907,9 @@ function IdeasListView({
                       </td>
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <span className={`status-pill ${idea.computedStatus.replace(' outro voto', '')}`}>
-                            {idea.computedStatus === 'em_producao' ? 'Em Produção' : 
-                             idea.computedStatus === 'publicada' ? 'Publicada' : 
-                             idea.computedStatus === 'arquivada' ? 'Arquivada' : idea.computedStatus}
-                          </span>
-                          {currentUser === 'Felipe' && (
+                                                    {currentUser === 'Felipe' && (
                             <select 
-                              className="status-select-td" 
+                              className={`status-select-td status-${idea.manualStatus || 'auto'}`}
                               value={idea.manualStatus || 'auto'}
                               onChange={e => handleUpdateManualStatus(idea.id, e.target.value)}
                             >
@@ -2743,6 +2928,14 @@ function IdeasListView({
                           </a>
                           {currentUser === 'Felipe' && (
                             <>
+                              <button 
+                                className="action-icon-btn" 
+                                onClick={() => onScheduleIdea && onScheduleIdea(idea)} 
+                                title={idea.scheduledAt ? `Agendado para ${new Date(idea.scheduledAt).toLocaleDateString('pt-BR')} (${idea.scheduledAssignee})` : "Agendar publicação"}
+                                style={idea.scheduledAt ? { color: 'var(--linkedin-blue)', borderColor: 'var(--linkedin-blue)', background: 'var(--linkedin-blue-light)' } : {}}
+                              >
+                                <Calendar size={12} />
+                              </button>
                               <button className="action-icon-btn" onClick={() => handleUpdateManualStatus(idea.id, 'arquivada')} title="Arquivar">
                                 <Archive size={12} />
                               </button>
@@ -2939,6 +3132,407 @@ function DataExportView({ state, ideas, addToast }) {
             3. Selecione o arquivo baixado e marque a opção <strong>"Substituir planilha atual"</strong>.<br />
             4. O Google Sheets identificará os cabeçalhos das colunas automaticamente, deixando os dados 100% prontos para suas conexões via ferramentas como n8n, Zapier ou automações com Apps Script.
           </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ==================== EDITORIAL CALENDAR & SCHEDULER VIEW ====================
+function SchedulerModal({ idea: initialIdea, preselectedDate, unscheduledIdeas = [], onClose, updateState, addToast }) {
+  const [selectedIdeaId, setSelectedIdeaId] = useState(initialIdea ? initialIdea.id : (unscheduledIdeas[0]?.id || ''));
+  const [date, setDate] = useState(preselectedDate || (initialIdea?.scheduledAt || ''));
+  const [assignee, setAssignee] = useState(initialIdea?.scheduledAssignee || 'Victor');
+  
+  const activeIdea = useMemo(() => {
+    if (initialIdea) return initialIdea;
+    return unscheduledIdeas.find(i => i.id === selectedIdeaId);
+  }, [initialIdea, selectedIdeaId, unscheduledIdeas]);
+
+  const [playbookAngle, setPlaybookAngle] = useState('');
+
+  React.useEffect(() => {
+    if (activeIdea) {
+      setPlaybookAngle(activeIdea.playbookAngle || '');
+    }
+  }, [activeIdea]);
+
+  const handleSave = () => {
+    if (!activeIdea) {
+      alert('Selecione uma pauta para agendar.');
+      return;
+    }
+    if (!date) {
+      alert('Selecione uma data para agendar.');
+      return;
+    }
+
+    updateState(prev => ({
+      ...prev,
+      ideas: prev.ideas.map(i => i.id === activeIdea.id ? { 
+        ...i, 
+        scheduledAt: date, 
+        scheduledAssignee: assignee,
+        playbookAngle: playbookAngle,
+        // Automatic decision promotion to em_producao when scheduled
+        manualStatus: i.manualStatus || 'em_producao'
+      } : i)
+    }));
+
+    addToast(`Pauta agendada para ${new Date(date + 'T00:00:00').toLocaleDateString('pt-BR')} (${assignee})!`, 'success');
+    onClose();
+  };
+
+  const handleUnschedule = () => {
+    if (!activeIdea) return;
+    if (!confirm('Deseja remover o agendamento desta pauta?')) return;
+    
+    updateState(prev => ({
+      ...prev,
+      ideas: prev.ideas.map(i => i.id === activeIdea.id ? { 
+        ...i, 
+        scheduledAt: null, 
+        scheduledAssignee: null 
+      } : i)
+    }));
+
+    addToast('Agendamento removido.', 'success');
+    onClose();
+  };
+
+  return (
+    <div className="scheduler-modal-backdrop" onClick={onClose}>
+      <div className="scheduler-modal" onClick={e => e.stopPropagation()}>
+        <div className="scheduler-modal-header">
+          <h3>📅 {initialIdea ? 'Editar Agendamento' : 'Programar Publicação'}</h3>
+          <X className="close-btn" size={18} onClick={onClose} />
+        </div>
+        <div className="scheduler-modal-body">
+          {initialIdea ? (
+            <div className="scheduler-post-summary">
+              <h4>{activeIdea.title}</h4>
+              <p style={{ margin: 0, fontSize: '11px', color: '#64748b' }}>Autor: {activeIdea.sourceAuthor} | Categoria: {activeIdea.category}</p>
+            </div>
+          ) : (
+            <label className="scheduler-form-label">
+              Selecione a Referência / Post *
+              <select 
+                className="scheduler-form-select"
+                value={selectedIdeaId}
+                onChange={e => setSelectedIdeaId(e.target.value)}
+              >
+                {unscheduledIdeas.length === 0 ? (
+                  <option value="">Nenhuma pauta aprovada disponível</option>
+                ) : (
+                  unscheduledIdeas.map(i => (
+                    <option key={i.id} value={i.id}>
+                      [{i.category}] {i.title.slice(0, 50)}{i.title.length > 50 ? '...' : ''}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
+          )}
+          
+          <label className="scheduler-form-label">
+            Data de Publicação *
+            <input 
+              type="date" 
+              className="scheduler-form-input" 
+              value={date} 
+              onChange={e => setDate(e.target.value)} 
+            />
+          </label>
+
+          <label className="scheduler-form-label">
+            Responsável pela Publicação *
+            <select 
+              className="scheduler-form-select"
+              value={assignee}
+              onChange={e => setAssignee(e.target.value)}
+            >
+              <option value="Victor">Victor</option>
+              <option value="Fernando">Fernando</option>
+              <option value="Felipe">Felipe</option>
+            </select>
+          </label>
+
+          <label className="scheduler-form-label">
+            Ângulo Playbook Lab (Direcionamento Editorial)
+            <textarea
+              className="scheduler-form-input"
+              style={{ minHeight: '80px', resize: 'vertical' }}
+              value={playbookAngle}
+              onChange={e => setPlaybookAngle(e.target.value)}
+              placeholder="Ex: Enfocar no nosso diferencial e complementar com nossos dados internos de GTM..."
+            />
+          </label>
+        </div>
+        <div className="scheduler-modal-footer">
+          {initialIdea?.scheduledAt && (
+            <button className="scheduler-btn unschedule" onClick={handleUnschedule}>
+              Desagendar
+            </button>
+          )}
+          <button className="scheduler-btn cancel" onClick={onClose}>
+            Cancelar
+          </button>
+          <button className="scheduler-btn save" onClick={handleSave} disabled={!activeIdea}>
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onScheduleDate, addToast }) {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+
+  const prevMonth = () => {
+    setCurrentMonth(new Date(year, month - 1, 1));
+  };
+
+  const nextMonth = () => {
+    setCurrentMonth(new Date(year, month + 1, 1));
+  };
+
+  const MONTH_NAMES = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+  ];
+
+  const cells = useMemo(() => {
+    const firstDay = new Date(year, month, 1);
+    const dayOfWeekIdx = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    const prevMonthTotalDays = new Date(year, month, 0).getDate();
+
+    const result = [];
+    
+    // Prev month filler
+    for (let i = dayOfWeekIdx - 1; i >= 0; i--) {
+      result.push({
+        date: new Date(year, month - 1, prevMonthTotalDays - i),
+        isCurrentMonth: false
+      });
+    }
+
+    // Current month days
+    for (let i = 1; i <= totalDays; i++) {
+      result.push({
+        date: new Date(year, month, i),
+        isCurrentMonth: true
+      });
+    }
+
+    // Next month filler to complete 42 cells (6 rows)
+    const remaining = 42 - result.length;
+    for (let i = 1; i <= remaining; i++) {
+      result.push({
+        date: new Date(year, month + 1, i),
+        isCurrentMonth: false
+      });
+    }
+
+    return result;
+  }, [year, month]);
+
+  const scheduledPosts = useMemo(() => {
+    return ideas.filter(i => {
+      if (!i.scheduledAt) return false;
+      const d = new Date(i.scheduledAt + 'T00:00:00');
+      return d.getFullYear() === year && d.getMonth() === month;
+    }).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+  }, [ideas, year, month]);
+
+  const unscheduledIdeas = useMemo(() => {
+    return ideas.filter(i => 
+      !i.scheduledAt && 
+      (i.computedStatus === 'aprovado' || i.computedStatus === 'em_producao' || i.computedStatus === 'avaliar')
+    );
+  }, [ideas]);
+
+  const isToday = (date) => {
+    const today = new Date();
+    return date.getDate() === today.getDate() && 
+      date.getMonth() === today.getMonth() && 
+      date.getFullYear() === today.getFullYear();
+  };
+
+  return (
+    <section>
+      <div className="admin-view-header" style={{ marginBottom: '24px' }}>
+        <p className="eyebrow">Planejamento</p>
+        <h2>Calendário Editorial</h2>
+        <p>Programe e visualize as próximas publicações no LinkedIn da Playbook Lab.</p>
+      </div>
+
+      <div className="calendar-view-container">
+        {/* Monthly Grid */}
+        <div className="calendar-main-card">
+          <div className="calendar-control-header">
+            <div className="calendar-month-title">
+              <Calendar size={20} style={{ color: 'var(--linkedin-blue)' }} />
+              <strong>{MONTH_NAMES[month]} {year}</strong>
+              <span style={{ fontSize: '11px', background: 'rgba(10, 102, 194, 0.08)', color: 'var(--linkedin-blue)', padding: '2px 8px', borderRadius: '99px', fontWeight: 600 }}>
+                {scheduledPosts.length} agendados
+              </span>
+            </div>
+            <div className="calendar-nav-buttons">
+              <button type="button" className="calendar-nav-btn" onClick={prevMonth} title="Mês anterior">
+                &lt;
+              </button>
+              <button type="button" className="calendar-nav-btn" style={{ fontSize: '11.5px', fontWeight: 600 }} onClick={() => setCurrentMonth(new Date())} title="Ir para hoje">
+                Hoje
+              </button>
+              <button type="button" className="calendar-nav-btn" onClick={nextMonth} title="Próximo mês">
+                &gt;
+              </button>
+            </div>
+          </div>
+
+          <div className="calendar-grid-header">
+            {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map(day => (
+              <div key={day} className="calendar-weekday-col">{day}</div>
+            ))}
+          </div>
+
+          <div className="calendar-cells-grid">
+            {cells.map((cell, idx) => {
+              const dateStr = cell.date.toISOString().split('T')[0];
+              const cellPosts = ideas.filter(i => i.scheduledAt === dateStr);
+
+              return (
+                <div 
+                  key={idx} 
+                  className={`calendar-day-cell ${cell.isCurrentMonth ? '' : 'other-month'} ${isToday(cell.date) ? 'today' : ''}`}
+                  onClick={() => {
+                    if (currentUser === 'Felipe') {
+                      if (unscheduledIdeas.length > 0) {
+                        onScheduleDate(dateStr);
+                      } else {
+                        addToast("Nenhuma pauta aprovada disponível para agendar. Aprove pautas primeiro!");
+                      }
+                    } else {
+                      addToast("Apenas Felipe (Administrador) pode programar publicações.");
+                    }
+                  }}
+                  title={currentUser === 'Felipe' ? "Clique para programar uma pauta neste dia" : ""}
+                >
+                  <span className="day-number">{cell.date.getDate()}</span>
+                  
+                  <div className="calendar-cell-posts-container">
+                    {cellPosts.map(post => (
+                      <div 
+                        key={post.id} 
+                        className={`calendar-scheduled-card assignee-${post.scheduledAssignee?.toLowerCase() || 'victor'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (currentUser === 'Felipe') {
+                            onScheduleIdea(post);
+                          } else {
+                            addToast(`Pauta agendada por ${post.scheduledAssignee}: "${post.title}"`);
+                          }
+                        }}
+                        title={`Responsável: ${post.scheduledAssignee} | Clique para gerenciar`}
+                      >
+                        <span className="title-text">{post.title}</span>
+                        <img 
+                          src={USER_AVATARS[post.scheduledAssignee] || USER_AVATARS.Felipe} 
+                          alt={post.scheduledAssignee} 
+                          className="assignee-avatar" 
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(post.scheduledAssignee)}&background=0a66c2&color=fff&bold=true`;
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Sidebar panels */}
+        <div className="calendar-sidebar">
+          {currentUser === 'Felipe' && (
+            <div className="calendar-sidebar-card">
+              <h3>Aguardando Agendamento</h3>
+              <p className="desc">Pautas aprovadas prontas para programar no LinkedIn.</p>
+              
+              <div className="calendar-sidebar-list">
+                {unscheduledIdeas.length === 0 ? (
+                  <div className="calendar-empty-state">
+                    Nenhuma pauta aprovada aguardando agendamento.
+                  </div>
+                ) : (
+                  unscheduledIdeas.map(idea => (
+                    <div key={idea.id} className="calendar-sidebar-item">
+                      <div className="item-info">
+                        <span className="item-title" title={idea.title}>{idea.title}</span>
+                        <div className="item-meta">
+                          <span style={{ color: 'var(--linkedin-blue)', fontWeight: 600 }}>{idea.category}</span>
+                          <span>•</span>
+                          <span>Score: {idea.score}</span>
+                        </div>
+                      </div>
+                      <button 
+                        type="button" 
+                        className="calendar-sidebar-action-btn"
+                        onClick={() => onScheduleIdea(idea)}
+                      >
+                        Agendar
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="calendar-sidebar-card">
+            <h3>Agenda de {MONTH_NAMES[month]}</h3>
+            <p className="desc">Lista cronológica das publicações programadas.</p>
+
+            <div className="calendar-sidebar-list">
+              {scheduledPosts.length === 0 ? (
+                <div className="calendar-empty-state">
+                  Nenhuma publicação programada para este mês.
+                </div>
+              ) : (
+                scheduledPosts.map(post => (
+                  <div key={post.id} className="calendar-sidebar-item">
+                    <div className="item-info">
+                      <span className="item-title" title={post.title}>{post.title}</span>
+                      <div className="item-meta">
+                        <strong style={{ color: '#0f172a' }}>{new Date(post.scheduledAt + 'T00:00:00').toLocaleDateString('pt-BR')}</strong>
+                        <span>•</span>
+                        <span className={`assignee-tag ${post.scheduledAssignee?.toLowerCase() || 'victor'}`}>{post.scheduledAssignee}</span>
+                      </div>
+                    </div>
+                    {currentUser === 'Felipe' && (
+                      <button 
+                        type="button" 
+                        className="calendar-sidebar-action-btn"
+                        style={{ border: 'none', background: 'transparent', padding: '4px', display: 'flex', color: '#64748b' }}
+                        onClick={() => onScheduleIdea(post)}
+                        title="Editar agendamento"
+                      >
+                        <ExternalLink size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </section>
