@@ -385,6 +385,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [schedulingIdea, setSchedulingIdea] = useState(null);
   const [schedulingDate, setSchedulingDate] = useState(null);
+  const [studioIdea, setStudioIdea] = useState(null);
 
   function addToast(message, type = 'success') {
     const id = generateUUID();
@@ -474,7 +475,8 @@ function App() {
         mockRepostsCount: item.mock_reposts_count,
         scheduledAt: item.scheduled_at,
         scheduledAssignee: item.scheduled_assignee,
-        finalPostText: item.final_post_text
+        finalPostText: item.final_post_text,
+        finalImageUrl: item.final_post_text ? item.image_url : ''
       }));
       
       const mappedVotes = (dbVotes || []).map(item => ({
@@ -537,7 +539,7 @@ function App() {
         await supabase.from('ideas').delete().eq('id', idea.id);
       }
 
-      // 3. Update ideas (manual_status, scheduled_at, scheduled_assignee, playbook_angle, final_post_text)
+      // 3. Update ideas (manual_status, scheduled_at, scheduled_assignee, playbook_angle, final_post_text, image_url)
       for (const nextIdea of next.ideas) {
         const prevIdea = prev.ideas.find(pi => pi.id === nextIdea.id);
         if (prevIdea && (
@@ -545,7 +547,8 @@ function App() {
           prevIdea.scheduledAt !== nextIdea.scheduledAt ||
           prevIdea.scheduledAssignee !== nextIdea.scheduledAssignee ||
           prevIdea.playbookAngle !== nextIdea.playbookAngle ||
-          prevIdea.finalPostText !== nextIdea.finalPostText
+          prevIdea.finalPostText !== nextIdea.finalPostText ||
+          prevIdea.imageUrl !== nextIdea.imageUrl
         )) {
           await supabase.from('ideas')
             .update({ 
@@ -553,7 +556,8 @@ function App() {
               scheduled_at: nextIdea.scheduledAt || null,
               scheduled_assignee: nextIdea.scheduledAssignee || null,
               playbook_angle: nextIdea.playbookAngle || null,
-              final_post_text: nextIdea.finalPostText || null
+              final_post_text: nextIdea.finalPostText || null,
+              image_url: nextIdea.imageUrl || null
             })
             .eq('id', nextIdea.id);
         }
@@ -870,6 +874,7 @@ function App() {
               currentUser={user}
               onScheduleIdea={(idea) => setSchedulingIdea(idea)}
               onScheduleDate={(date) => setSchedulingDate(date)}
+              onOpenStudio={(idea) => setStudioIdea(idea)}
               addToast={addToast}
             />
           )}
@@ -991,6 +996,17 @@ function App() {
             setSchedulingIdea(null);
             setSchedulingDate(null);
           }} 
+          updateState={updateState} 
+          addToast={addToast} 
+        />
+      )}
+
+      {/* Editorial Publisher Studio Modal */}
+      {studioIdea && (
+        <PublisherStudioModal 
+          idea={studioIdea} 
+          currentUser={user} 
+          onClose={() => setStudioIdea(null)} 
           updateState={updateState} 
           addToast={addToast} 
         />
@@ -3203,8 +3219,8 @@ function IdeasListView({
           <table>
             <thead>
               <tr>
+                <th style={{ textAlign: 'center', width: '90px' }}>Imagem</th>
                 <th>Tema / Título</th>
-                <th>Categoria / Formato</th>
                 <th>Victor</th>
                 <th>Fernando</th>
                 <th>Score</th>
@@ -3226,7 +3242,59 @@ function IdeasListView({
                   
                   return (
                     <tr key={idea.id}>
-                      <td className="idea-table-title">
+                      <td style={{ verticalAlign: 'middle', textAlign: 'center' }}>
+                        {idea.imageUrl ? (
+                          <div 
+                            style={{
+                              width: '64px',
+                              height: '42px',
+                              borderRadius: '6px',
+                              overflow: 'hidden',
+                              border: '1px solid rgba(0,0,0,0.12)',
+                              background: '#f8fafc',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.06)',
+                              cursor: 'pointer',
+                              transition: 'transform 0.15s ease'
+                            }}
+                            onClick={() => setStudioIdea(idea)}
+                            title="Clique para abrir no Estúdio de Criação"
+                            onMouseOver={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                          >
+                            <img src={idea.imageUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          </div>
+                        ) : (
+                          <div 
+                            style={{
+                              width: '64px',
+                              height: '42px',
+                              borderRadius: '6px',
+                              border: '1px dashed #cbd5e1',
+                              background: '#f8fafc',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#94a3b8',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onClick={() => setStudioIdea(idea)}
+                            title="Clique para carregar imagem no Estúdio de Criação"
+                            onMouseOver={(e) => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.borderColor = 'var(--linkedin-blue)'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+                          >
+                            <Plus size={14} style={{ color: '#64748b' }} />
+                          </div>
+                        )}
+                      </td>
+                      <td 
+                        className="idea-table-title clickable"
+                        onClick={() => setStudioIdea(idea)}
+                        title="Clique para abrir no Estúdio de Criação"
+                      >
                         <strong>{idea.title}</strong>
                         <span>Enviado em: {new Date(idea.createdAt).toLocaleDateString('pt-BR')}</span>
                         
@@ -3239,10 +3307,6 @@ function IdeasListView({
                             ))}
                           </div>
                         )}
-                      </td>
-                      <td>
-                        <span className="table-category-badge">{idea.category}</span>
-                        <span style={{ fontSize: '12px', color: 'var(--linkedin-mid-gray)', display: 'block', marginTop: '4px' }}>{idea.contentType}</span>
                       </td>
                       <td>
                         <div className={`table-vote-badge ${idea.victorVote || 'empty'}`}>
@@ -3643,7 +3707,382 @@ function SchedulerModal({ idea: initialIdea, preselectedDate, unscheduledIdeas =
   );
 }
 
-function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onScheduleDate, addToast }) {
+// ==================== ESTÚDIO DE CRIAÇÃO EDITORIAL (PUBLISHER STUDIO) ====================
+function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToast }) {
+  const [copyText, setCopyText] = useState(idea.finalPostText || '');
+  const [imageUrl, setImageUrl] = useState(idea.finalImageUrl || '');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [activeRightTab, setActiveRightTab] = useState(currentUser === 'Felipe' ? 'edit' : 'read');
+  const [previewPersona, setPreviewPersona] = useState('Victor');
+
+  const isFelipe = currentUser === 'Felipe';
+
+  const categoryImages = {
+    'IA': 'https://images.unsplash.com/photo-1677442136019-21780efad99a?w=800',
+    'Agentes de IA': 'https://images.unsplash.com/photo-1680814907495-d227b2c525db?w=800',
+    'Vendas': 'https://images.unsplash.com/photo-1552581230-c01891e7c90a?w=800',
+    'GTM': 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800',
+    'Automação': 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800',
+    'RevOps': 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800',
+    'Conteúdo': 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800',
+    'LinkedIn': 'https://images.unsplash.com/photo-1562577309-4932fdd64cd1?w=800',
+    'Produto': 'https://images.unsplash.com/photo-1531403009284-440f080d1e12?w=800',
+    'Mercado': 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=800',
+    'Ferramentas': 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?w=800',
+    'Bastidores Playbook': 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=800',
+    'Outro': 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800'
+  };
+
+  const handleAiGenerateImage = () => {
+    setIsGenerating(true);
+    addToast('🤖 Inteligência Artificial analisando a pauta...', 'success');
+    
+    setTimeout(() => {
+      const selectedImage = categoryImages[idea.category] || categoryImages['Outro'];
+      setImageUrl(selectedImage);
+      setIsGenerating(false);
+      addToast('🎨 Imagem criada com IA para a pauta!', 'success');
+    }, 1500);
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (file.size > 8 * 1024 * 1024) {
+      addToast('⚠️ A imagem deve ter no máximo 8MB.', 'error');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImageUrl(reader.result);
+      addToast('📤 Imagem carregada com sucesso!', 'success');
+    };
+    reader.onerror = () => {
+      addToast('❌ Falha ao processar o arquivo.', 'error');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = () => {
+    updateState(prev => ({
+      ...prev,
+      ideas: prev.ideas.map(i => i.id === idea.id ? {
+        ...i,
+        finalPostText: copyText,
+        finalImageUrl: imageUrl,
+        // Sync with base Supabase image_url column under the hood
+        imageUrl: imageUrl
+      } : i)
+    }));
+    addToast('✍️ Post final e imagem salvos com sucesso no estúdio!', 'success');
+    onClose();
+  };
+
+  const handleCopyToClipboard = () => {
+    if (!copyText) return;
+    navigator.clipboard.writeText(copyText);
+    setCopied(true);
+    addToast('📋 Copy final copiada para a área de transferência!', 'success');
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const originalIdeaComments = useMemo(() => {
+    return idea.internalNotes ? [{ voterName: 'Time Playbook', comment: idea.internalNotes }] : [];
+  }, [idea]);
+
+  return (
+    <div className="pub-studio-backdrop" onClick={onClose}>
+      <div className="pub-studio-modal" onClick={e => e.stopPropagation()}>
+        <div className="pub-studio-header">
+          <h3>
+            <Sparkles size={18} style={{ color: '#0a66c2' }} />
+            Estúdio de Criação Editorial - {idea.title}
+          </h3>
+          <X className="close-btn" size={18} style={{ cursor: 'pointer' }} onClick={onClose} />
+        </div>
+        
+        <div className="pub-studio-body">
+          <div className="pub-studio-layout">
+            
+            {/* Left Column: Reference inspiration */}
+            <div className="pub-studio-col">
+              <span className="pub-studio-col-title">
+                <FileText size={15} style={{ color: '#0a66c2' }} /> 
+                1. Referência & Inspiração (Original)
+              </span>
+              
+              <div className="pub-studio-reference-wrap">
+                <LinkedInCard 
+                  idea={idea} 
+                  comments={originalIdeaComments}
+                  onVote={() => {}} 
+                  onOpenComment={() => {}} 
+                  addToast={addToast}
+                />
+              </div>
+
+              {idea.playbookAngle && (
+                <div className="pub-studio-angle-callout">
+                  <h5>🎯 Ângulo Playbook Lab</h5>
+                  <p>{idea.playbookAngle}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Custom created post */}
+            <div className="pub-studio-col" style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '24px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <span className="pub-studio-col-title">
+                <Sparkles size={15} style={{ color: '#057642' }} />
+                2. Seu Post Final Customizado (Produção)
+              </span>
+
+              {/* Tab Selector */}
+              <div className="pub-studio-tabs-row" style={{ display: 'flex', gap: '8px', margin: '12px 0 16px 0' }}>
+                <button
+                  type="button"
+                  className={`pub-studio-tab-btn ${(activeRightTab === 'edit' || activeRightTab === 'read') ? 'active' : ''}`}
+                  onClick={() => setActiveRightTab(isFelipe ? 'edit' : 'read')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    border: '1px solid',
+                    borderColor: (activeRightTab === 'edit' || activeRightTab === 'read') ? 'var(--linkedin-blue)' : '#cbd5e1',
+                    background: (activeRightTab === 'edit' || activeRightTab === 'read') ? 'var(--linkedin-blue)' : '#ffffff',
+                    color: (activeRightTab === 'edit' || activeRightTab === 'read') ? '#ffffff' : '#475569',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {isFelipe ? '✍️ Editor de Post' : '📝 Visualizar Conteúdo'}
+                </button>
+                <button
+                  type="button"
+                  className={`pub-studio-tab-btn ${activeRightTab === 'preview' ? 'active' : ''}`}
+                  onClick={() => setActiveRightTab('preview')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    border: '1px solid',
+                    borderColor: activeRightTab === 'preview' ? 'var(--linkedin-blue)' : '#cbd5e1',
+                    background: activeRightTab === 'preview' ? 'var(--linkedin-blue)' : '#ffffff',
+                    color: activeRightTab === 'preview' ? '#ffffff' : '#475569',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  👁️ Pré-visualização Real
+                </button>
+              </div>
+
+              {/* Scrollable Tab Content Area */}
+              <div style={{ flex: 1, overflowY: 'auto', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {activeRightTab === 'edit' && (
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                        Copy Final do Post *
+                      </label>
+                      <textarea
+                        className="pub-studio-copy-textarea"
+                        value={copyText}
+                        onChange={e => setCopyText(e.target.value)}
+                        placeholder="Redija aqui a copy final adaptada para a Playbook Lab com base no post original à esquerda..."
+                      />
+                    </div>
+
+                    <div className="pub-studio-image-widget">
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                        Imagem Final do Post
+                      </label>
+                      
+                      <div className="pub-studio-image-preview-box">
+                        {imageUrl ? (
+                          <img src={imageUrl} alt="Final Preview" className="pub-studio-image-preview-img" />
+                        ) : (
+                          <div className="pub-studio-image-empty">
+                            <Plus size={24} />
+                            <span>Nenhuma imagem final definida</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pub-studio-image-controls">
+                        <button
+                          type="button"
+                          className="pub-studio-ai-btn"
+                          onClick={handleAiGenerateImage}
+                          disabled={isGenerating}
+                          title="Gerar imagem conceitual com base na categoria da pauta"
+                        >
+                          {isGenerating ? '⏳ Criando...' : '🤖 Gerar com IA'}
+                        </button>
+
+                        <label htmlFor="pub-studio-upload" className="pub-studio-upload-btn">
+                          📤 Fazer Upload
+                        </label>
+                        <input
+                          type="file"
+                          id="pub-studio-upload"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={handleImageUpload}
+                        />
+                        
+                        <input
+                          type="text"
+                          className="pub-studio-input-url"
+                          value={imageUrl}
+                          onChange={e => setImageUrl(e.target.value)}
+                          placeholder="Ou cole a URL da imagem manualmente..."
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {activeRightTab === 'read' && (
+                  <>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', position: 'relative', flex: 1 }}>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                        Copy Pronta para LinkedIn
+                      </label>
+                      
+                      {copyText ? (
+                        <div className="pub-studio-copy-box">
+                          <button 
+                            className="pub-studio-copy-badge"
+                            style={{ cursor: 'pointer', border: 'none', background: 'var(--linkedin-blue-light)' }}
+                            onClick={handleCopyToClipboard}
+                          >
+                            {copied ? '✓ Copiado!' : '📋 Copiar Texto'}
+                          </button>
+                          {copyText}
+                        </div>
+                      ) : (
+                        <div className="pub-studio-copy-box" style={{ background: '#f8fafc', fontStyle: 'italic', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+                          Felipe ainda não redigiu a copy final para esta pauta.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pub-studio-image-widget">
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
+                        Imagem Pronta para LinkedIn
+                      </label>
+                      
+                      <div className="pub-studio-image-preview-box" style={{ height: '200px' }}>
+                        {imageUrl ? (
+                          <img src={imageUrl} alt="Final View" className="pub-studio-image-preview-img" />
+                        ) : (
+                          <div className="pub-studio-image-empty">
+                            <span>Nenhuma imagem definida para este post.</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {imageUrl && (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <a 
+                            href={imageUrl} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className="pub-studio-btn success"
+                            style={{ textDecoration: 'none', textAlign: 'center' }}
+                          >
+                            📥 Abrir Imagem em Alta
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {activeRightTab === 'preview' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {/* Persona Selector */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Ver como:</span>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {['Victor', 'Fernando'].map(p => (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setPreviewPersona(p)}
+                            style={{
+                              padding: '4px 10px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              borderRadius: '4px',
+                              border: '1px solid',
+                              borderColor: previewPersona === p ? 'var(--linkedin-blue)' : '#cbd5e1',
+                              background: previewPersona === p ? 'var(--linkedin-blue-light)' : '#ffffff',
+                              color: previewPersona === p ? 'var(--linkedin-blue)' : '#475569',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {p}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* High Fidelity Live Card Preview */}
+                    <div className="pub-studio-preview-card-wrap" style={{ transform: 'scale(0.96)', transformOrigin: 'top center' }}>
+                      <LinkedInCard 
+                        idea={{
+                          ...idea,
+                          sourceAuthor: previewPersona,
+                          authorHeadline: 'Curador Editorial na Playbook Lab',
+                          authorAvatar: USER_AVATARS[previewPersona],
+                          summary: copyText || '✍️ [O post formatado aparecerá aqui após você digitar a copy...]',
+                          imageUrl: imageUrl || '',
+                          linkedinUrl: ''
+                        }}
+                        comments={[]}
+                        onVote={() => {}}
+                        onOpenComment={() => {}}
+                        addToast={addToast}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Footer Row (unified & sticky at the bottom) */}
+              <div className="pub-studio-action-row" style={{ borderTop: '1px solid #cbd5e1', paddingTop: '12px', marginTop: 'auto', display: 'flex', gap: '8px' }}>
+                {isFelipe ? (
+                  <>
+                    <button type="button" className="pub-studio-btn secondary" onClick={onClose} style={{ flex: 1 }}>
+                      Cancelar
+                    </button>
+                    <button type="button" className="pub-studio-btn primary" onClick={handleSave} style={{ flex: 2 }}>
+                      Salvar e Programar
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="pub-studio-btn secondary" onClick={onClose} style={{ flex: 'none', width: '120px', marginLeft: 'auto' }}>
+                    Fechar
+                  </button>
+                )}
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onScheduleDate, onOpenStudio, addToast }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const year = currentMonth.getFullYear();
@@ -3790,11 +4229,7 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                         className={`calendar-scheduled-card assignee-${post.scheduledAssignee?.toLowerCase() || 'victor'}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (currentUser === 'Felipe') {
-                            onScheduleIdea(post);
-                          } else {
-                            addToast(`Pauta agendada por ${post.scheduledAssignee}: "${post.title}"`);
-                          }
+                          onOpenStudio(post);
                         }}
                         title={`Responsável: ${post.scheduledAssignee} | Clique para gerenciar`}
                       >
@@ -3865,7 +4300,12 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                 </div>
               ) : (
                 scheduledPosts.map(post => (
-                  <div key={post.id} className="calendar-sidebar-item">
+                  <div 
+                    key={post.id} 
+                    className="calendar-sidebar-item"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => onOpenStudio(post)}
+                  >
                     <div className="item-info">
                       <span className="item-title" title={post.title}>{post.title}</span>
                       <div className="item-meta">
