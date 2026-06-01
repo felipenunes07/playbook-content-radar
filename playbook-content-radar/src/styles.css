@@ -1837,6 +1837,8 @@ button:active {
 
 /* Color-coded select presets */
 .status-select-td.status-auto { background: #f8fafc; border-color: #e2e8f0; color: #475569; }
+.status-select-td.status-aprovado { background: #eaf7f0; border-color: #c6f6d5; color: #057642; }
+.status-select-td.status-rejeitado { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
 .status-select-td.status-em_producao { background: #faf5ff; border-color: #e9d5ff; color: #6b21a8; }
 .status-select-td.status-publicada { background: #f0f9ff; border-color: #bae6fd; color: #0369a1; }
 .status-select-td.status-arquivada { background: #f1f5f9; border-color: #cbd5e1; color: #334155; }

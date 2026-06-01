@@ -865,6 +865,7 @@ function App() {
               setActiveFilter={setActiveFilter}
               currentUser={user}
               onScheduleIdea={(idea) => setSchedulingIdea(idea)}
+              onOpenStudio={(idea) => setStudioIdea(idea)}
             />
           )}
           {view === 'calendar' && (
@@ -2802,7 +2803,8 @@ function IdeasListView({
   activeFilter, 
   setActiveFilter, 
   currentUser,
-  onScheduleIdea
+  onScheduleIdea,
+  onOpenStudio
 }) {
 
   const [viewMode, setViewMode] = useState(currentUser === 'Felipe' ? 'table' : 'feed');
@@ -3151,6 +3153,8 @@ function IdeasListView({
                           style={{ fontSize: '11px', padding: '2px 6px', width: 'auto', maxWidth: '150px' }}
                         >
                           <option value="auto">Automático (Votos)</option>
+                          <option value="aprovado">Aprovada</option>
+                          <option value="rejeitado">Rejeitada</option>
                           <option value="em_producao">Em Produção</option>
                           <option value="publicada">Publicada</option>
                           <option value="arquivada">Arquivada</option>
@@ -3259,7 +3263,7 @@ function IdeasListView({
                               cursor: 'pointer',
                               transition: 'transform 0.15s ease'
                             }}
-                            onClick={() => setStudioIdea(idea)}
+                            onClick={() => onOpenStudio(idea)}
                             title="Clique para abrir no Estúdio de Criação"
                             onMouseOver={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; }}
                             onMouseOut={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
@@ -3281,7 +3285,7 @@ function IdeasListView({
                               cursor: 'pointer',
                               transition: 'all 0.15s ease'
                             }}
-                            onClick={() => setStudioIdea(idea)}
+                            onClick={() => onOpenStudio(idea)}
                             title="Clique para carregar imagem no Estúdio de Criação"
                             onMouseOver={(e) => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.borderColor = 'var(--linkedin-blue)'; }}
                             onMouseOut={(e) => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
@@ -3292,7 +3296,7 @@ function IdeasListView({
                       </td>
                       <td 
                         className="idea-table-title clickable"
-                        onClick={() => setStudioIdea(idea)}
+                        onClick={() => onOpenStudio(idea)}
                         title="Clique para abrir no Estúdio de Criação"
                       >
                         <strong>{idea.title}</strong>
@@ -3335,6 +3339,8 @@ function IdeasListView({
                               onChange={e => handleUpdateManualStatus(idea.id, e.target.value)}
                             >
                               <option value="auto">Automático (Votos)</option>
+                              <option value="aprovado">Aprovada</option>
+                              <option value="rejeitado">Rejeitada</option>
                               <option value="em_producao">Em Produção</option>
                               <option value="publicada">Publicada</option>
                               <option value="arquivada">Arquivada</option>
@@ -3713,7 +3719,7 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
   const [imageUrl, setImageUrl] = useState(idea.finalImageUrl || '');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [activeRightTab, setActiveRightTab] = useState(currentUser === 'Felipe' ? 'edit' : 'read');
+  const [activeRightTab, setActiveRightTab] = useState('preview');
   const [previewPersona, setPreviewPersona] = useState('Victor');
 
   const isFelipe = currentUser === 'Felipe';
