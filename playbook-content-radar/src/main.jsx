@@ -2120,7 +2120,12 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
       <header className="li-company-card shadow-li">
         <div className="li-company-banner" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #0a66c2 100%)' }}></div>
         <div className="li-company-profile-row">
-          <div className="li-company-avatar" style={{ borderRadius: '12px', background: '#0a66c2', fontSize: '36px', border: '3px solid #ffffff' }}>P</div>
+          <img 
+            className="li-company-avatar" 
+            src="https://media.licdn.com/dms/image/v2/D4D0BAQE4WoqghkPp9w/company-logo_200_200/company-logo_200_200/0/1693484669385/ftx_inside_sales_logo?e=1781740800&v=beta&t=f4YRwAGJT4RtRt27DFMSLUwXT9c1gqAFIbFl6YP0kSs" 
+            alt="Playbook Lab Logo" 
+            style={{ borderRadius: '12px', border: '3px solid #ffffff', objectFit: 'cover', background: '#ffffff' }} 
+          />
           <div className="li-company-info">
             <div className="li-company-title-row">
               <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

@@ -2487,7 +2487,7 @@ kbd {
   display: flex;
   align-items: flex-end;
   padding: 0 24px 20px 24px;
-  margin-top: -36px;
+  margin-top: 0;
   gap: 16px;
   flex-wrap: wrap;
 }
@@ -2506,6 +2506,9 @@ kbd {
   font-weight: 800;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   font-family: var(--font-body);
+  margin-top: -45px;
+  position: relative;
+  z-index: 2;
 }
 
 .li-company-info {
