@@ -90,6 +90,252 @@ const generateUUID = () => {
   });
 };
 
+// Premium Vote Badge renderer with LinkedIn high-fidelity reaction style
+const renderVoteBadge = (vote) => {
+  const voteType = vote || 'empty';
+  const label = voteType === 'like' ? 'Gostei' : voteType === 'maybe' ? 'Talvez' : voteType === 'dislike' ? 'Não gostei' : 'Pendente';
+  
+  const getIcon = () => {
+    switch (voteType) {
+      case 'like':
+        return <ThumbsUp size={12} fill="#0a66c2" strokeWidth={1.8} style={{ display: 'inline-block', verticalAlign: 'middle' }} />;
+      case 'maybe':
+        return <Lightbulb size={12} fill="#b45309" strokeWidth={1.8} style={{ display: 'inline-block', verticalAlign: 'middle' }} />;
+      case 'dislike':
+        return <ThumbsDown size={12} fill="#d13022" strokeWidth={1.8} style={{ display: 'inline-block', verticalAlign: 'middle' }} />;
+      default:
+        return <Clock size={12} strokeWidth={1.8} style={{ display: 'inline-block', verticalAlign: 'middle' }} />;
+    }
+  };
+
+  return (
+    <div className={`table-vote-badge ${voteType}`}>
+      {getIcon()}
+      <span className="vote-label">{label}</span>
+    </div>
+  );
+};
+
+// Premium Unified Score & Decision Column Renderer (Flat Modern SaaS Style)
+const renderScoreColumn = (score, decision) => {
+  const scoreVal = score || 0;
+  const scoreClass = scoreVal >= 1.5 ? 'high' : scoreVal > 0 ? 'medium' : 'low';
+  
+  let dotColor = '#94a3b8'; // gray
+  let decisionColor = '#64748b';
+
+  if (scoreClass === 'high') {
+    dotColor = '#10b981'; // emerald green
+    decisionColor = '#057642';
+  } else if (scoreClass === 'medium') {
+    dotColor = '#f59e0b'; // amber
+    decisionColor = '#b45309';
+  }
+
+  if (decision === 'Discutir com o time' || decision === 'Descartar') {
+    dotColor = '#ef4444'; // red
+    decisionColor = '#b91c1c';
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start', userSelect: 'none' }}>
+      {/* Score Number with a simple colored dot */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span style={{ 
+          width: '6px', 
+          height: '6px', 
+          borderRadius: '50%', 
+          background: dotColor, 
+          display: 'inline-block' 
+        }} />
+        <span style={{ fontSize: '14.5px', fontWeight: 700, color: '#0f172a' }}>{scoreVal}</span>
+      </div>
+      
+      {/* Very clean borderless subtext */}
+      <span style={{ 
+        fontSize: '10px', 
+        fontWeight: 700, 
+        color: decisionColor,
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em'
+      }}>
+        {decision}
+      </span>
+    </div>
+  );
+};
+
+
+// Premium Custom Dropdown to replace native HTML select for Manual Status (Status do Radar)
+function StatusDropdown({ idea, onChange, currentUser, isSmall = false }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  if (currentUser !== 'Felipe') return null;
+  
+  const options = [
+    { value: 'auto', label: 'Automático (Votos)', icon: Sparkles, color: '#475569', bg: '#f8fafc', border: '#cbd5e1' },
+    { value: 'aprovado', label: 'Aprovada', icon: CheckCircle2, color: '#057642', bg: '#eaf7f0', border: '#a7f3d0' },
+    { value: 'rejeitado', label: 'Rejeitada', icon: XCircle, color: '#b91c1c', bg: '#fee2e2', border: '#fca5a5' },
+    { value: 'em_producao', label: 'Em Produção', icon: Flame, color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+    { value: 'publicada', label: 'Publicada', icon: ExternalLink, color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd' },
+    { value: 'arquivada', label: 'Arquivada', icon: Archive, color: '#334155', bg: '#f1f5f9', border: '#cbd5e1' }
+  ];
+  
+  const currentVal = idea.manualStatus || 'auto';
+  const selectedOpt = options.find(o => o.value === currentVal) || options[0];
+  const Icon = selectedOpt.icon;
+  
+  return (
+    <div style={{ position: 'relative', display: 'inline-block', width: '100%', maxWidth: isSmall ? '150px' : '170px', zIndex: isOpen ? 50 : 2 }}>
+      {/* Selector Button */}
+      <button
+        type="button"
+        className={`status-select-btn`}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+          width: '100%',
+          padding: isSmall ? '4px 8px' : '6px 12px',
+          borderRadius: '6px',
+          border: '1px solid #cbd5e1',
+          background: '#ffffff',
+          color: '#1e293b',
+          fontSize: isSmall ? '11px' : '11.5px',
+          fontWeight: 600,
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.borderColor = '#94a3b8';
+          e.currentTarget.style.background = '#f8fafc';
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.borderColor = '#cbd5e1';
+          e.currentTarget.style.background = '#ffffff';
+        }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <Icon size={12} strokeWidth={2.5} style={{ color: selectedOpt.color }} />
+          {selectedOpt.label}
+        </span>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0)',
+            transition: 'transform 0.2s ease',
+            opacity: 0.7,
+            flexShrink: 0,
+            color: '#64748b'
+          }}
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      {/* Floating Dropdown Overlay Menu */}
+      {isOpen && (
+        <>
+          {/* Backdrop to close dropdown on click outside */}
+          <div 
+            style={{ 
+              position: 'fixed', 
+              inset: 0, 
+              zIndex: 9998, 
+              background: 'transparent' 
+            }} 
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(false);
+            }} 
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              marginTop: '4px',
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
+              zIndex: 9999,
+              overflow: 'hidden',
+              padding: '4px',
+              minWidth: '150px'
+            }}
+          >
+            {options.map(opt => {
+              const OptIcon = opt.icon;
+              const isSelected = opt.value === currentVal;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(opt.value);
+                    setIsOpen(false);
+                  }}
+                  className="status-dropdown-item"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    width: '100%',
+                    padding: '8px 10px',
+                    border: 'none',
+                    borderRadius: '6px',
+                    background: isSelected ? opt.bg : 'transparent',
+                    color: opt.color,
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    transition: 'all 0.1s ease',
+                    marginBottom: '2px'
+                  }}
+                  onMouseOver={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.background = opt.bg;
+                    }
+                  }}
+                  onMouseOut={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.background = 'transparent';
+                    }
+                  }}
+                >
+                  <OptIcon size={12} strokeWidth={isSelected ? 2.5 : 2} style={{ color: opt.color, flexShrink: 0 }} />
+                  <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{opt.label}</span>
+                  {isSelected && (
+                    <Check size={12} strokeWidth={2.5} style={{ marginLeft: 'auto', color: opt.color, flexShrink: 0 }} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Smart LinkedIn URL Parser & Autofill Engine
 function parseLinkedInUrl(url) {
   try {
@@ -1926,44 +2172,35 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
         </div>
       </header>
 
-      {/* NEW: upper premium KPI Grid */}
-      <div className="li-kpis-grid">
-        <div className="li-kpi-card kpi-mapped">
-          <div className="li-kpi-icon-wrap mapped"><FileText size={20} /></div>
-          <div className="li-kpi-details">
-            <span className="li-kpi-label">Total Mapeado</span>
-            <span className="li-kpi-value">{stats.total}</span>
-            <span className="li-kpi-trend info">Referências no Radar</span>
-          </div>
+      {/* LinkedIn Integrated Corporate Page Analytics Card */}
+      <div className="li-analytics-card">
+        <div className="li-analytics-header">
+          <h3>Métricas do Radar</h3>
+          <span>Dados em tempo real nos últimos 30 dias</span>
         </div>
-
-        <div className="li-kpi-card kpi-approved">
-          <div className="li-kpi-icon-wrap approved"><CheckCircle2 size={20} /></div>
-          <div className="li-kpi-details">
-            <span className="li-kpi-label">Taxa Aprovação</span>
-            <span className="li-kpi-value">{stats.aprovacaoRate}%</span>
-            <span className="li-kpi-trend up">⭐ {stats.aprovados} pautas aprovadas</span>
+        <div className="li-analytics-grid">
+          <div className="li-analytics-item li-analytics-divider">
+            <span className="li-analytics-title">Total Mapeado</span>
+            <span className="li-analytics-value">{stats.total}</span>
+            <span className="li-analytics-trend gray">Referências no radar</span>
           </div>
-        </div>
-
-        <div className="li-kpi-card kpi-divergent">
-          <div className="li-kpi-icon-wrap divergent"><AlertTriangle size={20} /></div>
-          <div className="li-kpi-details">
-            <span className="li-kpi-label">Decisão Eficiente</span>
-            <span className="li-kpi-value">{stats.decisaoRate}%</span>
-            <span className="li-kpi-trend warn">📊 {ideas.length - stats.pendentes} tratadas</span>
+          <div className="li-analytics-item li-analytics-divider">
+            <span className="li-analytics-title">Taxa de Aprovação</span>
+            <span className="li-analytics-value">{stats.aprovacaoRate}%</span>
+            <span className="li-analytics-trend green">▲ {stats.aprovados} pautas</span>
           </div>
-        </div>
-
-        <div className="li-kpi-card kpi-pending">
-          <div className="li-kpi-icon-wrap pending"><Clock size={20} /></div>
-          <div className="li-kpi-details">
-            <span className="li-kpi-label">Ações Pendentes</span>
-            <span className="li-kpi-value" style={{ color: stats.totalPendencias > 0 ? '#d13022' : 'inherit' }}>
+          <div className="li-analytics-item li-analytics-divider">
+            <span className="li-analytics-title">Decisão Eficiente</span>
+            <span className="li-analytics-value">{stats.decisaoRate}%</span>
+            <span className="li-analytics-trend green">▲ {ideas.length - stats.pendentes} tratadas</span>
+          </div>
+          <div className="li-analytics-item">
+            <span className="li-analytics-title">Ações Pendentes</span>
+            <span className="li-analytics-value" style={{ color: stats.totalPendencias > 0 ? '#d13022' : 'inherit' }}>
               {stats.totalPendencias}
             </span>
-            <span className="li-kpi-trend" style={{ color: stats.totalPendencias > 0 ? '#d13022' : '#057642' }}>
-              {stats.totalPendencias > 0 ? '⚠️ Caixa de curadoria cheia' : '🎉 Tudo limpo!'}
+            <span className={`li-analytics-trend ${stats.totalPendencias > 0 ? 'red' : 'green'}`}>
+              {stats.totalPendencias > 0 ? '⚠️ Ações requeridas' : '🎉 Tudo limpo!'}
             </span>
           </div>
         </div>
@@ -2011,38 +2248,82 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
           {activeTab === 'curation' && (
             <>
               {/* Section: Aprovadas por Ambos */}
-              <div className="li-feed-card shadow-li" style={{ borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                <div className="card-header" style={{ marginBottom: '12px' }}>
-                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>Aprovadas por Ambos</h3>
+              <div style={{ marginBottom: '24px' }}>
+                <div className="li-analytics-header" style={{ marginBottom: '12px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(0,0,0,0.9)' }}>Aprovadas por Ambos</h3>
                   <span className="badge-pill success">Prontas para Sheets / Agendamento</span>
                 </div>
                 {approvedBoth.length === 0 ? (
-                  <p className="li-empty-text">Nenhuma pauta aprovada por ambos ainda.</p>
+                  <div className="li-feed-post-card" style={{ textAlign: 'center', padding: '24px' }}>
+                    <p className="li-empty-text">Nenhuma pauta aprovada por ambos ainda.</p>
+                  </div>
                 ) : (
                   <div className="li-feed-list">
                     {approvedBoth.map(item => (
-                      <div key={item.id} className="li-feed-item" style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: '8px' }}>
-                        <div className="item-meta">
-                          <h4 style={{ color: '#0f172a', fontWeight: 600 }}>{item.title}</h4>
-                          <span style={{ color: '#64748b' }}>{item.category} • {item.contentType}</span>
+                      <div key={item.id} className="li-feed-post-card">
+                        {/* Post Header */}
+                        <div className="li-feed-post-header">
+                          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                            {item.authorAvatar ? (
+                              <img 
+                                className="li-feed-post-avatar-img" 
+                                src={item.authorAvatar} 
+                                alt={item.sourceAuthor} 
+                                onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sourceAuthor || 'Autor')}&background=0a66c2&color=fff&bold=true`; }}
+                              />
+                            ) : (
+                              <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#0a66c2', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{item.sourceAuthor ? item.sourceAuthor.charAt(0) : 'L'}</div>
+                            )}
+                            <div>
+                              <div className="li-feed-post-author-name">
+                                {item.sourceAuthor || 'Autor LinkedIn'} <span style={{ color: 'rgba(0,0,0,0.6)', fontWeight: 'normal', fontSize: '12px' }}>• 2º</span>
+                              </div>
+                              <div className="li-feed-post-author-headline">{item.authorHeadline || 'Líder de GTM'}</div>
+                              <div className="li-feed-post-time">1d • 🌐</div>
+                            </div>
+                          </div>
+                          {item.linkedinUrl && (
+                            <a href={item.linkedinUrl} target="_blank" rel="noopener noreferrer" className="li-feed-post-connect-btn">
+                              Ver original ↗
+                            </a>
+                          )}
                         </div>
-                        <div className="li-action-btn-group">
-                          <button 
-                            type="button"
-                            className="li-btn-quick-action schedule-direct"
-                            onClick={() => onScheduleIdea && onScheduleIdea(item)}
-                            title="Agendar diretamente no Calendário Editorial"
-                          >
-                            <Calendar size={12} /> Agendar
-                          </button>
-                          <button 
-                            type="button"
-                            className="li-feed-action-btn"
-                            onClick={() => onNavigateToIdeas && onNavigateToIdeas('todos')}
-                            style={{ padding: '5px 12px', fontSize: '11.5px' }}
-                          >
-                            Ver Detalhes
-                          </button>
+
+                        {/* Post Content */}
+                        <div className="li-feed-post-body" style={{ maxHeight: '160px', overflowY: 'auto', borderBottom: '1px solid rgba(0,0,0,0.04)', paddingBottom: '8px', marginBottom: '8px' }}>
+                          <h4 style={{ fontWeight: 600, color: 'rgba(0,0,0,0.9)', marginBottom: '6px' }}>{item.title}</h4>
+                          <p style={{ fontSize: '13px', color: 'rgba(0,0,0,0.85)' }}>{item.summary}</p>
+                        </div>
+
+                        {/* Repost Box (Playbook Angle) */}
+                        {item.playbookAngle && (
+                          <div className="li-feed-post-insight-box">
+                            <strong>🎯 Insight de Curadoria (Ângulo Playbook)</strong>
+                            <p>{item.playbookAngle}</p>
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="li-feed-actions-bar">
+                          <span style={{ fontSize: '11px', color: 'rgba(0,0,0,0.6)', fontWeight: 600 }}>
+                            {item.category} • {item.contentType}
+                          </span>
+                          <div className="li-action-btn-group">
+                            <button 
+                              type="button"
+                              className="li-feed-pill-btn primary"
+                              onClick={() => onScheduleIdea && onScheduleIdea(item)}
+                            >
+                              <Calendar size={12} /> Agendar
+                            </button>
+                            <button 
+                              type="button"
+                              className="li-feed-pill-btn secondary"
+                              onClick={() => onNavigateToIdeas && onNavigateToIdeas('todos')}
+                            >
+                              Ver Detalhes
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -2050,14 +2331,16 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                 )}
               </div>
 
-              {/* NEW/SMART: Divergência de Votos com Conciliação Executiva (Voto de Minerva) */}
-              <div className="li-feed-card shadow-li" style={{ borderRadius: '12px', border: '1px solid #fca5a5' }}>
-                <div className="card-header">
-                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#991b1b' }}>Divergência de Votos</h3>
+              {/* Section: Divergência de Votos */}
+              <div style={{ marginBottom: '24px' }}>
+                <div className="li-analytics-header" style={{ marginBottom: '12px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#991b1b' }}>Divergência de Votos</h3>
                   <span className="badge-pill warning" style={{ background: '#fee2e2', color: '#991b1b' }}>Requer Conciliação Admin</span>
                 </div>
                 {divergentIdeas.length === 0 ? (
-                  <p className="li-empty-text">Nenhuma divergência identificada no radar.</p>
+                  <div className="li-feed-post-card" style={{ textAlign: 'center', padding: '24px', border: '1px solid rgba(0,0,0,0.08)' }}>
+                    <p className="li-empty-text">Nenhuma divergência identificada no radar.</p>
+                  </div>
                 ) : (
                   <div className="li-feed-list">
                     {divergentIdeas.map(item => {
@@ -2065,72 +2348,110 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                       const fernandoVote = votes.find(v => v.ideaId === item.id && v.voterName === 'Fernando');
                       
                       return (
-                        <div key={item.id} className="li-feed-item divergent-item" style={{ borderRadius: '8px', padding: '14px' }}>
-                          <div className="divergent-item-row-top">
-                            <div className="item-meta">
-                              <h4 style={{ color: '#0f172a', fontSize: '14px' }}>{item.title}</h4>
-                              <span style={{ color: '#64748b' }}>{item.category} • {item.contentType}</span>
-                              {item.playbookAngle && (
-                                <p style={{ fontSize: '11.5px', color: '#b45309', background: '#fffbeb', padding: '6px 8px', borderRadius: '4px', marginTop: '6px', borderLeft: '2px solid #f59e0b' }}>
-                                  🎯 <strong>Ângulo Playbook:</strong> {item.playbookAngle}
-                                </p>
+                        <div key={item.id} className="li-feed-post-card" style={{ border: '1px solid #fca5a5' }}>
+                          {/* Post Header */}
+                          <div className="li-feed-post-header">
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                              {item.authorAvatar ? (
+                                <img 
+                                  className="li-feed-post-avatar-img" 
+                                  src={item.authorAvatar} 
+                                  alt={item.sourceAuthor} 
+                                  onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sourceAuthor || 'Autor')}&background=0a66c2&color=fff&bold=true`; }}
+                                />
+                              ) : (
+                                <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#0a66c2', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{item.sourceAuthor ? item.sourceAuthor.charAt(0) : 'L'}</div>
                               )}
+                              <div>
+                                <div className="li-feed-post-author-name">
+                                  {item.sourceAuthor || 'Autor LinkedIn'} <span style={{ color: 'rgba(0,0,0,0.6)', fontWeight: 'normal', fontSize: '12px' }}>• 2º</span>
+                                </div>
+                                <div className="li-feed-post-author-headline">{item.authorHeadline || 'Líder de GTM'}</div>
+                                <div className="li-feed-post-time">2d • 🌐</div>
+                              </div>
+                            </div>
+                            {item.linkedinUrl && (
+                              <a href={item.linkedinUrl} target="_blank" rel="noopener noreferrer" className="li-feed-post-connect-btn">
+                                Ver original ↗
+                              </a>
+                            )}
+                          </div>
+
+                          {/* Post Content */}
+                          <div className="li-feed-post-body" style={{ maxHeight: '160px', overflowY: 'auto', borderBottom: '1px solid rgba(0,0,0,0.04)', paddingBottom: '8px', marginBottom: '8px' }}>
+                            <h4 style={{ fontWeight: 600, color: 'rgba(0,0,0,0.9)', marginBottom: '6px' }}>{item.title}</h4>
+                            <p style={{ fontSize: '13px', color: 'rgba(0,0,0,0.85)' }}>{item.summary}</p>
+                          </div>
+
+                          {/* Repost Box (Playbook Angle) */}
+                          {item.playbookAngle && (
+                            <div className="li-feed-post-insight-box">
+                              <strong>🎯 Insight de Curadoria (Ângulo Playbook)</strong>
+                              <p>{item.playbookAngle}</p>
+                            </div>
+                          )}
+
+                          {/* Curator Comments nested exactly like native LinkedIn Comments */}
+                          <div className="li-feed-comments-section">
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(0,0,0,0.6)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>Discussão da Curadoria</span>
+                            
+                            {/* Victor's Comment Bubble */}
+                            <div className="li-feed-comment-item">
+                              <img 
+                                src={USER_AVATARS.Victor} 
+                                alt="Victor" 
+                                className="li-feed-comment-avatar"
+                                onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Victor&background=057642&color=fff"; }}
+                              />
+                              <div className="li-feed-comment-bubble">
+                                <div className="li-feed-comment-user-name">Victor <span style={{ color: 'rgba(0,0,0,0.6)', fontWeight: 'normal' }}>• Curador Editorial</span></div>
+                                <div className="li-feed-comment-text">"{victorVote?.comment || 'Sem observações adicionais.'}"</div>
+                                <div className={`li-feed-comment-voter-badge ${victorVote?.vote === 'like' ? 'liked' : 'disliked'}`}>
+                                  {victorVote?.vote === 'like' ? '👍 Gostou da ideia' : '👎 Rejeitou a ideia'}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Fernando's Comment Bubble */}
+                            <div className="li-feed-comment-item">
+                              <img 
+                                src={USER_AVATARS.Fernando} 
+                                alt="Fernando" 
+                                className="li-feed-comment-avatar"
+                                onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff"; }}
+                              />
+                              <div className="li-feed-comment-bubble">
+                                <div className="li-feed-comment-user-name">Fernando <span style={{ color: 'rgba(0,0,0,0.6)', fontWeight: 'normal' }}>• Curador Editorial</span></div>
+                                <div className="li-feed-comment-text">"{fernandoVote?.comment || 'Sem observações adicionais.'}"</div>
+                                <div className={`li-feed-comment-voter-badge ${fernandoVote?.vote === 'like' ? 'liked' : 'disliked'}`}>
+                                  {fernandoVote?.vote === 'like' ? '👍 Gostou da ideia' : '👎 Rejeitou a ideia'}
+                                </div>
+                              </div>
                             </div>
                           </div>
-                          
-                          <div className="divergent-item-row-bottom">
-                            {/* Voters detailed view */}
-                            <div className="li-curators-mini-status">
-                              <div className="curator-status-avatar-row">
-                                <img 
-                                  src={USER_AVATARS.Victor} 
-                                  alt="Victor" 
-                                  className="curator-mini-avatar"
-                                  onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Victor&background=057642&color=fff"; }}
-                                />
-                                <span className={`curator-mini-status-text ${victorVote?.vote === 'like' ? 'liked' : 'disliked'}`}>
-                                  Victor: {victorVote?.vote === 'like' ? '👍 Gostou' : '👎 Rejeitou'}
-                                </span>
-                              </div>
-                              <div className="curator-status-avatar-row">
-                                <img 
-                                  src={USER_AVATARS.Fernando} 
-                                  alt="Fernando" 
-                                  className="curator-mini-avatar"
-                                  onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff"; }}
-                                />
-                                <span className={`curator-mini-status-text ${fernandoVote?.vote === 'like' ? 'liked' : 'disliked'}`}>
-                                  Fernando: {fernandoVote?.vote === 'like' ? '👍 Gostou' : '👎 Rejeitou'}
-                                </span>
-                              </div>
-                            </div>
-                            
-                            {/* Executive Decision Buttons (Voto de minerva) */}
+
+                          {/* Executive Conciliation Actions */}
+                          <div className="li-feed-actions-bar">
+                            <span style={{ fontSize: '11px', color: 'rgba(0,0,0,0.6)', fontWeight: 600 }}>
+                              {item.category} • {item.contentType}
+                            </span>
                             <div className="li-action-btn-group">
                               <button 
                                 type="button" 
-                                className="li-btn-quick-action approve-conciliate"
+                                className="li-feed-pill-btn success"
                                 onClick={() => handleConciliation(item.id, 'aprovado')}
                               >
-                                <Check size={12} /> Aprovar
+                                <Check size={12} /> Aprovar Pauta
                               </button>
                               <button 
                                 type="button" 
-                                className="li-btn-quick-action reject-conciliate"
+                                className="li-feed-pill-btn danger"
                                 onClick={() => handleConciliation(item.id, 'rejeitado')}
                               >
-                                <X size={12} /> Recusar
+                                <X size={12} /> Recusar Pauta
                               </button>
                             </div>
                           </div>
-                          
-                          {/* Voter comments below */}
-                          {(victorVote?.comment || fernandoVote?.comment) && (
-                            <div style={{ marginTop: '8px', padding: '8px 10px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '11px', color: '#475569' }}>
-                              {victorVote?.comment && <p><strong>Victor:</strong> "{victorVote.comment}"</p>}
-                              {fernandoVote?.comment && <p style={{ marginTop: victorVote?.comment ? '4px' : '0' }}><strong>Fernando:</strong> "{fernandoVote.comment}"</p>}
-                            </div>
-                          )}
                         </div>
                       );
                     })}
@@ -2138,14 +2459,16 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                 )}
               </div>
 
-              {/* Section: Sob Avaliação Editorial with detailed status */}
-              <div className="li-feed-card shadow-li" style={{ borderRadius: '12px', border: '1px solid #cbd5e1' }}>
-                <div className="card-header">
-                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#334155' }}>Fila Geral de Avaliação</h3>
+              {/* Section: Fila Geral de Avaliação */}
+              <div style={{ marginBottom: '24px' }}>
+                <div className="li-analytics-header" style={{ marginBottom: '12px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'rgba(0,0,0,0.9)' }}>Fila Geral de Avaliação</h3>
                   <span className="badge-pill info">Aguardando Decisões</span>
                 </div>
                 {evaluatingIdeas.length === 0 ? (
-                  <p className="li-empty-text">Nenhuma pauta sob avaliação aguardando.</p>
+                  <div className="li-feed-post-card" style={{ textAlign: 'center', padding: '24px', border: '1px solid rgba(0,0,0,0.08)' }}>
+                    <p className="li-empty-text">Nenhuma pauta sob avaliação aguardando.</p>
+                  </div>
                 ) : (
                   <div className="li-feed-list">
                     {evaluatingIdeas.map(item => {
@@ -2153,56 +2476,115 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                       const fernandoVote = votes.find(v => v.ideaId === item.id && v.voterName === 'Fernando');
                       
                       return (
-                        <div key={item.id} className="li-feed-item evaluating-item" style={{ borderRadius: '8px', padding: '12px' }}>
-                          <div className="divergent-item-row-top">
-                            <div className="item-meta">
-                              <h4 style={{ color: '#0f172a', fontSize: '13.5px' }}>{item.title}</h4>
-                              <span style={{ color: '#64748b' }}>{item.category} • {item.contentType}</span>
+                        <div key={item.id} className="li-feed-post-card">
+                          {/* Post Header */}
+                          <div className="li-feed-post-header">
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                              {item.authorAvatar ? (
+                                <img 
+                                  className="li-feed-post-avatar-img" 
+                                  src={item.authorAvatar} 
+                                  alt={item.sourceAuthor} 
+                                  onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sourceAuthor || 'Autor')}&background=0a66c2&color=fff&bold=true`; }}
+                                />
+                              ) : (
+                                <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#0a66c2', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>{item.sourceAuthor ? item.sourceAuthor.charAt(0) : 'L'}</div>
+                              )}
+                              <div>
+                                <div className="li-feed-post-author-name">
+                                  {item.sourceAuthor || 'Autor LinkedIn'} <span style={{ color: 'rgba(0,0,0,0.6)', fontWeight: 'normal', fontSize: '12px' }}>• 2º</span>
+                                </div>
+                                <div className="li-feed-post-author-headline">{item.authorHeadline || 'Líder de GTM'}</div>
+                                <div className="li-feed-post-time">3d • 🌐</div>
+                              </div>
                             </div>
-                            <span className="score-tag" style={{ background: '#f1f5f9', color: '#475569' }}>Score {item.score}</span>
+                            {item.linkedinUrl && (
+                              <a href={item.linkedinUrl} target="_blank" rel="noopener noreferrer" className="li-feed-post-connect-btn">
+                                Ver original ↗
+                              </a>
+                            )}
                           </div>
-                          
-                          <div className="evaluation-votes-grid">
-                            <div className="evaluation-voter-col">
+
+                          {/* Post Content */}
+                          <div className="li-feed-post-body" style={{ maxHeight: '160px', overflowY: 'auto', borderBottom: '1px solid rgba(0,0,0,0.04)', paddingBottom: '8px', marginBottom: '8px' }}>
+                            <h4 style={{ fontWeight: 600, color: 'rgba(0,0,0,0.9)', marginBottom: '6px' }}>{item.title}</h4>
+                            <p style={{ fontSize: '13px', color: 'rgba(0,0,0,0.85)' }}>{item.summary}</p>
+                          </div>
+
+                          {/* Repost Box (Playbook Angle) */}
+                          {item.playbookAngle && (
+                            <div className="li-feed-post-insight-box">
+                              <strong>🎯 Insight de Curadoria (Ângulo Playbook)</strong>
+                              <p>{item.playbookAngle}</p>
+                            </div>
+                          )}
+
+                          {/* Curators evaluation comments section */}
+                          <div className="li-feed-comments-section">
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(0,0,0,0.6)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>Observações e Votos</span>
+                            
+                            {/* Victor status comment */}
+                            <div className="li-feed-comment-item">
                               <img 
                                 src={USER_AVATARS.Victor} 
                                 alt="Victor" 
-                                className="curator-mini-avatar"
+                                className="li-feed-comment-avatar"
                                 onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Victor&background=057642&color=fff"; }}
                               />
-                              <span>Victor:</span>
-                              <span className={victorVote ? (victorVote.vote === 'like' ? 'text-green' : victorVote.vote === 'maybe' ? 'text-amber' : 'text-red') : 'text-muted'} style={{ fontWeight: 700 }}>
-                                {victorVote ? (victorVote.vote === 'like' ? 'Gostou' : victorVote.vote === 'maybe' ? 'Talvez' : 'Rejeitou') : '⏳ Aguardando'}
-                              </span>
+                              <div className="li-feed-comment-bubble">
+                                <div className="li-feed-comment-user-name">Victor <span style={{ color: 'rgba(0,0,0,0.6)', fontWeight: 'normal' }}>• Curador Editorial</span></div>
+                                <div className="li-feed-comment-text">
+                                  {victorVote ? `"${victorVote.comment || 'Votou sem comentários.'}"` : '⏳ Aguardando envio de voto...'}
+                                </div>
+                                {victorVote && (
+                                  <div className={`li-feed-comment-voter-badge ${victorVote.vote === 'like' ? 'liked' : victorVote.vote === 'maybe' ? 'maybe' : 'disliked'}`}>
+                                    {victorVote.vote === 'like' ? '👍 Gostou' : victorVote.vote === 'maybe' ? '💡 Talvez' : '👎 Rejeitou'}
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            
-                            <div className="evaluation-voter-col">
+
+                            {/* Fernando status comment */}
+                            <div className="li-feed-comment-item">
                               <img 
                                 src={USER_AVATARS.Fernando} 
                                 alt="Fernando" 
-                                className="curator-mini-avatar"
+                                className="li-feed-comment-avatar"
                                 onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff"; }}
                               />
-                              <span>Fernando:</span>
-                              <span className={fernandoVote ? (fernandoVote.vote === 'like' ? 'text-green' : fernandoVote.vote === 'maybe' ? 'text-amber' : 'text-red') : 'text-muted'} style={{ fontWeight: 700 }}>
-                                {fernandoVote ? (fernandoVote.vote === 'like' ? 'Gostou' : fernandoVote.vote === 'maybe' ? 'Talvez' : 'Rejeitou') : '⏳ Aguardando'}
-                              </span>
+                              <div className="li-feed-comment-bubble">
+                                <div className="li-feed-comment-user-name">Fernando <span style={{ color: 'rgba(0,0,0,0.6)', fontWeight: 'normal' }}>• Curador Editorial</span></div>
+                                <div className="li-feed-comment-text">
+                                  {fernandoVote ? `"${fernandoVote.comment || 'Votou sem comentários.'}"` : '⏳ Aguardando envio de voto...'}
+                                </div>
+                                {fernandoVote && (
+                                  <div className={`li-feed-comment-voter-badge ${fernandoVote.vote === 'like' ? 'liked' : fernandoVote.vote === 'maybe' ? 'maybe' : 'disliked'}`}>
+                                    {fernandoVote.vote === 'like' ? '👍 Gostou' : fernandoVote.vote === 'maybe' ? '💡 Talvez' : '👎 Rejeitou'}
+                                  </div>
+                                )}
+                              </div>
                             </div>
+                          </div>
 
-                            {/* Direct Admin Overrides */}
-                            <div className="li-action-btn-group" style={{ marginLeft: 'auto' }}>
+                          {/* Direct Admin Decisions actions bar */}
+                          <div className="li-feed-actions-bar">
+                            <div className="li-feed-actions-left">
+                              <span style={{ fontSize: '11px', color: 'rgba(0,0,0,0.6)', fontWeight: 600, marginRight: '8px' }}>
+                                {item.category} • {item.contentType}
+                              </span>
+                              {renderScoreColumn(getScore(item, votes), getSuggestedDecision(item.computedStatus, getScore(item, votes)))}
+                            </div>
+                            <div className="li-action-btn-group">
                               <button 
                                 type="button" 
-                                className="li-btn-quick-action approve-conciliate" 
-                                style={{ padding: '3px 10px', fontSize: '10px' }}
+                                className="li-feed-pill-btn primary"
                                 onClick={() => handleManualAction(item.id, 'aprovado')}
                               >
                                 Forçar Aprovação
                               </button>
                               <button 
                                 type="button" 
-                                className="li-btn-quick-action reject-conciliate" 
-                                style={{ padding: '3px 10px', fontSize: '10px' }}
+                                className="li-feed-pill-btn secondary"
                                 onClick={() => handleManualAction(item.id, 'arquivada')}
                               >
                                 Arquivar
@@ -3135,31 +3517,22 @@ function IdeasListView({
               const ideaComments = votes.filter(v => v.ideaId === idea.id && v.comment);
               
               return (
-                <div key={idea.id} className="li-feed-item-wrapper" style={{ display: 'flex', flexDirection: 'column', width: '100%', background: '#ffffff', borderRadius: '8px', border: '1px solid #e0e0e0', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <div key={idea.id} className="li-feed-item-wrapper" style={{ display: 'flex', flexDirection: 'column', width: '100%', background: '#ffffff', borderRadius: '8px', border: '1px solid #e0e0e0', overflow: 'visible', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', position: 'relative' }}>
                   
                   {/* Curation Info Ribbon Above Card */}
-                  <div className="li-feed-curator-status" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f3f6f8', padding: '12px 20px', borderBottom: '1px solid #e0e0e0', fontSize: '13px', fontWeight: 600 }}>
+                  <div className="li-feed-curator-status" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f3f6f8', padding: '12px 20px', borderBottom: '1px solid #e0e0e0', fontSize: '13px', fontWeight: 600, borderTopLeftRadius: '7px', borderTopRightRadius: '7px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span className={`status-pill ${idea.computedStatus.replace(' outro voto', '')}`}>
                         {idea.computedStatus === 'em_producao' ? 'Em Produção' : 
                          idea.computedStatus === 'publicada' ? 'Publicada' : 
                          idea.computedStatus === 'arquivada' ? 'Arquivada' : idea.computedStatus}
                       </span>
-                      {currentUser === 'Felipe' && (
-                        <select 
-                          className={`status-select-td status-${idea.manualStatus || 'auto'}`} 
-                          value={idea.manualStatus || 'auto'}
-                          onChange={e => handleUpdateManualStatus(idea.id, e.target.value)}
-                          style={{ fontSize: '11px', padding: '2px 6px', width: 'auto', maxWidth: '150px' }}
-                        >
-                          <option value="auto">Automático (Votos)</option>
-                          <option value="aprovado">Aprovada</option>
-                          <option value="rejeitado">Rejeitada</option>
-                          <option value="em_producao">Em Produção</option>
-                          <option value="publicada">Publicada</option>
-                          <option value="arquivada">Arquivada</option>
-                        </select>
-                      )}
+                      <StatusDropdown 
+                        idea={idea} 
+                        onChange={value => handleUpdateManualStatus(idea.id, value)} 
+                        currentUser={currentUser} 
+                        isSmall={true} 
+                      />
                     </div>
                     
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -3313,39 +3686,21 @@ function IdeasListView({
                         )}
                       </td>
                       <td>
-                        <div className={`table-vote-badge ${idea.victorVote || 'empty'}`}>
-                          <span className="vote-dot">●</span>
-                          <span className="vote-label">{idea.victorVote === 'like' ? 'Gostei' : idea.victorVote === 'maybe' ? 'Talvez' : idea.victorVote === 'dislike' ? 'Não gostei' : 'Pendente'}</span>
-                        </div>
+                        {renderVoteBadge(idea.victorVote)}
                       </td>
                       <td>
-                        <div className={`table-vote-badge ${idea.fernandoVote || 'empty'}`}>
-                          <span className="vote-dot">●</span>
-                          <span className="vote-label">{idea.fernandoVote === 'like' ? 'Gostei' : idea.fernandoVote === 'maybe' ? 'Talvez' : idea.fernandoVote === 'dislike' ? 'Não gostei' : 'Pendente'}</span>
-                        </div>
+                        {renderVoteBadge(idea.fernandoVote)}
                       </td>
                       <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <span className={`score-meter-pill ${scoreClass}`}>{idea.score}</span>
-                          <span style={{ fontSize: '11px', color: 'var(--linkedin-mid-gray)', fontWeight: 600 }}>{idea.suggestedDecision}</span>
-                        </div>
+                        {renderScoreColumn(idea.score, idea.suggestedDecision)}
                       </td>
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                    {currentUser === 'Felipe' && (
-                            <select 
-                              className={`status-select-td status-${idea.manualStatus || 'auto'}`}
-                              value={idea.manualStatus || 'auto'}
-                              onChange={e => handleUpdateManualStatus(idea.id, e.target.value)}
-                            >
-                              <option value="auto">Automático (Votos)</option>
-                              <option value="aprovado">Aprovada</option>
-                              <option value="rejeitado">Rejeitada</option>
-                              <option value="em_producao">Em Produção</option>
-                              <option value="publicada">Publicada</option>
-                              <option value="arquivada">Arquivada</option>
-                            </select>
-                          )}
+                          <StatusDropdown 
+                            idea={idea} 
+                            onChange={value => handleUpdateManualStatus(idea.id, value)} 
+                            currentUser={currentUser} 
+                          />
                         </div>
                       </td>
                       <td>
@@ -3795,6 +4150,22 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const handleUnschedule = () => {
+    if (!confirm('Deseja remover esta pauta do Calendário Editorial?')) return;
+    
+    updateState(prev => ({
+      ...prev,
+      ideas: prev.ideas.map(i => i.id === idea.id ? { 
+        ...i, 
+        scheduledAt: null, 
+        scheduledAssignee: null 
+      } : i)
+    }));
+
+    addToast('Agendamento removido com sucesso!', 'success');
+    onClose();
+  };
+
   const originalIdeaComments = useMemo(() => {
     return idea.internalNotes ? [{ voterName: 'Time Playbook', comment: idea.internalNotes }] : [];
   }, [idea]);
@@ -4065,6 +4436,37 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
               <div className="pub-studio-action-row" style={{ borderTop: '1px solid #cbd5e1', paddingTop: '12px', marginTop: 'auto', display: 'flex', gap: '8px' }}>
                 {isFelipe ? (
                   <>
+                    {idea.scheduledAt && (
+                      <button 
+                        type="button" 
+                        className="pub-studio-btn danger" 
+                        onClick={handleUnschedule} 
+                        style={{ 
+                          flex: 1, 
+                          background: '#fef2f2', 
+                          color: '#ef4444', 
+                          border: '1px solid #fca5a5',
+                          borderRadius: '100px',
+                          padding: '10px',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.background = '#ef4444';
+                          e.currentTarget.style.color = '#ffffff';
+                          e.currentTarget.style.borderColor = 'transparent';
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.background = '#fef2f2';
+                          e.currentTarget.style.color = '#ef4444';
+                          e.currentTarget.style.borderColor = '#fca5a5';
+                        }}
+                      >
+                        Desagendar
+                      </button>
+                    )}
                     <button type="button" className="pub-studio-btn secondary" onClick={onClose} style={{ flex: 1 }}>
                       Cancelar
                     </button>
