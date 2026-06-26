@@ -460,7 +460,9 @@ button:active {
 .swipe-wrap {
   position: relative;
   width: 100%;
-  touch-action: none;
+  /* pan-y deixa a rolagem vertical nativa funcionar (ler posts longos no celular),
+     enquanto o gesto horizontal continua sendo capturado pelo swipe de votação. */
+  touch-action: pan-y;
   z-index: 10;
 }
 

@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import './styles.css';
 import { createClient } from '@supabase/supabase-js';
+import victorPhoto from './assets/victor.png';
+import fernandoPhoto from './assets/fernando.png';
 
 const SUPABASE_URL = 'https://xcihctupmfawtawbzwvm.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjaWhjdHVwbWZhd3Rhd2J6d3ZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNTY1MTIsImV4cCI6MjA5NTgzMjUxMn0.GFVSHYY0S9nwfunxUyGGio5EQgsZE04nvFZAFz-L4Ow';
@@ -72,10 +74,15 @@ const SendIcon = ({ size = 18, ...props }) => (
 
 const STORAGE_KEY = 'playbook-content-radar-v3';
 
+// Avatares dos curadores agora vêm de arquivos locais (src/assets), e não mais de
+// URLs assinadas do LinkedIn (media.licdn.com), que expiram a cada ~30 dias e
+// passam a retornar 403 — foi isso que fez as fotos do Victor e do Fernando sumirem.
+// Para trocar a foto de alguém, basta substituir o PNG correspondente em src/assets.
+// Felipe: enquanto não houver src/assets/felipe.png, usamos um avatar estável com a inicial.
 const USER_AVATARS = {
-  Victor: "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1781740800&v=beta&t=9c3ObEUV2RPArOaUVbvqypVwGTH4cD4yYr8oKMx9wmY",
-  Fernando: "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1691368512757?e=1781740800&v=beta&t=8DPmkbjdmCK80cNFjIBlK5DHUZaAaL4co3rO-chr9r0",
-  Felipe: "https://media.licdn.com/dms/image/v2/D4D03AQHQVwVWSBIZ9w/profile-displayphoto-scale_100_100/B4DZ2ivlzRIkAg-/0/1776551921279?e=1781740800&v=beta&t=ELKZ6ifPLz7lM1S99_QrkRfbtUrzuGr0s2pMcGbwj6w"
+  Victor: victorPhoto,
+  Fernando: fernandoPhoto,
+  Felipe: "https://ui-avatars.com/api/?name=Felipe&background=0a66c2&color=fff&bold=true&size=200"
 };
 
 // Safe UUID helper
@@ -89,6 +96,59 @@ const generateUUID = () => {
     return v.toString(16);
   });
 };
+
+// Share Target (PWA): quando o Felipe compartilha um post do LinkedIn pelo celular
+// usando "Enviar para -> Content Radar", o app abre com a URL nos parâmetros.
+// O LinkedIn às vezes manda o link dentro de "text" (ex.: "Veja isso https://...").
+// Aqui extraímos a primeira URL do linkedin.com encontrada em url/text/title.
+function getSharedLinkedInUrl() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const candidates = [params.get('url'), params.get('text'), params.get('title')].filter(Boolean);
+    for (const c of candidates) {
+      const match = c.match(/https?:\/\/[^\s"']*linkedin\.com\/[^\s"']+/i);
+      if (match) return match[0].replace(/[)\].,;\s]+$/, '');
+    }
+  } catch {
+    /* ignora parâmetros malformados */
+  }
+  return null;
+}
+
+// Normaliza uma URL do LinkedIn para comparar duplicados (ignora protocolo, www,
+// query string, âncora e barra final). Não é perfeito, mas cobre os casos comuns.
+function normalizeLinkedInUrl(url) {
+  if (!url) return '';
+  try {
+    let u = String(url).trim().toLowerCase();
+    u = u.split('?')[0].split('#')[0];
+    u = u.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/+$/, '');
+    return u;
+  } catch {
+    return String(url || '').trim().toLowerCase();
+  }
+}
+
+// Número/grupo do WhatsApp dos curadores (opcional). Deixe vazio para o app abrir
+// o seletor de conversa do WhatsApp. Para mandar sempre pro mesmo número, preencha
+// com DDI+DDD+numero, ex.: '5531999999999'.
+const CURATORS_WHATSAPP = '';
+
+// Abre o WhatsApp com uma mensagem pronta avisando os curadores sobre nova pauta.
+function openWhatsAppNotice(title) {
+  const appUrl = (typeof window !== 'undefined') ? window.location.origin : '';
+  const msg =
+    '📣 Nova pauta no Content Radar pra vocês votarem:\n\n' +
+    '"' + (title || 'Novo post do LinkedIn') + '"\n\n' +
+    'É rapidinho — entra e dá seu voto 👇\n' + appUrl;
+  const base = CURATORS_WHATSAPP
+    ? 'https://wa.me/' + CURATORS_WHATSAPP + '?text='
+    : 'https://wa.me/?text=';
+  if (typeof window !== 'undefined') {
+    window.open(base + encodeURIComponent(msg), '_blank');
+  }
+}
 
 // Premium Vote Badge renderer with LinkedIn high-fidelity reaction style
 const renderVoteBadge = (vote) => {
@@ -622,8 +682,18 @@ function getSuggestedDecision(status, score) {
 
 function App() {
   const [state, setState] = useState(loadState);
-  const [user, setUser] = useState(null);
-  const [view, setView] = useState('vote'); // vote | dashboard | new | ideas | data
+  // Se o app foi aberto via compartilhamento de um post do LinkedIn, já entramos
+  // como Felipe direto na tela de "Nova ideia" com o link pronto para importar.
+  const [sharedUrl, setSharedUrl] = useState(getSharedLinkedInUrl);
+  const [user, setUser] = useState(sharedUrl ? 'Felipe' : null);
+  const [view, setView] = useState(sharedUrl ? 'new' : 'vote'); // vote | dashboard | new | ideas | data
+
+  // Limpa os parâmetros da URL para que um refresh não reabra o fluxo de compartilhamento.
+  React.useEffect(() => {
+    if (sharedUrl && typeof window !== 'undefined' && window.history?.replaceState) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
   const [query, setQuery] = useState('');
   const [toasts, setToasts] = useState([]);
   const [curatorFilter, setCuratorFilter] = useState('todos');
@@ -1095,7 +1165,14 @@ function App() {
             />
           )}
           {view === 'new' && user === 'Felipe' && (
-            <NewIdeaView updateState={updateState} setView={setView} addToast={addToast} />
+            <NewIdeaView
+              updateState={updateState}
+              setView={setView}
+              addToast={addToast}
+              existingIdeas={state.ideas}
+              initialUrl={sharedUrl}
+              onSharedConsumed={() => setSharedUrl(null)}
+            />
           )}
           {view === 'ideas' && (
             <IdeasListView 
@@ -1375,16 +1452,15 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
   
   const current = pending[index];
 
-  // Motion values
+  // Motion values — apenas o eixo X é usado para votar (swipe horizontal).
+  // O eixo vertical fica livre para a rolagem nativa da página (ler posts longos).
   const dragX = useMotionValue(0);
-  const dragY = useMotionValue(0);
-  
+
   const cardRotation = useTransform(dragX, [-150, 150], [-8, 8]);
   const cardScale = useTransform(dragX, [-150, 0, 150], [0.97, 1, 0.97]);
 
   const likeOpacity = useTransform(dragX, [0, 120], [0, 1]);
   const dislikeOpacity = useTransform(dragX, [0, -120], [0, 1]);
-  const maybeOpacity = useTransform(dragY, [0, -120], [0, 1]);
 
   // Pull existing votes/comments on the current idea
   const ideaComments = useMemo(() => {
@@ -1426,9 +1502,8 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
     setCurrentVote(null);
     setCustomComment('');
     setSelectedQuickComment('');
-    
+
     dragX.set(0);
-    dragY.set(0);
   }
 
   // Keyboard curation listeners for desktop efficiency
@@ -1523,17 +1598,21 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
               <AnimatePresence mode="wait">
                 <motion.div
                   key={current.id}
-                  style={{ x: dragX, y: dragY, rotate: cardRotation, scale: cardScale }}
-                  drag
-                  dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-                  dragElastic={0.6}
+                  style={{ x: dragX, rotate: cardRotation, scale: cardScale }}
+                  drag="x"
+                  dragDirectionLock
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.4}
                   onDragEnd={(event, info) => {
-                    if (info.offset.x > 140) {
+                    // Só gestos horizontais votam. Movimento vertical fica livre para
+                    // rolar a página e ler posts longos (touch-action: pan-y no CSS).
+                    // Aceita tanto arraste longo quanto "flick" rápido (velocidade).
+                    const swipedRight = info.offset.x > 120 || info.velocity.x > 600;
+                    const swipedLeft = info.offset.x < -120 || info.velocity.x < -600;
+                    if (swipedRight) {
                       handleVoteTrigger('like');
-                    } else if (info.offset.x < -140) {
+                    } else if (swipedLeft) {
                       handleVoteTrigger('dislike');
-                    } else if (info.offset.y < -120) {
-                      handleVoteTrigger('maybe');
                     }
                   }}
                   whileDrag={{ cursor: 'grabbing' }}
@@ -1544,9 +1623,6 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
                   </motion.div>
                   <motion.div className="swipe-overlay dislike" style={{ opacity: dislikeOpacity }}>
                     Rejeitado
-                  </motion.div>
-                  <motion.div className="swipe-overlay maybe" style={{ opacity: maybeOpacity }}>
-                    Revisar
                   </motion.div>
 
                   <LinkedInCard 
@@ -1605,7 +1681,7 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
             </div>
 
             <div className="vote-actions-container">
-              <p className="swipe-hint" style={{ marginTop: '10px' }}>Arraste para a Direita (Gostei), Esquerda (Não Gostei) ou Cima (Talvez) para classificar rapidamente.</p>
+              <p className="swipe-hint" style={{ marginTop: '10px' }}>Arraste para a <strong>Direita</strong> (Gostei) ou <strong>Esquerda</strong> (Não Gostei). Role a tela normalmente para ler o post inteiro. Para “Talvez”, use o botão 💡.</p>
             </div>
           </div>
         </div>
@@ -2817,7 +2893,8 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
 }
 
 // ==================== ADMIN: NEW IDEA FORM ====================
-function NewIdeaView({ updateState, setView, addToast }) {
+function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initialUrl, onSharedConsumed }) {
+  const [justSaved, setJustSaved] = useState(null);
   const [form, setForm] = useState({
     title: '',
     linkedinUrl: '',
@@ -2842,17 +2919,48 @@ function NewIdeaView({ updateState, setView, addToast }) {
     setForm(prev => ({ ...prev, [field]: value }));
   }
 
-  async function handleAutofill() {
-    if (!form.linkedinUrl) {
+  // Importação automática quando o post chega via compartilhamento (Share Target).
+  const sharedConsumedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (initialUrl && !sharedConsumedRef.current) {
+      sharedConsumedRef.current = true;
+      setForm(prev => ({ ...prev, linkedinUrl: initialUrl }));
+      handleAutofill(initialUrl);
+      if (onSharedConsumed) onSharedConsumed();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialUrl]);
+
+  // Bookmarklet "Salvar do PC": botão arrastável para a barra de favoritos do navegador,
+  // já com o endereço atual do app (window.location.origin). Ao clicar nele dentro de
+  // qualquer post do LinkedIn, abre o Radar com a URL pronta para importar.
+  // O href é setado via ref porque o React bloqueia hrefs começando com "javascript:".
+  const bookmarkletRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!bookmarkletRef.current) return;
+    const origin = window.location.origin;
+    const code =
+      "javascript:(function(){var h=location.href;" +
+      "if(h.indexOf('linkedin.com')===-1){alert('Abra um post do LinkedIn antes de clicar aqui.');return;}" +
+      "window.open('" + origin + "/?url='+encodeURIComponent(h),'_blank');})();";
+    bookmarkletRef.current.setAttribute('href', code);
+  }, []);
+
+  // Aceita uma URL explícita (vinda do compartilhamento) ou usa a do formulário
+  // (clique no botão "Importar", que passa um evento — por isso o typeof string).
+  async function handleAutofill(urlArg) {
+    const targetUrl = (typeof urlArg === 'string' && urlArg) ? urlArg : form.linkedinUrl;
+
+    if (!targetUrl) {
       addToast('Insira uma URL válida primeiro!', 'error');
       return;
     }
 
-    if (!form.linkedinUrl.toLowerCase().includes('linkedin.com')) {
+    if (!targetUrl.toLowerCase().includes('linkedin.com')) {
       addToast('A URL precisa ser do LinkedIn (linkedin.com).', 'error');
       return;
     }
-    
+
     setIsImporting(true);
     addToast('Buscando dados reais do post no LinkedIn...', 'success');
 
@@ -2862,7 +2970,7 @@ function NewIdeaView({ updateState, setView, addToast }) {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ url: form.linkedinUrl })
+        body: JSON.stringify({ url: targetUrl })
       });
 
       if (!response.ok) {
@@ -2928,7 +3036,7 @@ function NewIdeaView({ updateState, setView, addToast }) {
       console.error('LinkedIn scrape failed:', err);
       
       // Fallback: use the URL parser for basic metadata
-      const parsed = parseLinkedInUrl(form.linkedinUrl);
+      const parsed = parseLinkedInUrl(targetUrl);
       if (parsed) {
         setForm(prev => ({
           ...prev,
@@ -2951,6 +3059,19 @@ function NewIdeaView({ updateState, setView, addToast }) {
   function submit(e) {
     e.preventDefault();
     if (!form.title.trim()) return;
+
+    // Bloqueia cadastrar o mesmo post duas vezes (compara a URL normalizada).
+    if (form.linkedinUrl) {
+      const dupe = (existingIdeas || []).find(i =>
+        i.linkedinUrl && normalizeLinkedInUrl(i.linkedinUrl) === normalizeLinkedInUrl(form.linkedinUrl)
+      );
+      if (dupe) {
+        addToast('⚠️ Esse post já está no radar (como "' + (dupe.title || 'sem título') + '"). Não foi duplicado.', 'error');
+        return;
+      }
+    }
+
+    const savedTitle = form.title.trim();
 
     const finalLikes = form.mockLikes || Math.floor(Math.random() * 200) + 50;
     const finalComments = form.mockCommentsCount || Math.floor(finalLikes * 0.08) + 2;
@@ -2977,7 +3098,7 @@ function NewIdeaView({ updateState, setView, addToast }) {
     }));
 
     addToast('Nova ideia de LinkedIn inserida no radar!');
-    
+
     // Clear and reset form state to prevent duplicate/cached inputs on next view
     setForm({
       title: '',
@@ -2997,7 +3118,10 @@ function NewIdeaView({ updateState, setView, addToast }) {
       mockRepostsCount: 0
     });
 
-    setView('ideas');
+    // Em vez de sair direto, mostra um painel de sucesso com o botão de avisar no
+    // WhatsApp (precisa do clique do usuário para o navegador permitir abrir a aba).
+    setJustSaved(savedTitle);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   return (
@@ -3006,6 +3130,101 @@ function NewIdeaView({ updateState, setView, addToast }) {
         <p className="eyebrow">Radar Editor</p>
         <h2>Cadastrar Referência</h2>
         <p>Cole o link do LinkedIn e importe automaticamente o autor, texto e imagem do post real.</p>
+      </div>
+
+      {/* Painel de sucesso após salvar: botão para avisar Victor e Fernando no WhatsApp. */}
+      {justSaved && (
+        <div style={{
+          background: 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)',
+          border: '1px solid #86efac',
+          borderRadius: '12px',
+          padding: '18px 20px',
+          marginBottom: '20px'
+        }}>
+          <strong style={{ display: 'block', color: '#15803d', fontSize: '15px', marginBottom: '4px' }}>
+            ✅ Pauta salva e já na fila de votação!
+          </strong>
+          <p style={{ fontSize: '13px', color: '#334155', margin: '0 0 14px', lineHeight: 1.5 }}>
+            “{justSaved}” já está esperando o voto do Victor e do Fernando. Avise eles pra não deixar a pauta parada:
+          </p>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => openWhatsAppNotice(justSaved)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                padding: '9px 18px', borderRadius: '100px', border: 'none',
+                background: '#25D366', color: '#fff', fontWeight: 700, fontSize: '13px',
+                cursor: 'pointer', boxShadow: '0 2px 6px rgba(37, 211, 102, 0.4)'
+              }}
+            >
+              📣 Avisar no WhatsApp
+            </button>
+            <button
+              type="button"
+              onClick={() => setJustSaved(null)}
+              style={{
+                padding: '9px 18px', borderRadius: '100px', border: '1px solid #cbd5e1',
+                background: '#fff', color: '#334155', fontWeight: 600, fontSize: '13px', cursor: 'pointer'
+              }}
+            >
+              ➕ Cadastrar outra
+            </button>
+            <button
+              type="button"
+              onClick={() => { setJustSaved(null); setView('ideas'); }}
+              style={{
+                padding: '9px 18px', borderRadius: '100px', border: '1px solid #cbd5e1',
+                background: '#fff', color: '#334155', fontWeight: 600, fontSize: '13px', cursor: 'pointer'
+              }}
+            >
+              📋 Ver lista de pautas
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Atalho "Salvar do PC": arraste o botão para a barra de favoritos uma vez só. */}
+      <div style={{
+        background: 'linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%)',
+        border: '1px solid #bfdbfe',
+        borderRadius: '12px',
+        padding: '16px 18px',
+        marginBottom: '20px'
+      }}>
+        <strong style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0a66c2', fontSize: '14px' }}>
+          💻 Salvar do PC com 1 clique
+        </strong>
+        <p style={{ fontSize: '13px', color: '#334155', margin: '8px 0 12px', lineHeight: 1.5 }}>
+          Arraste o botão abaixo para a <b>barra de favoritos</b> do seu navegador (só precisa fazer isso uma vez).
+          Depois, sempre que estiver vendo um post no LinkedIn, é só <b>clicar nele</b> que o post abre aqui já importado — pronto pra salvar.
+        </p>
+        <a
+          ref={bookmarkletRef}
+          href="#salvar-no-radar"
+          draggable="true"
+          onClick={(e) => { e.preventDefault(); addToast('Arraste este botão para a barra de favoritos do navegador (não precisa clicar).', 'success'); }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '8px 18px',
+            borderRadius: '100px',
+            background: '#0a66c2',
+            color: '#ffffff',
+            fontWeight: 700,
+            fontSize: '13px',
+            textDecoration: 'none',
+            border: 'none',
+            boxShadow: '0 2px 6px rgba(10, 102, 194, 0.35)',
+            cursor: 'grab'
+          }}
+        >
+          ➕ Salvar no Radar
+        </a>
+        <span style={{ display: 'block', fontSize: '11px', color: '#64748b', marginTop: '8px' }}>
+          ↑ arraste para os favoritos — não clique aqui
+        </span>
       </div>
 
       <form className="idea-form" onSubmit={submit}>
