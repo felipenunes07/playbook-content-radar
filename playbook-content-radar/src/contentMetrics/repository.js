@@ -16,7 +16,7 @@ function latestDate(rows, fallback) {
   }, fallback || null);
 }
 
-const generatedLinkedInSources = new Set(['historical_json', 'historical_import']);
+const generatedAccountGrowthSources = new Set(['historical_json', 'historical_import']);
 
 function buildAccountGrowth(metrics = [], accounts = []) {
   const accountById = new Map(accounts.map((account) => [account.id, account]));
@@ -33,7 +33,7 @@ function buildAccountGrowth(metrics = [], accounts = []) {
       };
     })
     .filter(Boolean)
-    .filter((row) => row.platform !== 'linkedin' || !generatedLinkedInSources.has(row.source))
+    .filter((row) => !generatedAccountGrowthSources.has(row.source))
     .sort((a, b) => String(a.metric_date).localeCompare(String(b.metric_date)));
 }
 

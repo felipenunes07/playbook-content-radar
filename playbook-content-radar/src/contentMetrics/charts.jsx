@@ -27,19 +27,47 @@ export function ContentTrendChart({ data, metric = 'engagement' }) {
   );
 }
 
-export function WeeklyCadenceChart({ data }) {
+export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek }) {
   if (!data.length) return <EmptyChart />;
-  return <div className="cm-chart cm-chart-large" aria-label="Posts por semana por criador"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={data} margin={{ top: 12, right: 16, left: -10, bottom: 0 }}><CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} /><XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={20} /><YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} /><Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} /><Legend wrapperStyle={{ fontSize: 11 }} /><Bar dataKey="Victor" fill="#0a66c2" radius={[4, 4, 0, 0]} /><Bar dataKey="Fernando" fill="#f59e0b" radius={[4, 4, 0, 0]} /><Line type="monotone" dataKey="Total" stroke="#111827" strokeWidth={2.5} dot={false} /></ComposedChart></ResponsiveContainer></div>;
+  return (
+    <div className="cm-chart cm-chart-large" aria-label="Posts por semana por criador" style={{ position: 'relative' }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart 
+          data={data} 
+          margin={{ top: 12, right: 16, left: -10, bottom: 0 }}
+          onClick={(state) => {
+            if (state && state.activePayload && state.activePayload[0]) {
+              const weekKey = state.activePayload[0].payload.week;
+              const weekLabel = state.activePayload[0].payload.label;
+              if (onWeekClick) {
+                onWeekClick({ week: weekKey, label: weekLabel });
+              }
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+        >
+          <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
+          <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={20} />
+          <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
+          <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Bar dataKey="Victor" fill="#0a66c2" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="Fernando" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+          <Line type="monotone" dataKey="Total" stroke="#111827" strokeWidth={2.5} dot={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }
 
-export function CalendarHeatmapChart({ data }) {
+export function CalendarHeatmapChart({ data, onDateClick, selectedDate }) {
   if (!data?.days?.length) return <EmptyChart />;
   const weekdays = ['', 'Seg', '', 'Qua', '', 'Sex', ''];
   return (
     <div className="cm-heatmap" aria-label="Tipo: calendário/heatmap estilo GitHub">
       <div className="cm-heatmap-summary">
         <strong>{data.totalPosts.toLocaleString('pt-BR')}</strong>
-        <span>posts em {data.activeDays.toLocaleString('pt-BR')} dias ativos</span>
+        <span>conteúdos em {data.activeDays.toLocaleString('pt-BR')} dias ativos</span>
       </div>
       <div className="cm-heatmap-scroll">
         <div className="cm-heatmap-months" style={{ gridTemplateColumns: `34px repeat(${data.weeks.length}, 13px)` }}>
@@ -52,7 +80,29 @@ export function CalendarHeatmapChart({ data }) {
         <div className="cm-heatmap-body">
           <div className="cm-heatmap-weekdays">{weekdays.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}</div>
           <div className="cm-heatmap-grid" style={{ gridTemplateColumns: `repeat(${data.weeks.length}, 13px)` }}>
-            {data.weeks.map((week) => <div className="cm-heatmap-week" key={week[0].date}>{week.map((day) => <span key={day.date} className={`cm-heatmap-cell level-${day.level}`} title={day.label} aria-label={day.label} />)}</div>)}
+            {data.weeks.map((week) => (
+              <div className="cm-heatmap-week" key={week[0].date}>
+                {week.map((day) => {
+                  const isSelected = selectedDate === day.date;
+                  return (
+                    <span 
+                      key={day.date} 
+                      className={`cm-heatmap-cell level-${day.level}`} 
+                      title={day.label} 
+                      aria-label={day.label} 
+                      onClick={() => onDateClick && onDateClick({ date: day.date, label: day.label.split(' · ')[0] })}
+                      style={{ 
+                        cursor: 'pointer',
+                        boxShadow: isSelected ? '0 0 0 2px #0f172a' : 'none',
+                        transform: isSelected ? 'scale(1.2)' : 'none',
+                        zIndex: isSelected ? 10 : 1,
+                        transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -61,9 +111,36 @@ export function CalendarHeatmapChart({ data }) {
   );
 }
 
-export function WeeklyEngagementChart({ data }) {
+export function WeeklyEngagementChart({ data, onWeekClick, selectedWeek }) {
   if (!data.length) return <EmptyChart />;
-  return <div className="cm-chart" aria-label="Engagement e comentários por semana"><ResponsiveContainer width="100%" height="100%"><LineChart data={data} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}><CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} /><XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={24} /><YAxis tickFormatter={(value) => compact.format(value)} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} /><Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} /><Legend wrapperStyle={{ fontSize: 11 }} /><Line type="monotone" dataKey="engagement" name="Engagement" stroke="#0a66c2" strokeWidth={2.5} dot={false} /><Line type="monotone" dataKey="comments" name="Comentários" stroke="#f59e0b" strokeWidth={2.5} dot={false} /></LineChart></ResponsiveContainer></div>;
+  return (
+    <div className="cm-chart" aria-label="Engagement e comentários por semana">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart 
+          data={data} 
+          margin={{ top: 8, right: 10, left: -12, bottom: 0 }}
+          onClick={(state) => {
+            if (state && state.activePayload && state.activePayload[0]) {
+              const weekKey = state.activePayload[0].payload.week;
+              const weekLabel = state.activePayload[0].payload.label;
+              if (onWeekClick) {
+                onWeekClick({ week: weekKey, label: weekLabel });
+              }
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+        >
+          <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
+          <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={24} />
+          <YAxis tickFormatter={(value) => compact.format(value)} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
+          <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Line type="monotone" dataKey="engagement" name="Engagement" stroke="#0a66c2" strokeWidth={2.5} dot={false} />
+          <Line type="monotone" dataKey="comments" name="Comentários" stroke="#f59e0b" strokeWidth={2.5} dot={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }
 
 export function FrequencyResultScatter({ data }) {

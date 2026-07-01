@@ -16,6 +16,7 @@ import {
   filterYoutube,
   groupPerformance,
   rankContent,
+  isoWeekKey,
 } from './analytics.js';
 import { loadContentMetrics } from './repository.js';
 import { METRICS_SECTIONS } from './routes.js';
@@ -160,27 +161,122 @@ function ExecutiveCards({ summary }) {
 }
 
 function Overview({ filtered, allPosts, data, filters, setFilters }) {
-  const summary = buildExecutiveSummary(filtered, filters);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedWeek, setSelectedWeek] = useState(null);
+
+  const handleDateClick = (dayInfo) => {
+    if (selectedDate && selectedDate.date === dayInfo.date) {
+      setSelectedDate(null);
+    } else {
+      setSelectedDate(dayInfo);
+      setSelectedWeek(null);
+    }
+  };
+
+  const handleWeekClick = (weekInfo) => {
+    if (selectedWeek && selectedWeek.week === weekInfo.week) {
+      setSelectedWeek(null);
+    } else {
+      setSelectedWeek(weekInfo);
+      setSelectedDate(null);
+    }
+  };
+
+  const interactiveFiltered = useMemo(() => {
+    if (selectedDate) {
+      return filtered.filter(item => {
+        const itemDateStr = String(item.published_at || '').slice(0, 10);
+        return itemDateStr === selectedDate.date;
+      });
+    }
+    if (selectedWeek) {
+      return filtered.filter(item => {
+        if (!item.published_at) return false;
+        const itemDate = new Date(item.published_at);
+        return isoWeekKey(itemDate) === selectedWeek.week;
+      });
+    }
+    return filtered;
+  }, [filtered, selectedDate, selectedWeek]);
+
+  const summary = buildExecutiveSummary(interactiveFiltered, filters);
   const weekly = buildWeeklyCadence(filtered);
   const heatmap = buildCalendarHeatmap(filtered);
-  const comparison = buildCreatorComparison(filtered);
+  const comparison = buildCreatorComparison(interactiveFiltered);
   const youtubeViews = data.youtube.reduce((sum, video) => sum + Number(video.views || 0), 0);
+
+  const activeFilterLabel = selectedDate 
+    ? `Dia: ${selectedDate.label}` 
+    : selectedWeek 
+      ? `Semana: ${selectedWeek.label}` 
+      : null;
+
   return <>
     <div className="cm-executive-toolbar">
       <div><span className="cm-eyebrow">Filtro principal</span><h2>Victor, Fernando ou Playbook total</h2></div>
       <CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} />
     </div>
     <ContentFilters filters={filters} onChange={setFilters} posts={allPosts} hideOwner />
+    
+    {activeFilterLabel && (
+      <div 
+        className="cm-interactive-filter-banner" 
+        style={{ 
+          background: '#eff6ff', 
+          border: '1px solid #bfdbfe', 
+          borderRadius: '8px', 
+          padding: '10px 16px', 
+          marginBottom: '16px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          fontSize: '13px', 
+          color: '#1e3a8a',
+          fontWeight: 500
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Activity size={16} />
+          <span>Filtro gráfico ativo: <strong>{activeFilterLabel}</strong> ({interactiveFiltered.length} conteúdos encontrados)</span>
+        </div>
+        <button 
+          onClick={() => { setSelectedDate(null); setSelectedWeek(null); }}
+          style={{
+            background: '#3b82f6',
+            color: '#fff',
+            border: 'none',
+            padding: '4px 10px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '12px',
+            fontWeight: 500,
+            marginLeft: 'auto'
+          }}
+        >
+          Limpar filtro do gráfico
+        </button>
+      </div>
+    )}
+
     <ExecutiveCards summary={summary} />
-    <section className="cm-panel cm-hero-chart"><div className="cm-section-heading"><div><span className="cm-eyebrow">Cadência</span><h2>Conteúdos por semana</h2><p>Victor vs Fernando vs Total Playbook. Este é o gráfico central para saber se a frequência aumentou ou caiu.</p></div><small>{weekly.length} semanas</small></div><WeeklyCadenceChart data={weekly} /></section>
+    <section className="cm-panel cm-hero-chart"><div className="cm-section-heading"><div><span className="cm-eyebrow">Cadência</span><h2>Conteúdos por semana</h2><p>Victor vs Fernando vs Total Playbook. Este é o gráfico central para saber se a frequência aumentou ou caiu.</p></div><small>{weekly.length} semanas</small></div><WeeklyCadenceChart data={weekly} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} /></section>
     <div className="cm-primary-grid">
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Distribuição</span><h2>Frequência diária</h2><p>Consistência de conteúdos dia a dia ao longo do ano.</p></div><small>{heatmap.days.length} dias</small></div><CalendarHeatmapChart data={heatmap} /></section>
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Resultado</span><h2>Engagement por semana</h2></div></div><WeeklyEngagementChart data={weekly} /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Distribuição</span><h2>Frequência diária</h2><p>Consistência de conteúdos dia a dia ao longo do ano.</p></div><small>{heatmap.days.length} dias</small></div><CalendarHeatmapChart data={heatmap} onDateClick={handleDateClick} selectedDate={selectedDate?.date} /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Resultado</span><h2>Engagement por semana</h2></div></div><WeeklyEngagementChart data={weekly} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} /></section>
     </div>
-    <TopContentTable rows={rankContent(filtered, 'engagement_score', 10)} />
+    
+    <section className="cm-panel">
+      <div className="cm-section-heading">
+        <div>
+          <span className="cm-eyebrow">Desempenho</span>
+          <h2>{activeFilterLabel ? `Conteúdos em destaque (${activeFilterLabel})` : 'Top conteúdos por score'}</h2>
+        </div>
+      </div>
+      <TopContentTable rows={rankContent(interactiveFiltered, 'engagement_score', activeFilterLabel ? 100 : 10)} />
+    </section>
+
     <div className="cm-analysis-grid">
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">CTA</span><h2>CTA que mais gera comentários</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'cta_keyword')} valueKey="comments" label="Comentários" /></section>
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>Formato por média de score</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">CTA</span><h2>CTA que mais gera comentários</h2></div></div><PerformanceBars rows={groupPerformance(interactiveFiltered, 'cta_keyword')} valueKey="comments" label="Comentários" /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>Formato por média de score</h2></div></div><PerformanceBars rows={groupPerformance(interactiveFiltered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Criadores</span><h2>Victor vs Fernando</h2></div></div><CreatorComparisonChart data={comparison} /></section>
     </div>
     {youtubeViews > 0 && <div className="cm-table-note">YouTube já coletado: {integer.format(youtubeViews)} views acumuladas nos vídeos monitorados.</div>}
@@ -188,7 +284,28 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
 }
 
 function LinkedinAnalysis({ filtered, allPosts, data, filters, setFilters }) {
-  const metrics = aggregateContentMetrics(filtered);
+  const [selectedWeek, setSelectedWeek] = useState(null);
+
+  const handleWeekClick = (weekInfo) => {
+    if (selectedWeek && selectedWeek.week === weekInfo.week) {
+      setSelectedWeek(null);
+    } else {
+      setSelectedWeek(weekInfo);
+    }
+  };
+
+  const interactiveFiltered = useMemo(() => {
+    if (selectedWeek) {
+      return filtered.filter(item => {
+        if (!item.published_at) return false;
+        const itemDate = new Date(item.published_at);
+        return isoWeekKey(itemDate) === selectedWeek.week;
+      });
+    }
+    return filtered;
+  }, [filtered, selectedWeek]);
+
+  const metrics = aggregateContentMetrics(interactiveFiltered);
   const weekly = buildWeeklyCadence(filtered);
 
   const filteredGrowth = useMemo(() => {
@@ -224,9 +341,51 @@ function LinkedinAnalysis({ filtered, allPosts, data, filters, setFilters }) {
     </section>
   ) : null;
 
+  const activeFilterLabel = selectedWeek ? `Semana: ${selectedWeek.label}` : null;
+
   return <>
     <div className="cm-executive-toolbar compact"><CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} /></div>
     <ContentFilters filters={filters} onChange={setFilters} posts={allPosts} advanced hideOwner />
+    
+    {activeFilterLabel && (
+      <div 
+        className="cm-interactive-filter-banner" 
+        style={{ 
+          background: '#eff6ff', 
+          border: '1px solid #bfdbfe', 
+          borderRadius: '8px', 
+          padding: '10px 16px', 
+          marginBottom: '16px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          fontSize: '13px', 
+          color: '#1e3a8a',
+          fontWeight: 500
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Activity size={16} />
+          <span>Filtro gráfico ativo: <strong>{activeFilterLabel}</strong> ({interactiveFiltered.length} posts encontrados)</span>
+        </div>
+        <button 
+          onClick={() => { setSelectedWeek(null); }}
+          style={{
+            background: '#3b82f6',
+            color: '#fff',
+            border: 'none',
+            padding: '4px 10px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '12px',
+            fontWeight: 500,
+            marginLeft: 'auto'
+          }}
+        >
+          Limpar filtro do gráfico
+        </button>
+      </div>
+    )}
+
     <MetricStrip metrics={metrics} />
     <section className="cm-panel cm-hero-chart">
       <div className="cm-section-heading">
@@ -237,16 +396,16 @@ function LinkedinAnalysis({ filtered, allPosts, data, filters, setFilters }) {
         </div>
         <small>{weekly.length} semanas</small>
       </div>
-      <WeeklyCadenceChart data={weekly} />
+      <WeeklyCadenceChart data={weekly} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} />
     </section>
     {growthSection}
     <div className="cm-analysis-grid">
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>O que mais performa</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">CTA</span><h2>Comentários por chamada</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'cta_keyword')} valueKey="comments" label="Comentários" /></section>
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Tema</span><h2>Performance temática</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'theme')} valueKey="comments" label="Comentários" /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>O que mais performa</h2></div></div><PerformanceBars rows={groupPerformance(interactiveFiltered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">CTA</span><h2>Comentários por chamada</h2></div></div><PerformanceBars rows={groupPerformance(interactiveFiltered, 'cta_keyword')} valueKey="comments" label="Comentários" /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Tema</span><h2>Performance temática</h2></div></div><PerformanceBars rows={groupPerformance(interactiveFiltered, 'theme')} valueKey="comments" label="Comentários" /></section>
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Estratégia</span><h2>Frequência vs resultado</h2></div></div><FrequencyResultScatter data={weekly} /></section>
     </div>
-    <TopContentTable rows={rankContent(filtered, 'comments', 10)} metric="comments" title="Top posts por comentários" />
+    <TopContentTable rows={rankContent(interactiveFiltered, 'comments', activeFilterLabel ? 100 : 10)} metric="comments" title={activeFilterLabel ? `Top posts por comentários (${activeFilterLabel})` : "Top posts por comentários"} />
   </>;
 }
 

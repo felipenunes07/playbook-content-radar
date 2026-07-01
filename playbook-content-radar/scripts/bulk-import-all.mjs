@@ -79,104 +79,43 @@ async function run() {
     const owner = item.owner_name || 'Victor Baggio';
     const accountId = ACCOUNTS[`${owner}_youtube`] || ACCOUNTS['Victor Baggio_youtube'];
 
-    // Insert post (YouTube video mapped to content_posts)
-    const { data: post, error: postErr } = await supabase.from('content_posts').upsert({
+    // Insert YouTube video
+    const { data: video, error: videoErr } = await supabase.from('youtube_videos').upsert({
       account_id: accountId,
-      external_post_id: item.video_id,
+      video_id: item.video_id,
+      video_url: item.video_url || `https://www.youtube.com/watch?v=${item.video_id}`,
+      title: item.title,
+      description: item.description,
       published_at: item.published_at,
-      format: 'video',
-      hook: item.title,
-      content: item.description,
-      cta_keyword: 'Sem CTA',
+      thumbnail_url: item.thumbnail_url,
+      duration: item.duration || '00:00:00',
       theme: item.theme || 'Não classificado'
-    }, { onConflict: 'external_post_id' }).select('id').single();
+    }, { onConflict: 'video_id' }).select('id').single();
 
-    if (postErr) {
-      console.error(`Error inserting video ${item.video_id}:`, postErr.message);
+    if (videoErr) {
+      console.error(`Error inserting video ${item.video_id}:`, videoErr.message);
       continue;
     }
 
     // Insert daily metrics
     const metricDate = item.metric_date || new Date().toISOString().slice(0, 10);
-    const { error: metricErr } = await supabase.from('content_post_daily_metrics').upsert({
-      post_id: post.id,
+    const { error: metricErr } = await supabase.from('youtube_video_daily_metrics').upsert({
+      video_id: video.id,
       metric_date: metricDate,
+      views: Number(item.views || 0),
       likes: Number(item.likes || 0),
       comments: Number(item.comments || 0),
-      shares: 0,
-      views: Number(item.views || 0),
       source: 'historical_json'
-    }, { onConflict: 'post_id,metric_date,source' });
+    }, { onConflict: 'video_id,metric_date,source' });
 
     if (metricErr) {
       console.error(`Error inserting metrics for video ${item.video_id}:`, metricErr.message);
     }
   }
 
-  // 4. Generate & Insert growth data for the last 60 days ending exactly at correct numbers
-  console.log('Importing follower growth data...');
-  const start = new Date('2026-05-01');
-  const end = new Date('2026-07-01');
-  
-  let totalSteps = 0;
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
-    totalSteps++;
-  }
-  const maxSteps = totalSteps - 1;
-
-  let step = 0;
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 7)) {
-    const dateStr = d.toISOString().slice(0, 10);
-    const progress = maxSteps > 0 ? step / maxSteps : 1.0;
-    
-    // Victor Baggio
-    const curveVictor = step === maxSteps ? 1.0 : Math.max(0, Math.min(0.98, Math.pow(progress, 1.25) + 0.05 * Math.sin(step * 0.9)));
-    const victorFollowers = Math.round(18900 + (20811 - 18900) * curveVictor);
-    const victorSubs = Math.round(5100 + (7340 - 5100) * curveVictor);
-    const victorViews = Math.round(220000 + (345000 - 220000) * curveVictor);
-
-    // Fernando Tedesco
-    const curveFernando = step === maxSteps ? 1.0 : Math.max(0, Math.min(0.98, Math.pow(progress, 1.15) + 0.04 * Math.sin(step * 0.8 + 1.2)));
-    const fernandoFollowers = Math.round(10800 + (12450 - 10800) * curveFernando);
-    const fernandoSubs = Math.round(2100 + (2890 - 2100) * curveFernando);
-    const fernandoViews = Math.round(65000 + (92000 - 65000) * curveFernando);
-
-    // Victor LinkedIn
-    await supabase.from('account_daily_metrics').upsert({
-      account_id: ACCOUNTS['Victor Baggio_linkedin'],
-      metric_date: dateStr,
-      followers: victorFollowers,
-      source: 'historical_json'
-    }, { onConflict: 'account_id,metric_date,source' });
-
-    // Victor YouTube
-    await supabase.from('account_daily_metrics').upsert({
-      account_id: ACCOUNTS['Victor Baggio_youtube'],
-      metric_date: dateStr,
-      subscribers: victorSubs,
-      total_views: victorViews,
-      source: 'historical_json'
-    }, { onConflict: 'account_id,metric_date,source' });
-
-    // Fernando LinkedIn
-    await supabase.from('account_daily_metrics').upsert({
-      account_id: ACCOUNTS['Fernando Tedesco_linkedin'],
-      metric_date: dateStr,
-      followers: fernandoFollowers,
-      source: 'historical_json'
-    }, { onConflict: 'account_id,metric_date,source' });
-
-    // Fernando YouTube
-    await supabase.from('account_daily_metrics').upsert({
-      account_id: ACCOUNTS['Fernando Tedesco_youtube'],
-      metric_date: dateStr,
-      subscribers: fernandoSubs,
-      total_views: fernandoViews,
-      source: 'historical_json'
-    }, { onConflict: 'account_id,metric_date,source' });
-
-    step++;
-  }
+  // 4. Account audience growth is not present in the historical exports.
+  // Real follower/subscriber history must come from daily collector snapshots.
+  console.log('Skipping account_daily_metrics growth import: historical exports do not contain real follower/subscriber history. Run collect-youtube/collect-linkedin for real snapshots.');
 
   console.log('Import completed successfully!');
 }

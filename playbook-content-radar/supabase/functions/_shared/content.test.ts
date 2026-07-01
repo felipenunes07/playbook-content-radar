@@ -5,6 +5,7 @@ import {
   normalizeApifyYouTubeVideo,
   normalizeYouTubeVideo,
   parseApifyInput,
+  parsePublicYouTubeChannelStats,
   validateClassification,
 } from './content.ts';
 
@@ -40,6 +41,23 @@ describe('normalizeYouTubeVideo', () => {
       video: expect.objectContaining({ video_id: 'abc123', video_url: 'https://www.youtube.com/watch?v=abc123', title: 'Agentes de IA', duration: 'PT12M30S' }),
       metric: expect.objectContaining({ views: 1200, likes: 80, comments: 12, source: 'youtube_data_api' }),
     });
+  });
+});
+
+describe('parsePublicYouTubeChannelStats', () => {
+  it('parses public YouTube channel metadata without reading recommendation snippets', () => {
+    const html = `
+      <script>{"metadataParts":[{"text":{"content":"5,46 mil inscritos"}},{"text":{"content":"100 videos"}}]}</script>
+      <script>{"metadataParts":[{"text":{"content":"6,06&nbsp;mil inscritos"},"accessibilityLabel":"6,06 mil inscritos"},{"text":{"content":"34 videos"},"accessibilityLabel":"34 videos"}]}</script>
+    `;
+
+    expect(parsePublicYouTubeChannelStats(html)).toEqual({ subscribers: 6060, totalVideos: 34 });
+  });
+
+  it('parses small public YouTube channels with plain counts', () => {
+    const html = '<script>{"metadataParts":[{"text":{"content":"2 inscritos"}},{"text":{"content":"3 videos"}}]}</script>';
+
+    expect(parsePublicYouTubeChannelStats(html)).toEqual({ subscribers: 2, totalVideos: 3 });
   });
 });
 

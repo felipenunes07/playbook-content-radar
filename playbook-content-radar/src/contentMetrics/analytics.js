@@ -146,7 +146,7 @@ function validDate(value) {
   return date && !Number.isNaN(date.getTime()) ? date : null;
 }
 
-function isoWeekKey(date) {
+export function isoWeekKey(date) {
   const target = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   const dayNumber = target.getUTCDay() || 7;
   target.setUTCDate(target.getUTCDate() + 4 - dayNumber);

@@ -172,6 +172,92 @@ export function normalizeApifyYouTubeVideo(item: Record<string, any>, metricDate
   };
 }
 
+function decodePublicText(value: string) {
+  return String(value || '')
+    .replace(/\\u([0-9a-f]{4})/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function localizedNumber(rawValue: string, rawUnit = '') {
+  const value = rawValue.replace(/\s/g, '');
+  const unit = rawUnit.toLowerCase();
+  let normalized = value;
+  const comma = value.lastIndexOf(',');
+  const dot = value.lastIndexOf('.');
+  if (comma >= 0 && dot >= 0) {
+    const decimal = comma > dot ? ',' : '.';
+    normalized = value
+      .replace(decimal === ',' ? /\./g : /,/g, '')
+      .replace(decimal, '.');
+  } else if (comma >= 0) {
+    normalized = value.replace(',', '.');
+  } else if (dot >= 0 && !/(mil|mi|m|k)/i.test(unit)) {
+    normalized = value.replace(/\./g, '');
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) return null;
+  const multiplier = unit === 'mil' || unit === 'k'
+    ? 1_000
+    : unit === 'mi' || unit === 'm'
+      ? 1_000_000
+      : 1;
+  return Math.max(0, Math.round(parsed * multiplier));
+}
+
+function parseCountFromText(text: string, type: 'subscribers' | 'videos') {
+  const decoded = decodePublicText(text).toLowerCase();
+  const pattern = type === 'subscribers'
+    ? /([\d.,]+)\s*(mil|mi|m|k)?\s*(inscrit(?:o|os|a|as)?|subscriber|subscribers)\b/i
+    : /([\d.,]+)\s*(mil|mi|m|k)?\s*(v[ií]deo|v[ií]deos|video|videos)\b/i;
+  const match = decoded.match(pattern);
+  return match ? localizedNumber(match[1], match[2]) : null;
+}
+
+export function parsePublicYouTubeChannelStats(html: string) {
+  const blocks = [...String(html || '').matchAll(/"metadataParts"\s*:\s*\[(.{0,3000}?)\]/gs)].map((match) => match[1]);
+  const fallbackBlocks = blocks.length ? blocks : [String(html || '')];
+  let best: { subscribers: number | null; totalVideos: number | null; score: number } | null = null;
+
+  for (const block of fallbackBlocks) {
+    const textMatches = [
+      ...block.matchAll(/"content"\s*:\s*"([^"]+)"/g),
+      ...block.matchAll(/"accessibilityLabel"\s*:\s*"([^"]+)"/g),
+    ].map((match) => decodePublicText(match[1]));
+    const combined = textMatches.join(' | ') || decodePublicText(block);
+    const subscribers = parseCountFromText(combined, 'subscribers');
+    const totalVideos = parseCountFromText(combined, 'videos');
+    if (subscribers == null && totalVideos == null) continue;
+
+    const score = Number(subscribers != null) + Number(totalVideos != null) + (block.includes('"accessibilityLabel"') ? 2 : 0);
+    if (!best || score > best.score) best = { subscribers, totalVideos, score };
+  }
+
+  const decodedHtml = decodePublicText(String(html || ''));
+  const subscriberPattern = /([\d.,]+)\s*(mil|mi|m|k)?\s*(inscrit(?:o|os|a|as)?|subscriber|subscribers)\b/gi;
+  for (const match of decodedHtml.matchAll(subscriberPattern)) {
+    const index = match.index || 0;
+    const window = decodedHtml.slice(Math.max(0, index - 1200), index + 1200);
+    const subscribers = localizedNumber(match[1], match[2]);
+    const totalVideos = parseCountFromText(window, 'videos');
+    if (subscribers == null) continue;
+    const score = 1
+      + Number(totalVideos != null)
+      + (window.includes('contentMetadataViewModel') ? 4 : 0)
+      + (window.includes('metadataRows') ? 2 : 0)
+      + (window.includes('accessibilityLabel') ? 1 : 0);
+    if (!best || score > best.score || (score === best.score && best.totalVideos == null && totalVideos != null)) {
+      best = { subscribers, totalVideos, score };
+    }
+  }
+
+  if (!best || best.subscribers == null) throw new Error('NÃ£o foi possÃ­vel ler inscritos do canal no HTML pÃºblico do YouTube');
+  return { subscribers: best.subscribers, totalVideos: best.totalVideos };
+}
+
 export function parseApifyInput(template: string | undefined, accountUrl: string) {
   const source = template || '{"profileUrls":["{{accountUrl}}"],"maxPosts":200}';
   try {

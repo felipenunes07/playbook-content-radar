@@ -33,7 +33,7 @@ describe('loadContentMetrics', () => {
     expect(result.youtube).toEqual([{ id: 'db-video' }]);
   });
 
-  it('does not treat generated historical LinkedIn followers as real audience data', async () => {
+  it('does not treat generated historical account growth as real audience data', async () => {
     const result = await loadContentMetrics({
       supabase: fakeSupabase({
         v_latest_linkedin_post_metrics: { data: [{ id: 'db-post' }], error: null },
@@ -48,6 +48,7 @@ describe('loadContentMetrics', () => {
           { account_id: 'linkedin-fernando', metric_date: '2026-06-26', followers: 12450, source: 'historical_json' },
           { account_id: 'linkedin-fernando', metric_date: '2026-06-27', followers: 12501, source: 'apify_linkedin_profile' },
           { account_id: 'youtube-fernando', metric_date: '2026-06-26', subscribers: 2890, total_views: 92000, source: 'historical_json' },
+          { account_id: 'youtube-fernando', metric_date: '2026-06-27', subscribers: 2, total_views: null, total_videos: 3, source: 'public_youtube' },
         ], error: null },
       }),
       fallback: { records: [], collected_at: '2026-05-12' },
@@ -55,11 +56,12 @@ describe('loadContentMetrics', () => {
 
     expect(result.growth).toEqual(expect.arrayContaining([
       expect.objectContaining({ account_id: 'linkedin-fernando', owner_name: 'Fernando Tedesco', platform: 'linkedin', followers: 12501, source: 'apify_linkedin_profile' }),
-      expect.objectContaining({ account_id: 'youtube-fernando', owner_name: 'Fernando Tedesco', platform: 'youtube', subscribers: 2890, source: 'historical_json' }),
+      expect.objectContaining({ account_id: 'youtube-fernando', owner_name: 'Fernando Tedesco', platform: 'youtube', subscribers: 2, total_videos: 3, source: 'public_youtube' }),
     ]));
     expect(result.growth).toHaveLength(2);
     expect(result.growth).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ account_id: 'linkedin-fernando', followers: 12450, source: 'historical_json' }),
+      expect.objectContaining({ account_id: 'youtube-fernando', subscribers: 2890, source: 'historical_json' }),
     ]));
   });
 

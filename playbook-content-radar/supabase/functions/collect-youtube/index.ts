@@ -1,5 +1,5 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { errorMessage, normalizeApifyYouTubeVideo, parseApifyInput } from '../_shared/content.ts';
+import { errorMessage, normalizeApifyYouTubeVideo, parseApifyInput, parsePublicYouTubeChannelStats } from '../_shared/content.ts';
 import { adminClient, corsHeaders, finishRun, json, requireCollectorSecret, startRun } from '../_shared/server.ts';
 
 const APIFY_API = 'https://api.apify.com/v2';
@@ -62,6 +62,34 @@ function accountStats(items: Record<string, any>[]) {
   return { subscribers, totalViews, totalVideos: items.length };
 }
 
+function publicChannelUrl(accountUrl: string) {
+  try {
+    const url = new URL(accountUrl);
+    url.searchParams.set('hl', 'pt-BR');
+    url.searchParams.set('gl', 'BR');
+    return url.toString();
+  } catch {
+    const separator = accountUrl.includes('?') ? '&' : '?';
+    return `${accountUrl}${separator}hl=pt-BR&gl=BR`;
+  }
+}
+
+async function fetchPublicChannelStats(account: Record<string, any>) {
+  const url = publicChannelUrl(String(account.account_url || ''));
+  const response = await fetch(url, {
+    headers: {
+      'accept-language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+      'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+    },
+  });
+  if (!response.ok) throw new Error(`YouTube publico retornou HTTP ${response.status}`);
+  const html = await response.text();
+  return {
+    ...parsePublicYouTubeChannelStats(html),
+    sourceUrl: url,
+  };
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   let runId: string | null = null;
@@ -69,9 +97,9 @@ Deno.serve(async (request) => {
     requireCollectorSecret(request);
     const token = Deno.env.get('APIFY_TOKEN');
     const actorId = Deno.env.get('APIFY_YOUTUBE_ACTOR_ID') || 'streamers/youtube-scraper';
-    if (!token || !actorId) throw new Error('APIFY_TOKEN e APIFY_YOUTUBE_ACTOR_ID são obrigatórios');
     const client = adminClient();
-    runId = await startRun(client, 'apify_youtube');
+    const source = token && actorId ? 'apify_youtube' : 'public_youtube';
+    runId = await startRun(client, source);
     const { data: accounts, error: accountsError } = await client.from('content_accounts').select('*').eq('platform', 'youtube').eq('status', 'active');
     if (accountsError) throw accountsError;
 
@@ -82,32 +110,46 @@ Deno.serve(async (request) => {
 
     for (const account of accounts || []) {
       try {
-        const since = await latestYouTubeSince(client, account.id);
-        const input = renderInput(account, since);
-        const rawItems = await runActor(actorId, token, input);
-        const items = Array.isArray(rawItems) ? rawItems : [];
-        const stats = accountStats(items);
+        if (source === 'public_youtube') {
+          const stats = await fetchPublicChannelStats(account);
+          const { error: accountMetricError } = await client.from('account_daily_metrics').upsert({
+            account_id: account.id,
+            metric_date: metricDate,
+            subscribers: stats.subscribers,
+            total_views: null,
+            total_videos: stats.totalVideos,
+            source,
+            raw: { accountUrl: account.account_url, sourceUrl: stats.sourceUrl, fetchedAt: new Date().toISOString(), parser: 'public_youtube_channel_page' },
+          }, { onConflict: 'account_id,metric_date,source' });
+          if (accountMetricError) throw accountMetricError;
+        } else {
+          const since = await latestYouTubeSince(client, account.id);
+          const input = renderInput(account, since);
+          const rawItems = await runActor(actorId, token, input);
+          const items = Array.isArray(rawItems) ? rawItems : [];
+          const stats = accountStats(items);
 
-        const { error: accountMetricError } = await client.from('account_daily_metrics').upsert({
-          account_id: account.id,
-          metric_date: metricDate,
-          subscribers: stats.subscribers,
-          total_views: stats.totalViews,
-          total_videos: stats.totalVideos,
-          source: 'apify_youtube',
-          raw: { input, firstItem: items[0] || null },
-        }, { onConflict: 'account_id,metric_date,source' });
-        if (accountMetricError) throw accountMetricError;
+          const { error: accountMetricError } = await client.from('account_daily_metrics').upsert({
+            account_id: account.id,
+            metric_date: metricDate,
+            subscribers: stats.subscribers,
+            total_views: stats.totalViews,
+            total_videos: stats.totalVideos,
+            source,
+            raw: { input, firstItem: items[0] || null },
+          }, { onConflict: 'account_id,metric_date,source' });
+          if (accountMetricError) throw accountMetricError;
 
-        for (const item of items) {
-          const normalized = normalizeApifyYouTubeVideo(item, metricDate);
-          const { data: savedVideo, error: videoError } = await client.from('youtube_videos')
-            .upsert({ ...normalized.video, account_id: account.id }, { onConflict: 'video_id' }).select('id').single();
-          if (videoError) throw videoError;
-          const { error: metricError } = await client.from('youtube_video_daily_metrics')
-            .upsert({ ...normalized.metric, video_id: savedVideo.id }, { onConflict: 'video_id,metric_date,source' });
-          if (metricError) throw metricError;
-          itemsProcessed += 1;
+          for (const item of items) {
+            const normalized = normalizeApifyYouTubeVideo(item, metricDate);
+            const { data: savedVideo, error: videoError } = await client.from('youtube_videos')
+              .upsert({ ...normalized.video, account_id: account.id }, { onConflict: 'video_id' }).select('id').single();
+            if (videoError) throw videoError;
+            const { error: metricError } = await client.from('youtube_video_daily_metrics')
+              .upsert({ ...normalized.metric, video_id: savedVideo.id }, { onConflict: 'video_id,metric_date,source' });
+            if (metricError) throw metricError;
+            itemsProcessed += 1;
+          }
         }
 
         await client.from('content_accounts').update({ last_collected_at: new Date().toISOString(), last_error: null }).eq('id', account.id);
