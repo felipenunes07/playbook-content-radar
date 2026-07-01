@@ -11,8 +11,10 @@ export function MetricStrip({ metrics, youtubeViews = 0 }) {
     ['Comentários', metrics.comments],
     ['Likes', metrics.likes],
     ['Shares', metrics.shares],
-    ['Views YouTube', youtubeViews],
   ];
+  if (youtubeViews > 0) {
+    items.push(['Views YouTube', youtubeViews]);
+  }
   return (
     <div className="cm-metric-strip">
       {items.map(([label, value]) => (

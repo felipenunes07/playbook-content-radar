@@ -163,16 +163,19 @@ function LinkedinAnalysis({ filtered, allPosts, data, filters, setFilters }) {
   const filteredGrowth = useMemo(() => {
     if (!data?.growth) return [];
     const linkedinGrowth = data.growth.filter(g => g.platform === 'linkedin' || (!g.platform && g.followers !== undefined));
-    if (filters.owner) {
-      return linkedinGrowth.filter(g => g.owner_name === filters.owner);
-    }
     const grouped = {};
     linkedinGrowth.forEach(g => {
       const date = g.metric_date;
       if (!grouped[date]) {
-        grouped[date] = { metric_date: date, followers: 0 };
+        grouped[date] = { metric_date: date };
       }
-      grouped[date].followers += Number(g.followers || 0);
+      if (filters.owner) {
+        if (g.owner_name === filters.owner) {
+          grouped[date]["followers"] = Number(g.followers || 0);
+        }
+      } else {
+        grouped[date][g.owner_name] = Number(g.followers || 0);
+      }
     });
     return Object.values(grouped).sort((a, b) => a.metric_date.localeCompare(b.metric_date));
   }, [data?.growth, filters.owner]);
@@ -194,6 +197,17 @@ function LinkedinAnalysis({ filtered, allPosts, data, filters, setFilters }) {
     <div className="cm-executive-toolbar compact"><CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} /></div>
     <ContentFilters filters={filters} onChange={setFilters} posts={allPosts} advanced hideOwner />
     <MetricStrip metrics={metrics} />
+    <section className="cm-panel cm-hero-chart">
+      <div className="cm-section-heading">
+        <div>
+          <span className="cm-eyebrow">Cadência</span>
+          <h2>Posts por semana</h2>
+          <p>Frequência de publicação semanal dos posts no LinkedIn.</p>
+        </div>
+        <small>{weekly.length} semanas</small>
+      </div>
+      <WeeklyCadenceChart data={weekly} />
+    </section>
     {growthSection}
     <div className="cm-analysis-grid">
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>O que mais performa</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
@@ -327,6 +341,29 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
 
   const filtered = useMemo(() => filterContent(data?.linkedin || [], filters), [data, filters]);
   const filteredYoutube = useMemo(() => filterYoutube(data?.youtube || [], youtubeFilters), [data, youtubeFilters]);
+
+  // Combine LinkedIn posts and YouTube videos for the consolidated Overview
+  const filteredYoutubeForOverview = useMemo(() => {
+    return filterYoutube(data?.youtube || [], filters);
+  }, [data?.youtube, filters]);
+
+  const normalizedYoutubeForOverview = useMemo(() => {
+    return filteredYoutubeForOverview.map(video => ({
+      ...video,
+      platform: 'youtube',
+      content: video.description || video.title || '',
+      hook: video.title || '',
+      format: 'video',
+      cta_keyword: 'Sem CTA',
+      engagement_score: Number(video.likes || 0) + Number(video.comments || 0) * 3,
+      shares: 0,
+    }));
+  }, [filteredYoutubeForOverview]);
+
+  const combinedOverviewData = useMemo(() => {
+    return [...filtered, ...normalizedYoutubeForOverview];
+  }, [filtered, normalizedYoutubeForOverview]);
+
   const navigate = (next) => { setSection(next); onSectionChange?.(next); };
   const title = METRICS_SECTIONS.find((item) => item.id === section)?.label || 'Visão geral';
 
@@ -339,7 +376,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     <nav className="cm-tabs" aria-label="Seções de métricas">{METRICS_SECTIONS.map((item) => { const Icon = sectionIcons[item.id]; return <button type="button" key={item.id} className={section === item.id ? 'active' : ''} onClick={() => navigate(item.id)} aria-label={item.label}><Icon size={14} />{item.label}</button>; })}</nav>
     <AnimatePresence mode="wait"><motion.div key={section} className="cm-view" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}>
       {section !== 'overview' && <div className="cm-view-title"><span className="cm-eyebrow">Content Dashboard</span><h1>{title}</h1></div>}
-      {section === 'overview' && <Overview filtered={filtered} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
+      {section === 'overview' && <Overview filtered={combinedOverviewData} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'linkedin' && <LinkedinAnalysis filtered={filtered} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'youtube' && <YoutubeSection data={data} videos={filteredYoutube} filters={youtubeFilters} setFilters={setYoutubeFilters} onSettings={() => navigate('settings')} />}
       {section === 'posts' && <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} onAction={(action) => setOperationMessage(action === 'history' ? 'O histórico completo ficará disponível assim que os snapshots diários forem publicados no Supabase.' : 'Essa ação usa a API administrativa protegida. Publique o schema e autentique o operador antes de alterar dados.')} />}
