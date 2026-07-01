@@ -51,7 +51,7 @@ describe('normalizeApifyPost', () => {
       postedAt: { date: '2026-06-30T10:00:00Z' }, engagement: { likes: 20, comments: 4, shares: 2 },
     }, '2026-07-01');
     expect(result.post).toMatchObject({ external_post_id: '9999999999999999', hook: 'Hook real', author_name: 'Victor Baggio' });
-    expect(result.metric).toMatchObject({ metric_date: '2026-07-01', source: 'apify_linkedin', metric_type: 'daily_collect' });
+    expect(result.metric).toMatchObject({ metric_date: '2026-07-01', source: 'apify_daily', metric_type: 'daily_collect' });
   });
 
   it('accepts HarvestAPI no-cookie LinkedIn fields', () => {
@@ -67,7 +67,7 @@ describe('normalizeApifyPost', () => {
     }, '2026-07-01');
 
     expect(result.post).toMatchObject({ hook: 'Comenta "MAPS" que eu mando o material', cta_keyword: 'MAPS', author_name: 'Fernando Tedesco' });
-    expect(result.metric).toMatchObject({ likes: 40, comments: 12, shares: 3, source: 'apify_linkedin' });
+    expect(result.metric).toMatchObject({ likes: 40, comments: 12, shares: 3, source: 'apify_daily' });
   });
 });
 

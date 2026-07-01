@@ -52,6 +52,37 @@ const fallbackAccounts = [
 
 const sectionIcons = { overview: BarChart3, linkedin: MessageSquare, youtube: Video, posts: Activity, videos: Play, accounts: Users, imports: FileClock, settings: Settings };
 
+function validUtcDate(value) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date : null;
+}
+
+function isoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function shiftUtcMonths(date, months) {
+  const day = date.getUTCDate();
+  const target = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(day, lastDay));
+  return target;
+}
+
+function defaultDateFilters(rows = []) {
+  const dates = rows.map((row) => validUtcDate(row?.published_at)).filter(Boolean).sort((a, b) => b - a);
+  const latest = dates[0] || new Date();
+  return { from: isoDate(shiftUtcMonths(latest, -12)), to: isoDate(latest) };
+}
+
+function defaultContentFilters(data) {
+  return defaultDateFilters([...(data?.linkedin || []), ...(data?.youtube || [])]);
+}
+
+function defaultYoutubeFilters(data) {
+  return defaultDateFilters(data?.youtube || []);
+}
+
 function SourceNotice({ data }) {
   const isSupabase = data.source === 'supabase';
 
@@ -117,12 +148,12 @@ function CreatorToggle({ selectedOwner, onChange }) {
 function ExecutiveCards({ summary }) {
   const trendLabel = summary.cadenceTrend === 'up' ? 'Subiu' : summary.cadenceTrend === 'down' ? 'Caiu' : 'Estável';
   const cards = [
-    ['Posts últimos 30 dias', integer.format(summary.postsLast30Days)],
-    ['Média posts/semana', decimal.format(summary.averagePostsPerWeek)],
+    ['Conteúdos últimos 30 dias', integer.format(summary.postsLast30Days)],
+    ['Média conteúdos/semana', decimal.format(summary.averagePostsPerWeek)],
     ['Engagement total', integer.format(summary.totalEngagement)],
     ['Comentários', integer.format(summary.totalComments)],
     ['Melhor CTA', summary.bestCta || 'Sem CTA'],
-    ['Dias desde último post', summary.daysSinceLastPost == null ? '—' : integer.format(summary.daysSinceLastPost)],
+    ['Dias desde último conteúdo', summary.daysSinceLastPost == null ? '—' : integer.format(summary.daysSinceLastPost)],
     ['Tendência de cadência', trendLabel],
   ];
   return <div className="cm-executive-cards">{cards.map(([label, value]) => <div className="cm-executive-card" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>;
@@ -141,9 +172,9 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
     </div>
     <ContentFilters filters={filters} onChange={setFilters} posts={allPosts} hideOwner />
     <ExecutiveCards summary={summary} />
-    <section className="cm-panel cm-hero-chart"><div className="cm-section-heading"><div><span className="cm-eyebrow">Cadência</span><h2>Posts por semana</h2><p>Victor vs Fernando vs Total Playbook. Este é o gráfico central para saber se a frequência aumentou ou caiu.</p></div><small>{weekly.length} semanas</small></div><WeeklyCadenceChart data={weekly} /></section>
+    <section className="cm-panel cm-hero-chart"><div className="cm-section-heading"><div><span className="cm-eyebrow">Cadência</span><h2>Conteúdos por semana</h2><p>Victor vs Fernando vs Total Playbook. Este é o gráfico central para saber se a frequência aumentou ou caiu.</p></div><small>{weekly.length} semanas</small></div><WeeklyCadenceChart data={weekly} /></section>
     <div className="cm-primary-grid">
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Distribuição</span><h2>Frequência diária</h2><p>Consistência de posts dia a dia ao longo do ano.</p></div><small>{heatmap.days.length} dias</small></div><CalendarHeatmapChart data={heatmap} /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Distribuição</span><h2>Frequência diária</h2><p>Consistência de conteúdos dia a dia ao longo do ano.</p></div><small>{heatmap.days.length} dias</small></div><CalendarHeatmapChart data={heatmap} /></section>
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Resultado</span><h2>Engagement por semana</h2></div></div><WeeklyEngagementChart data={weekly} /></section>
     </div>
     <TopContentTable rows={rankContent(filtered, 'engagement_score', 10)} />
@@ -325,17 +356,15 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   const [section, setSection] = useState(initialSection);
   const [data, setData] = useState(initialData || null);
   const [loading, setLoading] = useState(!initialData);
-  const defaultTo = new Date().toISOString().slice(0, 10);
-  const defaultFrom = new Date(new Date().getTime() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  const [filters, setFilters] = useState({ from: defaultFrom, to: defaultTo });
-  const [youtubeFilters, setYoutubeFilters] = useState({ from: defaultFrom, to: defaultTo });
+  const [filters, setFilters] = useState(() => defaultContentFilters(initialData));
+  const [youtubeFilters, setYoutubeFilters] = useState(() => defaultYoutubeFilters(initialData));
   const [operationMessage, setOperationMessage] = useState('');
 
   useEffect(() => { setSection(initialSection); }, [initialSection]);
   useEffect(() => {
     if (initialData) return;
     let active = true;
-    loadContentMetrics({ supabase: client }).then((result) => { if (active) { setData(result); setLoading(false); } });
+    loadContentMetrics({ supabase: client }).then((result) => { if (active) { setFilters(defaultContentFilters(result)); setYoutubeFilters(defaultYoutubeFilters(result)); setData(result); setLoading(false); } });
     return () => { active = false; };
   }, [client, initialData]);
 

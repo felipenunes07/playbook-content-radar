@@ -37,6 +37,24 @@ describe('ContentMetricsWorkspace', () => {
     expect(screen.queryByText('Post de vendas')).not.toBeInTheDocument();
   });
 
+  it('defaults content and YouTube filters to the latest 12 months in the loaded data', async () => {
+    const { unmount } = render(<ContentMetricsWorkspace initialData={data} initialSection="overview" />);
+
+    expect(await screen.findByLabelText('Data inicial')).toHaveValue('2025-02-10');
+    expect(screen.getByLabelText('Data final')).toHaveValue('2026-02-10');
+
+    unmount();
+
+    render(<ContentMetricsWorkspace initialData={{
+      ...data,
+      source: 'supabase',
+      youtube: [{ id: 'video-1', video_id: 'yt1', owner_name: 'Victor Baggio', title: 'Agentes que vendem', video_url: 'https://youtube.com/watch?v=yt1', published_at: '2026-06-01', views: 1200, likes: 80, comments: 12, engagement_total: 92, engagement_rate: 7.67 }],
+    }} initialSection="youtube" />);
+
+    expect(await screen.findByLabelText('Data inicial YouTube')).toHaveValue('2025-06-01');
+    expect(screen.getByLabelText('Data final YouTube')).toHaveValue('2026-06-01');
+  });
+
   it('exposes every required subsection and honest YouTube empty state', async () => {
     render(<ContentMetricsWorkspace initialData={data} initialSection="youtube" />);
     expect(await screen.findByRole('heading', { name: 'YouTube', level: 1 })).toBeInTheDocument();
@@ -89,7 +107,7 @@ describe('ContentMetricsWorkspace', () => {
     expect(screen.getByRole('button', { name: /Fernando/i })).toBeInTheDocument();
     expect(screen.getByAltText('Victor Baggio')).toBeInTheDocument();
     expect(screen.getByAltText('Fernando Tedesco')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Posts por semana/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Conteúdos por semana/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Frequência diária/i })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /Média móvel de 4 semanas/i })).not.toBeInTheDocument();
 

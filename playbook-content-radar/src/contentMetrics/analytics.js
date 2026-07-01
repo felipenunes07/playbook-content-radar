@@ -224,8 +224,8 @@ function startOfUtcDay(date) {
 }
 
 function formatHeatmapDate(date, count) {
-  const postLabel = count === 1 ? 'post' : 'posts';
-  return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()} · ${count} ${postLabel}`;
+  const label = count === 1 ? 'conteúdo' : 'conteúdos';
+  return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()} · ${count} ${label}`;
 }
 
 export function buildCalendarHeatmap(items) {

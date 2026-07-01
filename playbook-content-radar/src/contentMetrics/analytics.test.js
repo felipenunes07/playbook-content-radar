@@ -129,9 +129,9 @@ describe('trend and rankings', () => {
       level: day.level,
       label: day.label,
     }))).toEqual([
-      { date: '2026-01-10', count: 1, level: 4, label: '10 Jan 2026 · 1 post' },
-      { date: '2026-01-20', count: 1, level: 4, label: '20 Jan 2026 · 1 post' },
-      { date: '2026-02-05', count: 1, level: 4, label: '5 Fev 2026 · 1 post' },
+      { date: '2026-01-10', count: 1, level: 4, label: '10 Jan 2026 · 1 conteúdo' },
+      { date: '2026-01-20', count: 1, level: 4, label: '20 Jan 2026 · 1 conteúdo' },
+      { date: '2026-02-05', count: 1, level: 4, label: '5 Fev 2026 · 1 conteúdo' },
     ]);
     expect(heatmap.months.map((month) => month.label)).toEqual(['Jan', 'Fev']);
   });

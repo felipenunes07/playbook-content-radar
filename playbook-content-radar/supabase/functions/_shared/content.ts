@@ -102,7 +102,7 @@ export function normalizeApifyPost(item: Record<string, any>, metricDate = new D
       shares,
       reactions_total: reactions,
       views: firstValue(item, ['views', 'viewCount']) == null ? null : integer(firstValue(item, ['views', 'viewCount'])),
-      source: 'apify_linkedin',
+      source: 'apify_daily',
       metric_type: 'daily_collect',
       raw: item.engagement || item.stats || item,
     },

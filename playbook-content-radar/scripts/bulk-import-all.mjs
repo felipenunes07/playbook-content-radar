@@ -31,12 +31,18 @@ async function run() {
     const owner = item.owner_name || 'Victor Baggio';
     const accountId = ACCOUNTS[`${owner}_linkedin`] || ACCOUNTS['Victor Baggio_linkedin'];
     
+    let format = item.format === 'post' ? 'text' : item.format;
+    const allowedFormats = ['text', 'image', 'carousel', 'video', 'repost', 'article', 'unknown'];
+    if (!allowedFormats.includes(format)) {
+      format = 'unknown';
+    }
+
     // Insert post
     const { data: post, error: postErr } = await supabase.from('content_posts').upsert({
       account_id: accountId,
       external_post_id: item.external_post_id,
       published_at: item.published_at,
-      format: item.format,
+      format: format,
       hook: item.hook,
       content: item.content,
       cta_keyword: item.cta_keyword || 'Sem CTA',
@@ -59,9 +65,7 @@ async function run() {
       comments: Number(item.comments || 0),
       shares: Number(item.shares || 0),
       views: Number(item.views || 0),
-      engagement_total: Number(item.engagement_total || 0),
-      engagement_score: Number(item.engagement_score || 0),
-      source: 'historical_import'
+      source: 'historical_json'
     }, { onConflict: 'post_id,metric_date,source' });
 
     if (metricErr) {
@@ -101,9 +105,7 @@ async function run() {
       comments: Number(item.comments || 0),
       shares: 0,
       views: Number(item.views || 0),
-      engagement_total: Number(item.engagement_total || 0),
-      engagement_score: Number(item.likes || 0) + Number(item.comments || 0) * 3,
-      source: 'historical_import'
+      source: 'historical_json'
     }, { onConflict: 'post_id,metric_date,source' });
 
     if (metricErr) {
@@ -144,7 +146,7 @@ async function run() {
       account_id: ACCOUNTS['Victor Baggio_linkedin'],
       metric_date: dateStr,
       followers: victorFollowers,
-      source: 'historical_import'
+      source: 'historical_json'
     }, { onConflict: 'account_id,metric_date,source' });
 
     // Victor YouTube
@@ -153,7 +155,7 @@ async function run() {
       metric_date: dateStr,
       subscribers: victorSubs,
       total_views: victorViews,
-      source: 'historical_import'
+      source: 'historical_json'
     }, { onConflict: 'account_id,metric_date,source' });
 
     // Fernando LinkedIn
@@ -161,7 +163,7 @@ async function run() {
       account_id: ACCOUNTS['Fernando Tedesco_linkedin'],
       metric_date: dateStr,
       followers: fernandoFollowers,
-      source: 'historical_import'
+      source: 'historical_json'
     }, { onConflict: 'account_id,metric_date,source' });
 
     // Fernando YouTube
@@ -170,7 +172,7 @@ async function run() {
       metric_date: dateStr,
       subscribers: fernandoSubs,
       total_views: fernandoViews,
-      source: 'historical_import'
+      source: 'historical_json'
     }, { onConflict: 'account_id,metric_date,source' });
 
     step++;
