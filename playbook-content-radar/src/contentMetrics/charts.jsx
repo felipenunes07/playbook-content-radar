@@ -53,7 +53,7 @@ export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek }) {
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="Victor" fill="#0a66c2" radius={[4, 4, 0, 0]} />
           <Bar dataKey="Fernando" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-          <Line type="monotone" dataKey="Total" stroke="#111827" strokeWidth={2.5} dot={false} />
+          <Line type="monotone" dataKey="Total" stroke="#111827" strokeWidth={2.5} strokeDasharray="4 4" dot={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

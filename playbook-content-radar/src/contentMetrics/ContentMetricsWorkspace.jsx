@@ -14,6 +14,29 @@ const InstagramGlyph = ({ size = 24, ...props }) => (
     <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
   </svg>
 );
+
+const AllIcon = ({ size = 20, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+    <path d="M2 12h20" />
+  </svg>
+);
+
+const LinkedInIcon = ({ size = 20, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z" />
+    <rect x="2" y="9" width="4" height="12" />
+    <circle cx="4" cy="4" r="2" />
+  </svg>
+);
+
+const YouTubeIcon = ({ size = 20, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z" />
+    <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" />
+  </svg>
+);
 import {
   aggregateContentMetrics,
   aggregateYoutubeMetrics,
@@ -88,7 +111,11 @@ function defaultDateFilters(rows = []) {
 }
 
 function defaultContentFilters(data) {
-  return defaultDateFilters([...(data?.linkedin || []), ...(data?.youtube || [])]);
+  return defaultDateFilters([
+    ...(data?.linkedin || []),
+    ...(data?.youtube || []),
+    ...(data?.instagram || [])
+  ]);
 }
 
 function defaultYoutubeFilters(data) {
@@ -100,7 +127,8 @@ function SourceNotice({ data }) {
 
   const allPublishDates = [
     ...(data.linkedin || []).map(p => p.published_at),
-    ...(data.youtube || []).map(v => v.published_at)
+    ...(data.youtube || []).map(v => v.published_at),
+    ...(data.instagram || []).map(p => p.published_at)
   ].filter(Boolean).sort((a, b) => b.localeCompare(a));
 
   const latestDateStr = allPublishDates[0]
@@ -116,7 +144,7 @@ function SourceNotice({ data }) {
         <div style={{ flex: 1 }}>
           <strong style={{ color: '#065f46', fontSize: '13px' }}>Banco de Dados de Produção Conectado (Supabase)</strong>
           <span style={{ color: '#047857', fontSize: '11.5px', marginTop: 4, lineHeight: 1.4, display: 'block' }}>
-            Banco de dados online e sincronizado. Última coleta bem-sucedida: <b>{data.freshness || latestDateStr}</b>. As coletas automáticas rodam diariamente às <b>06:00 (YouTube)</b> e <b>06:30 (LinkedIn)</b> via Deno Edge Functions.
+            Banco de dados online e sincronizado. Última coleta bem-sucedida: <b>{data.freshness || latestDateStr}</b>. As coletas automáticas rodam diariamente às <b>06:00 (YouTube)</b>, <b>06:30 (LinkedIn)</b> e <b>07:00 (Instagram)</b> via Deno Edge Functions.
           </span>
         </div>
         <span className="cm-status success" style={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: '999px', fontSize: '10.5px' }}>
@@ -135,7 +163,7 @@ function SourceNotice({ data }) {
       <div style={{ flex: 1 }}>
         <strong style={{ color: '#854d0e', fontSize: '13px' }}>Snapshot histórico local (Modo Offline de Demonstração)</strong>
         <span style={{ color: '#713f12', fontSize: '11.5px', marginTop: 4, lineHeight: 1.4, display: 'block' }}>
-          Dados locais carregados até <b>{latestDateStr}</b> com <b>{data.linkedin.length} posts no arquivo completo</b>. Para ativar coletas automáticas diárias na nuvem, publique as migrações do Supabase e configure as Edge Functions. Os agendamentos automáticos rodarão diariamente às 06:00 (YouTube) e 06:30 (LinkedIn).
+          Dados locais carregados até <b>{latestDateStr}</b> com <b>{data.linkedin.length} posts no arquivo completo</b>. Para ativar coletas automáticas diárias na nuvem, publique as migrações do Supabase e configure as Edge Functions. Os agendamentos automáticos rodarão diariamente às 06:00 (YouTube), 06:30 (LinkedIn) e 07:00 (Instagram).
         </span>
       </div>
       <span className="cm-source-reason" style={{ alignSelf: 'center', color: '#854d0e', background: '#fef08a', borderColor: '#fef08a' }}>
@@ -247,17 +275,17 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
       <div className="cm-platform-toggle-container" style={{ display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '16px', width: '100%' }}>
         <span className="cm-eyebrow" style={{ margin: 0 }}>Plataforma</span>
         <div className="cm-creator-toggle cm-platform-toggle" style={{ margin: 0 }}>
-          <button type="button" className={`platform-all ${selectedPlatform === 'all' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('all'); setSelectedDate(null); setSelectedWeek(null); }}>
-            <span>Todas</span>
+          <button type="button" className={`platform-all ${selectedPlatform === 'all' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('all'); setSelectedDate(null); setSelectedWeek(null); }} aria-label="Todas">
+            <AllIcon size={18} />
           </button>
-          <button type="button" className={`platform-linkedin ${selectedPlatform === 'linkedin' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('linkedin'); setSelectedDate(null); setSelectedWeek(null); }}>
-            <span>LinkedIn</span>
+          <button type="button" className={`platform-linkedin ${selectedPlatform === 'linkedin' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('linkedin'); setSelectedDate(null); setSelectedWeek(null); }} aria-label="LinkedIn">
+            <LinkedInIcon size={18} />
           </button>
-          <button type="button" className={`platform-youtube ${selectedPlatform === 'youtube' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('youtube'); setSelectedDate(null); setSelectedWeek(null); }}>
-            <span>YouTube</span>
+          <button type="button" className={`platform-youtube ${selectedPlatform === 'youtube' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('youtube'); setSelectedDate(null); setSelectedWeek(null); }} aria-label="YouTube">
+            <YouTubeIcon size={18} />
           </button>
-          <button type="button" className={`platform-instagram ${selectedPlatform === 'instagram' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('instagram'); setSelectedDate(null); setSelectedWeek(null); }}>
-            <span>Instagram</span>
+          <button type="button" className={`platform-instagram ${selectedPlatform === 'instagram' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('instagram'); setSelectedDate(null); setSelectedWeek(null); }} aria-label="Instagram">
+            <InstagramGlyph size={18} />
           </button>
         </div>
       </div>
@@ -625,13 +653,17 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     return filterContent(data?.instagram || [], filters);
   }, [data?.instagram, filters]);
 
+  const normalizedInstagramForOverview = useMemo(() => {
+    return filteredInstagramForOverview.map(post => ({
+      ...post,
+      platform: 'instagram',
+      content: post.caption || post.hook || '',
+    }));
+  }, [filteredInstagramForOverview]);
+
   const normalizedLinkedinForOverview = useMemo(() => {
     return filtered.map(post => ({ ...post, platform: 'linkedin' }));
   }, [filtered]);
-
-  const normalizedInstagramForOverview = useMemo(() => {
-    return filteredInstagramForOverview.map(post => ({ ...post, platform: 'instagram' }));
-  }, [filteredInstagramForOverview]);
 
   const combinedOverviewData = useMemo(() => {
     return [...normalizedLinkedinForOverview, ...normalizedYoutubeForOverview, ...normalizedInstagramForOverview];
@@ -650,7 +682,11 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       engagement_score: Number(video.likes || 0) + Number(video.comments || 0) * 3,
       shares: 0,
     }));
-    const instagram = (data.instagram || []).map(post => ({ ...post, platform: 'instagram' }));
+    const instagram = (data.instagram || []).map(post => ({
+      ...post,
+      platform: 'instagram',
+      content: post.caption || post.hook || '',
+    }));
     return [...linkedin, ...youtube, ...instagram];
   }, [data]);
 
