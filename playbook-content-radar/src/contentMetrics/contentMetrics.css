@@ -56,45 +56,47 @@
   justify-content: center !important;
   background: transparent !important;
   border: none !important;
+  border-bottom: 2px solid transparent !important;
   box-shadow: none !important;
-  opacity: 0.35;
+  opacity: 0.3;
   color: #94a3b8 !important;
   transition: opacity 0.15s ease;
+  cursor: pointer;
 }
 
 .cm-platform-toggle button:hover {
   background: transparent !important;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 .cm-platform-toggle button.active.platform-all {
   background: transparent !important;
-  border: none !important;
   color: #1e293b !important;
+  border-bottom: 2px solid #1e293b !important;
   box-shadow: none !important;
-  opacity: 1;
+  opacity: 1 !important;
 }
 
 .cm-platform-toggle button.active.platform-linkedin {
   background: transparent !important;
-  border: none !important;
   color: #0a66c2 !important;
+  border-bottom: 2px solid #0a66c2 !important;
   box-shadow: none !important;
-  opacity: 1;
+  opacity: 1 !important;
 }
 
 .cm-platform-toggle button.active.platform-youtube {
   background: transparent !important;
-  border: none !important;
   color: #e52d27 !important;
+  border-bottom: 2px solid #e52d27 !important;
   box-shadow: none !important;
-  opacity: 1;
+  opacity: 1 !important;
 }
 
 .cm-platform-toggle button.active.platform-instagram {
   background: transparent !important;
-  border: none !important;
   color: #db2777 !important;
+  border-bottom: 2px solid #db2777 !important;
   box-shadow: none !important;
-  opacity: 1;
+  opacity: 1 !important;
 }

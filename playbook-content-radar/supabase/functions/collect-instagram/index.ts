@@ -167,6 +167,7 @@ Deno.serve(async (request) => {
 
     for (const account of accounts || []) {
       try {
+        const collectedPostIds = new Set<string>();
         const input = renderInput(account);
         const items = await runActor(actorId, token, input);
         for (const item of Array.isArray(items) ? items : []) {
@@ -179,6 +180,7 @@ Deno.serve(async (request) => {
             const { error: metricError } = await client.from('instagram_post_daily_metrics')
               .upsert({ ...normalized.metric, post_id: savedPost.id }, { onConflict: 'post_id,metric_date,source' });
             if (metricError) throw metricError;
+            collectedPostIds.add(normalized.post.external_post_id);
             itemsProcessed += 1;
           } catch (itemError) {
             itemErrors += 1;
@@ -193,6 +195,12 @@ Deno.serve(async (request) => {
           for (const story of Array.isArray(stories) ? stories : []) {
             try {
               const normalized = normalizeInstagramPost(story, metricDate);
+              // Quando não há stories ativos, o Apify devolve posts/reels recentes neste
+              // resultsType. Pula o que já foi coletado como post ou que é reel (productType
+              // 'clips') para não sobrescrever o formato correto com 'story'.
+              if (collectedPostIds.has(normalized.post.external_post_id) || String(story.productType || '').toLowerCase() === 'clips') {
+                continue;
+              }
               normalized.post.format = 'story';
               normalized.post.media_type = normalized.post.media_url && /\.mp4|video/i.test(String(normalized.post.media_url)) ? 'video' : 'image';
               const { classification_status: _clsStatus, ...storyFields } = normalized.post;
