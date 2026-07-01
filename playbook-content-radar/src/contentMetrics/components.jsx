@@ -26,8 +26,7 @@ export function MetricStrip({ metrics, youtubeViews = 0 }) {
     </div>
   );
 }
-
-export function ContentFilters({ filters, onChange, posts, compact = false, advanced = false, hideOwner = false }) {
+export function ContentFilters({ filters, onChange, posts, compact = false, advanced = false, hideOwner = false, hideCta = false }) {
   const values = (field, fallback = '') => [...new Set(posts.map((post) => post[field] || fallback).filter(Boolean))].sort();
   const set = (field) => (event) => onChange({ ...filters, [field]: event.target.value });
   return (
@@ -37,7 +36,7 @@ export function ContentFilters({ filters, onChange, posts, compact = false, adva
       {!compact && <label>Até<input aria-label="Data final" type="date" value={filters.to || ''} onChange={set('to')} /></label>}
       <label>Formato<select aria-label="Formato" value={filters.format || ''} onChange={set('format')}><option value="">Todos</option>{values('format').map((value) => <option key={value}>{value}</option>)}</select></label>
       <label>Tema<select aria-label="Tema" value={filters.theme || ''} onChange={set('theme')}><option value="">Todos</option>{values('theme', 'Não classificado').map((value) => <option key={value}>{value}</option>)}</select></label>
-      <label>CTA<select aria-label="CTA" value={filters.cta || ''} onChange={set('cta')}><option value="">Todos</option>{values('cta_keyword', 'Sem CTA').map((value) => <option key={value}>{value}</option>)}</select></label>
+      {!hideCta && <label>CTA<select aria-label="CTA" value={filters.cta || ''} onChange={set('cta')}><option value="">Todos</option>{values('cta_keyword', 'Sem CTA').map((value) => <option key={value}>{value}</option>)}</select></label>}
       {advanced && <label>Etapa<select aria-label="Etapa do funil" value={filters.funnelStage || ''} onChange={set('funnelStage')}><option value="">Todas</option>{values('funnel_stage', 'Não classificado').map((value) => <option key={value}>{value}</option>)}</select></label>}
       {advanced && <label>Intenção<select aria-label="Intenção comercial" value={filters.commercialIntent || ''} onChange={set('commercialIntent')}><option value="">Todas</option>{values('commercial_intent', 'Não classificado').map((value) => <option key={value}>{value}</option>)}</select></label>}
       <label className="cm-search"><span>Buscar</span><div><Search size={14} /><input aria-label="Buscar posts" value={filters.search || ''} onChange={set('search')} placeholder="Hook, texto ou tema" /></div></label>
@@ -52,36 +51,48 @@ export function YoutubeFilters({ filters, onChange, videos }) {
 }
 
 export function TopContentTable({ rows, metric = 'engagement_score', title = 'Top conteúdos' }) {
+  const getPlatformLabel = (row) => {
+    if (row.platform === 'youtube' || row.video_id) return 'YouTube';
+    if (row.platform === 'instagram' || row.shortcode) return 'Instagram';
+    return 'LinkedIn';
+  };
+
+  const getPlatformStyle = (row) => {
+    const label = getPlatformLabel(row);
+    if (label === 'YouTube') return { background: '#fee2e2', color: '#b91c1c' };
+    if (label === 'Instagram') return { background: '#fdf2f8', color: '#db2777' };
+    return { background: '#e0e7ff', color: '#4338ca' };
+  };
+
   return (
     <section className="cm-table-section">
       <div className="cm-section-heading"><div><span className="cm-eyebrow">Ranking</span><h2>{title}</h2></div><small>{rows.length} resultados</small></div>
       {!rows.length ? <div className="cm-empty">Nenhum conteúdo encontrado com os filtros atuais.</div> : (
-        <div className="cm-table-wrap"><table className="cm-table">
-          <thead><tr><th>#</th><th>Conteúdo</th><th>Autor</th><th>Formato</th><th>Likes</th><th>Comentários</th><th>Shares</th><th>{metric === 'comments' ? 'Comentários' : 'Score'}</th><th /></tr></thead>
-          <tbody>{rows.map((row, index) => <tr key={row.external_post_id || row.id || index}>
-            <td className="cm-rank">{String(index + 1).padStart(2, '0')}</td>
-            <td><strong className="cm-hook">{row.hook || row.title || 'Sem título'}</strong><small>{row.published_at ? date.format(new Date(row.published_at)) : 'Data indisponível'}{row.cta_keyword ? ` · CTA ${row.cta_keyword}` : ''}</small></td>
-            <td>{row.owner_name}</td>
-            <td>
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                <span 
-                  className="cm-tag"
-                  style={{
-                    background: (row.platform === 'youtube' || row.video_id) ? '#fee2e2' : '#e0e7ff',
-                    color: (row.platform === 'youtube' || row.video_id) ? '#b91c1c' : '#4338ca',
-                    fontWeight: 600
-                  }}
-                >
-                  {(row.platform === 'youtube' || row.video_id) ? 'YouTube' : 'LinkedIn'}
-                </span>
-                <span className="cm-tag">{row.format || '—'}</span>
-              </div>
-            </td>
-            <td>{integer.format(row.likes || 0)}</td><td>{integer.format(row.comments || 0)}</td><td>{integer.format(row.shares || 0)}</td>
-            <td><strong>{integer.format(metric === 'comments' ? row.comments || 0 : row.engagement_score || 0)}</strong></td>
-            <td>{row.post_url && <a className="cm-open" href={row.post_url} target="_blank" rel="noreferrer" aria-label={`Abrir ${row.hook || 'post'}`}><ExternalLink size={15} /></a>}</td>
-          </tr>)}</tbody>
-        </table></div>
+          <div className="cm-table-wrap"><table className="cm-table">
+            <thead><tr><th>#</th><th>Conteúdo</th><th>Autor</th><th>Formato</th><th>Likes</th><th>Comentários</th><th>Shares</th><th>{metric === 'comments' ? 'Comentários' : 'Score'}</th><th /></tr></thead>
+            <tbody>{rows.map((row, index) => <tr key={row.external_post_id || row.id || index}>
+              <td className="cm-rank">{String(index + 1).padStart(2, '0')}</td>
+              <td><strong className="cm-hook">{row.hook || row.title || 'Sem título'}</strong><small>{row.published_at ? date.format(new Date(row.published_at)) : 'Data indisponível'}{row.cta_keyword ? ` · CTA ${row.cta_keyword}` : ''}</small></td>
+              <td>{row.owner_name}</td>
+              <td>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <span 
+                    className="cm-tag"
+                    style={{
+                      ...getPlatformStyle(row),
+                      fontWeight: 600
+                    }}
+                  >
+                    {getPlatformLabel(row)}
+                  </span>
+                  <span className="cm-tag">{row.format || '—'}</span>
+                </div>
+              </td>
+              <td>{integer.format(row.likes || 0)}</td><td>{integer.format(row.comments || 0)}</td><td>{integer.format(row.shares || 0)}</td>
+              <td><strong>{integer.format(metric === 'comments' ? row.comments || 0 : row.engagement_score || 0)}</strong></td>
+              <td>{row.post_url && <a className="cm-open" href={row.post_url} target="_blank" rel="noreferrer" aria-label={`Abrir ${row.hook || 'post'}`}><ExternalLink size={15} /></a>}</td>
+            </tr>)}</tbody>
+          </table></div>
       )}
     </section>
   );

@@ -164,7 +164,6 @@ function ExecutiveCards({ summary }) {
     ['Média conteúdos/semana', decimal.format(summary.averagePostsPerWeek)],
     ['Engagement total', integer.format(summary.totalEngagement)],
     ['Comentários', integer.format(summary.totalComments)],
-    ['Melhor CTA', summary.bestCta || 'Sem CTA'],
     ['Dias desde último conteúdo', summary.daysSinceLastPost == null ? '—' : integer.format(summary.daysSinceLastPost)],
     ['Tendência de cadência', trendLabel],
   ];
@@ -172,6 +171,7 @@ function ExecutiveCards({ summary }) {
 }
 
 function Overview({ filtered, allPosts, data, filters, setFilters }) {
+  const [selectedPlatform, setSelectedPlatform] = useState('all'); // 'all', 'linkedin', 'youtube', 'instagram'
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedWeek, setSelectedWeek] = useState(null);
 
@@ -193,24 +193,29 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
     }
   };
 
+  const platformFiltered = useMemo(() => {
+    if (selectedPlatform === 'all') return filtered;
+    return filtered.filter(item => item.platform === selectedPlatform);
+  }, [filtered, selectedPlatform]);
+
   const interactiveFiltered = useMemo(() => {
     if (selectedDate) {
-      return filtered.filter(item => {
+      return platformFiltered.filter(item => {
         const itemDateStr = String(item.published_at || '').slice(0, 10);
         return itemDateStr === selectedDate.date;
       });
     }
     if (selectedWeek) {
-      return filtered.filter(item => {
+      return platformFiltered.filter(item => {
         if (!item.published_at) return false;
         const itemDate = new Date(item.published_at);
         return isoWeekKey(itemDate) === selectedWeek.week;
       });
     }
-    return filtered;
-  }, [filtered, selectedDate, selectedWeek]);
+    return platformFiltered;
+  }, [platformFiltered, selectedDate, selectedWeek]);
 
-  const stableSummary = buildExecutiveSummary(filtered, filters);
+  const stableSummary = buildExecutiveSummary(platformFiltered, filters);
   const interactiveSummary = buildExecutiveSummary(interactiveFiltered, filters);
   
   const summary = {
@@ -221,8 +226,8 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
     cadenceTrend: stableSummary.cadenceTrend,
   };
   
-  const weekly = buildWeeklyCadence(filtered);
-  const heatmap = buildCalendarHeatmap(filtered);
+  const weekly = buildWeeklyCadence(platformFiltered);
+  const heatmap = buildCalendarHeatmap(platformFiltered);
   const comparison = buildCreatorComparison(interactiveFiltered);
   const youtubeViews = data.youtube.reduce((sum, video) => sum + Number(video.views || 0), 0);
 
@@ -233,11 +238,31 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
       : null;
 
   return <>
-    <div className="cm-executive-toolbar">
-      <div><span className="cm-eyebrow">Filtro principal</span><h2>Victor, Fernando ou Playbook total</h2></div>
-      <CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} />
+    <div className="cm-executive-toolbar" style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', width: '100%' }}>
+        <div><span className="cm-eyebrow">Filtro principal</span><h2>Victor, Fernando ou Playbook total</h2></div>
+        <CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} />
+      </div>
+      
+      <div className="cm-platform-toggle-container" style={{ display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '16px', width: '100%' }}>
+        <span className="cm-eyebrow" style={{ margin: 0 }}>Plataforma</span>
+        <div className="cm-creator-toggle cm-platform-toggle" style={{ margin: 0 }}>
+          <button type="button" className={`platform-all ${selectedPlatform === 'all' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('all'); setSelectedDate(null); setSelectedWeek(null); }}>
+            <span>Todas</span>
+          </button>
+          <button type="button" className={`platform-linkedin ${selectedPlatform === 'linkedin' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('linkedin'); setSelectedDate(null); setSelectedWeek(null); }}>
+            <span>LinkedIn</span>
+          </button>
+          <button type="button" className={`platform-youtube ${selectedPlatform === 'youtube' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('youtube'); setSelectedDate(null); setSelectedWeek(null); }}>
+            <span>YouTube</span>
+          </button>
+          <button type="button" className={`platform-instagram ${selectedPlatform === 'instagram' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('instagram'); setSelectedDate(null); setSelectedWeek(null); }}>
+            <span>Instagram</span>
+          </button>
+        </div>
+      </div>
     </div>
-    <ContentFilters filters={filters} onChange={setFilters} posts={allPosts} hideOwner />
+    <ContentFilters filters={filters} onChange={setFilters} posts={allPosts} hideOwner hideCta />
     
     {activeFilterLabel && (
       <div 
@@ -296,7 +321,6 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
     </section>
 
     <div className="cm-analysis-grid">
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">CTA</span><h2>CTA que mais gera comentários</h2></div></div><PerformanceBars rows={groupPerformance(interactiveFiltered, 'cta_keyword')} valueKey="comments" label="Comentários" /></section>
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>Formato por média de score</h2></div></div><PerformanceBars rows={groupPerformance(interactiveFiltered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Criadores</span><h2>Victor vs Fernando</h2></div></div><CreatorComparisonChart data={comparison} /></section>
     </div>
@@ -454,7 +478,7 @@ function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSet
       <WeeklyCadenceChart data={weekly} />
     </section>
     <div className="cm-analysis-grid">
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>Reel vs imagem vs carrossel</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>Reel · Story · Carrossel · Imagem</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">CTA</span><h2>Comentários por chamada</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'cta_keyword')} valueKey="comments" label="Comentários" /></section>
     </div>
     <TopContentTable rows={rankContent(filtered, 'engagement_score', 20)} title="Top conteúdos do Instagram" />
@@ -601,9 +625,34 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     return filterContent(data?.instagram || [], filters);
   }, [data?.instagram, filters]);
 
+  const normalizedLinkedinForOverview = useMemo(() => {
+    return filtered.map(post => ({ ...post, platform: 'linkedin' }));
+  }, [filtered]);
+
+  const normalizedInstagramForOverview = useMemo(() => {
+    return filteredInstagramForOverview.map(post => ({ ...post, platform: 'instagram' }));
+  }, [filteredInstagramForOverview]);
+
   const combinedOverviewData = useMemo(() => {
-    return [...filtered, ...normalizedYoutubeForOverview, ...filteredInstagramForOverview];
-  }, [filtered, normalizedYoutubeForOverview, filteredInstagramForOverview]);
+    return [...normalizedLinkedinForOverview, ...normalizedYoutubeForOverview, ...normalizedInstagramForOverview];
+  }, [normalizedLinkedinForOverview, normalizedYoutubeForOverview, normalizedInstagramForOverview]);
+
+  const allPostsForOverview = useMemo(() => {
+    if (!data) return [];
+    const linkedin = (data.linkedin || []).map(post => ({ ...post, platform: 'linkedin' }));
+    const youtube = (data.youtube || []).map(video => ({
+      ...video,
+      platform: 'youtube',
+      content: video.description || video.title || '',
+      hook: video.title || '',
+      format: 'video',
+      cta_keyword: 'Sem CTA',
+      engagement_score: Number(video.likes || 0) + Number(video.comments || 0) * 3,
+      shares: 0,
+    }));
+    const instagram = (data.instagram || []).map(post => ({ ...post, platform: 'instagram' }));
+    return [...linkedin, ...youtube, ...instagram];
+  }, [data]);
 
   const navigate = (next) => { setSection(next); onSectionChange?.(next); };
   const title = METRICS_SECTIONS.find((item) => item.id === section)?.label || 'Visão geral';
@@ -611,13 +660,13 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   if (loading || !data) return <div className="cm-loading"><RefreshCw className="spin" size={20} /> Carregando métricas…</div>;
 
   return <div className="content-metrics-workspace">
-    <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Performance publicada</span><h1>Métricas de conteúdo</h1><p>Leitura histórica e operação diária de LinkedIn, YouTube e Instagram.</p></div><div className="cm-header-meta"><span>{data.linkedin.length} posts carregados</span><SlidersHorizontal size={16} /></div></header>
+    <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Performance publicada</span><h1>Métricas de conteúdo</h1><p>Leitura histórica e operation diária de LinkedIn, YouTube e Instagram.</p></div><div className="cm-header-meta"><span>{data.linkedin.length} posts carregados</span><SlidersHorizontal size={16} /></div></header>
     <SourceNotice data={data} />
     {operationMessage && <div className="cm-operation-message">{operationMessage}<button type="button" onClick={() => setOperationMessage('')}>Fechar</button></div>}
     <nav className="cm-tabs" aria-label="Seções de métricas">{METRICS_SECTIONS.map((item) => { const Icon = sectionIcons[item.id]; return <button type="button" key={item.id} className={section === item.id ? 'active' : ''} onClick={() => navigate(item.id)} aria-label={item.label}><Icon size={14} />{item.label}</button>; })}</nav>
     <AnimatePresence mode="wait"><motion.div key={section} className="cm-view" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}>
       {section !== 'overview' && <div className="cm-view-title"><span className="cm-eyebrow">Content Dashboard</span><h1>{title}</h1></div>}
-      {section === 'overview' && <Overview filtered={combinedOverviewData} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
+      {section === 'overview' && <Overview filtered={combinedOverviewData} allPosts={allPostsForOverview} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'linkedin' && <LinkedinAnalysis filtered={filtered} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'youtube' && <YoutubeSection data={data} videos={filteredYoutube} filters={youtubeFilters} setFilters={setYoutubeFilters} onSettings={() => navigate('settings')} />}
       {section === 'instagram' && <InstagramSection data={data} filtered={filteredInstagram} allPosts={data.instagram} filters={instagramFilters} setFilters={setInstagramFilters} onSettings={() => navigate('settings')} />}

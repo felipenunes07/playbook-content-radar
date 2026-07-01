@@ -39,16 +39,16 @@ function firstValue(item: Record<string, any>, keys: string[]) {
 }
 
 function detectInstagramFormat(item: Record<string, any>): string {
-  const type = String(item.type || item.productType || item.mediaType || '').toLowerCase();
-  if (type.includes('reel') || type === 'clips' || type === 'reels') return 'reel';
-  if (type.includes('video') || type === 'igtv') return 'video';
-  if (type.includes('carousel') || type === 'carousel_album' || type === 'sidecar') return 'carousel';
-  if (type.includes('story')) return 'story';
-  // Check media children for carousel detection
+  // Avaliar productType e type SEPARADAMENTE: um Reel vem como type="Video" + productType="clips",
+  // então se colapsarmos com `type || productType` o sinal de Reel ("clips") se perde e vira "video".
+  const productType = String(item.productType || item.product_type || '').toLowerCase();
+  const type = String(item.type || item.mediaType || '').toLowerCase();
+  if (productType === 'clips' || type.includes('reel') || type === 'reels') return 'reel';
+  if (productType === 'story' || type.includes('story')) return 'story';
+  if (type === 'sidecar' || type.includes('carousel') || type === 'carousel_album') return 'carousel';
   const children = item.childPosts || item.sidecarMedias || item.carouselMedias;
   if (Array.isArray(children) && children.length > 1) return 'carousel';
-  // Check for video indicators
-  if (item.videoUrl || item.isVideo || item.videoDuration) return 'reel';
+  if (type.includes('video') || type === 'igtv' || item.videoUrl || item.isVideo || item.videoDuration) return 'video';
   return 'image';
 }
 
@@ -122,6 +122,12 @@ function renderInput(account: Record<string, any>) {
   );
 }
 
+// Stories são efêmeros (somem em ~24h) e vêm de um resultsType separado, então
+// coletamos num stream à parte e forçamos format='story' para não misturar com Reels.
+function renderStoriesInput(account: Record<string, any>) {
+  return { directUrls: [account.account_url], resultsType: 'stories', resultsLimit: 100 };
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   let runId: string | null = null;
@@ -157,6 +163,30 @@ Deno.serve(async (request) => {
           } catch (itemError) {
             console.error(`Erro ao normalizar post do Instagram:`, errorMessage(itemError));
           }
+        }
+
+        // Stream separado de Stories (efêmero, best-effort). Captura só o que estiver
+        // ativo no momento da coleta; falhas aqui não derrubam a coleta de posts/reels.
+        try {
+          const stories = await runActor(actorId, token, renderStoriesInput(account));
+          for (const story of Array.isArray(stories) ? stories : []) {
+            try {
+              const normalized = normalizeInstagramPost(story, metricDate);
+              normalized.post.format = 'story';
+              normalized.post.media_type = normalized.post.media_url && /\.mp4|video/i.test(String(normalized.post.media_url)) ? 'video' : 'image';
+              const { data: savedStory, error: storyError } = await client.from('instagram_posts')
+                .upsert({ ...normalized.post, account_id: account.id }, { onConflict: 'external_post_id' }).select('id').single();
+              if (storyError) throw storyError;
+              const { error: storyMetricError } = await client.from('instagram_post_daily_metrics')
+                .upsert({ ...normalized.metric, post_id: savedStory.id }, { onConflict: 'post_id,metric_date,source' });
+              if (storyMetricError) throw storyMetricError;
+              itemsProcessed += 1;
+            } catch (storyItemError) {
+              console.error('Erro ao normalizar story do Instagram:', errorMessage(storyItemError));
+            }
+          }
+        } catch (storiesError: any) {
+          console.error(`Stories indisponíveis para ${account.owner_name}:`, storiesError?.message || storiesError);
         }
 
         // Track followers count
