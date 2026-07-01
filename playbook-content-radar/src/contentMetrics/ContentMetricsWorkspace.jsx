@@ -272,20 +272,20 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
         <CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} />
       </div>
       
-      <div className="cm-platform-toggle-container" style={{ display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '16px', width: '100%' }}>
+      <div className="cm-platform-toggle-container" style={{ display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '16px', width: '100%', justifyContent: 'flex-end' }}>
         <span className="cm-eyebrow" style={{ margin: 0 }}>Plataforma</span>
         <div className="cm-creator-toggle cm-platform-toggle" style={{ margin: 0 }}>
           <button type="button" className={`platform-all ${selectedPlatform === 'all' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('all'); setSelectedDate(null); setSelectedWeek(null); }} aria-label="Todas">
-            <AllIcon size={18} />
+            <AllIcon size={15} />
           </button>
           <button type="button" className={`platform-linkedin ${selectedPlatform === 'linkedin' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('linkedin'); setSelectedDate(null); setSelectedWeek(null); }} aria-label="LinkedIn">
-            <LinkedInIcon size={18} />
+            <LinkedInIcon size={15} />
           </button>
           <button type="button" className={`platform-youtube ${selectedPlatform === 'youtube' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('youtube'); setSelectedDate(null); setSelectedWeek(null); }} aria-label="YouTube">
-            <YouTubeIcon size={18} />
+            <YouTubeIcon size={15} />
           </button>
           <button type="button" className={`platform-instagram ${selectedPlatform === 'instagram' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('instagram'); setSelectedDate(null); setSelectedWeek(null); }} aria-label="Instagram">
-            <InstagramGlyph size={18} />
+            <InstagramGlyph size={15} />
           </button>
         </div>
       </div>

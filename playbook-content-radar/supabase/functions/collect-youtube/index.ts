@@ -106,6 +106,7 @@ Deno.serve(async (request) => {
     const metricDate = new Date().toISOString().slice(0, 10);
     let accountsProcessed = 0;
     let itemsProcessed = 0;
+    let itemErrors = 0;
     const errors: Array<{ account: string; error: string }> = [];
 
     for (const account of accounts || []) {
@@ -141,14 +142,21 @@ Deno.serve(async (request) => {
           if (accountMetricError) throw accountMetricError;
 
           for (const item of items) {
-            const normalized = normalizeApifyYouTubeVideo(item, metricDate);
-            const { data: savedVideo, error: videoError } = await client.from('youtube_videos')
-              .upsert({ ...normalized.video, account_id: account.id }, { onConflict: 'video_id' }).select('id').single();
-            if (videoError) throw videoError;
-            const { error: metricError } = await client.from('youtube_video_daily_metrics')
-              .upsert({ ...normalized.metric, video_id: savedVideo.id }, { onConflict: 'video_id,metric_date,source' });
-            if (metricError) throw metricError;
-            itemsProcessed += 1;
+            try {
+              const normalized = normalizeApifyYouTubeVideo(item, metricDate);
+              // Preserve classification on re-collection (default 'pending' applies on insert).
+              const { classification_status: _clsStatus, ...videoFields } = normalized.video;
+              const { data: savedVideo, error: videoError } = await client.from('youtube_videos')
+                .upsert({ ...videoFields, account_id: account.id }, { onConflict: 'video_id' }).select('id').single();
+              if (videoError) throw videoError;
+              const { error: metricError } = await client.from('youtube_video_daily_metrics')
+                .upsert({ ...normalized.metric, video_id: savedVideo.id }, { onConflict: 'video_id,metric_date,source' });
+              if (metricError) throw metricError;
+              itemsProcessed += 1;
+            } catch (itemError) {
+              itemErrors += 1;
+              console.error(`Erro ao salvar vídeo do YouTube (${account.owner_name}):`, errorMessage(itemError));
+            }
           }
         }
 
@@ -161,9 +169,10 @@ Deno.serve(async (request) => {
       }
     }
 
-    const status = errors.length ? (accountsProcessed ? 'partial' : 'failed') : 'success';
-    await finishRun(client, runId, { status, accounts_processed: accountsProcessed, items_processed: itemsProcessed, error_message: errors.length ? `${errors.length} conta(s) falharam` : null, raw: { errors } });
-    return json({ success: status !== 'failed', runId, status, accountsProcessed, itemsProcessed, errors });
+    const status = (errors.length || itemErrors) ? (accountsProcessed ? 'partial' : 'failed') : 'success';
+    const errorSummary = [errors.length ? `${errors.length} conta(s) falharam` : null, itemErrors ? `${itemErrors} item(ns) descartado(s)` : null].filter(Boolean).join('; ') || null;
+    await finishRun(client, runId, { status, accounts_processed: accountsProcessed, items_processed: itemsProcessed, error_message: errorSummary, raw: { errors, itemErrors } });
+    return json({ success: status !== 'failed', runId, status, accountsProcessed, itemsProcessed, itemErrors, errors });
   } catch (error) {
     const message = errorMessage(error);
     if (runId) await finishRun(adminClient(), runId, { status: 'failed', error_message: message });

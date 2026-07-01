@@ -46,7 +46,11 @@ async function importHistory(client: any, payload: Record<string, any>) {
   for (const [index, item] of items.entries()) {
     try {
       const normalized = normalizeApifyPost(item, collectedAt);
-      const { data: post, error: postError } = await client.from('content_posts').upsert({ ...normalized.post, account_id: account.id }, { onConflict: 'external_post_id' }).select('id').single();
+      // Omit classification_status on upsert: on INSERT the column default ('pending')
+      // applies; on CONFLICT the existing classified/manual value is preserved instead
+      // of being reset to 'pending' by every re-import.
+      const { classification_status: _clsStatus, ...postFields } = normalized.post;
+      const { data: post, error: postError } = await client.from('content_posts').upsert({ ...postFields, account_id: account.id }, { onConflict: 'external_post_id' }).select('id').single();
       if (postError) throw postError;
       const { error: metricError } = await client.from('content_post_daily_metrics').upsert({
         ...normalized.metric, post_id: post.id, source: 'historical_json', metric_type: 'snapshot', import_batch_id: batch.id,
@@ -98,10 +102,10 @@ Deno.serve(async (request) => {
     const postHistoryMatch = route.match(/^\/linkedin\/posts\/([0-9a-f-]+)\/history$/i);
     if (request.method === 'GET' && postHistoryMatch) {
       const { data, error } = await client.from('content_post_daily_metrics')
-        .select('id, metric_date, metric_type, likes, comments, shares, engagement_total, impressions, source, collected_at')
+        .select('id, metric_date, metric_type, likes, comments, shares, reactions_total, views, engagement_total, engagement_score, source, created_at')
         .eq('post_id', postHistoryMatch[1])
         .order('metric_date', { ascending: true })
-        .order('collected_at', { ascending: true });
+        .order('created_at', { ascending: true });
       if (error) throw error;
       return json({ data: data || [] });
     }
@@ -125,8 +129,9 @@ Deno.serve(async (request) => {
     }
     const accountMatch = route.match(/^\/accounts\/([0-9a-f-]+)$/i);
     if (request.method === 'PATCH' && accountMatch) {
-      const { data, error } = await client.from('content_accounts').update(payload).eq('id', accountMatch[1]).select('*').single();
+      const { data, error } = await client.from('content_accounts').update(payload).eq('id', accountMatch[1]).select('*').maybeSingle();
       if (error) throw error;
+      if (!data) return json({ error: 'Conta não encontrada', id: accountMatch[1] }, 404);
       return json({ data });
     }
     const postMatch = route.match(/^\/linkedin\/posts\/([0-9a-f-]+)$/i);
@@ -135,11 +140,12 @@ Deno.serve(async (request) => {
       const update = Object.fromEntries(allowed.filter((key) => Object.hasOwn(payload, key)).map((key) => [key, payload[key]]));
       if (!Object.keys(update).length) throw new Error('Nenhum campo editável foi informado');
       const { data, error } = await client.from('content_posts')
-        .update({ ...update, classification_status: 'manual', classified_at: new Date().toISOString() })
+        .update({ ...update, classification_status: 'manual' })
         .eq('id', postMatch[1])
         .select('*')
-        .single();
+        .maybeSingle();
       if (error) throw error;
+      if (!data) return json({ error: 'Post não encontrado', id: postMatch[1] }, 404);
       return json({ data });
     }
     if (request.method === 'POST' && route === '/imports/linkedin-history') return json(await importHistory(client, payload), 201);

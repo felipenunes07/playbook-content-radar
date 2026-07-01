@@ -6,6 +6,8 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:data": "vitest run src/dataReliability",
+    "verify:sync": "vitest run src/dataReliability",
     "build:snapshot": "node scripts/build-linkedin-snapshot.mjs",
     "import:linkedin": "node scripts/import-linkedin-history.mjs",
     "collect:apify": "node scripts/collect-apify-content.mjs"

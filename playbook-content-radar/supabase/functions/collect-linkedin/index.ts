@@ -67,6 +67,7 @@ Deno.serve(async (request) => {
     const metricDate = new Date().toISOString().slice(0, 10);
     let accountsProcessed = 0;
     let itemsProcessed = 0;
+    let itemErrors = 0;
     const errors: Array<{ account: string; error: string }> = [];
 
     for (const account of accounts || []) {
@@ -74,15 +75,26 @@ Deno.serve(async (request) => {
         const since = await latestLinkedInSince(client, account.id);
         const input = renderInput(account, since);
         const items = await runActor(actorId, token, input);
+        // Per-item isolation: one malformed item (bad date, constraint/unique collision)
+        // must not abort the whole account's remaining posts. Failures are counted so the
+        // run summary reflects dropped items instead of silently losing them.
         for (const item of Array.isArray(items) ? items : []) {
-          const normalized = normalizeApifyPost(item, metricDate);
-          const { data: savedPost, error: postError } = await client.from('content_posts')
-            .upsert({ ...normalized.post, account_id: account.id }, { onConflict: 'external_post_id' }).select('id').single();
-          if (postError) throw postError;
-          const { error: metricError } = await client.from('content_post_daily_metrics')
-            .upsert({ ...normalized.metric, post_id: savedPost.id }, { onConflict: 'post_id,metric_date,source' });
-          if (metricError) throw metricError;
-          itemsProcessed += 1;
+          try {
+            const normalized = normalizeApifyPost(item, metricDate);
+            // Omit classification_status so a daily re-collection does not reset an
+            // already-classified/manual post back to 'pending' (default applies on insert).
+            const { classification_status: _clsStatus, ...postFields } = normalized.post;
+            const { data: savedPost, error: postError } = await client.from('content_posts')
+              .upsert({ ...postFields, account_id: account.id }, { onConflict: 'external_post_id' }).select('id').single();
+            if (postError) throw postError;
+            const { error: metricError } = await client.from('content_post_daily_metrics')
+              .upsert({ ...normalized.metric, post_id: savedPost.id }, { onConflict: 'post_id,metric_date,source' });
+            if (metricError) throw metricError;
+            itemsProcessed += 1;
+          } catch (itemError) {
+            itemErrors += 1;
+            console.error(`Erro ao salvar post do LinkedIn (${account.owner_name}):`, errorMessage(itemError));
+          }
         }
 
         // Scrape and track profile followers count daily
@@ -114,9 +126,10 @@ Deno.serve(async (request) => {
       }
     }
 
-    const status = errors.length ? (accountsProcessed ? 'partial' : 'failed') : 'success';
-    await finishRun(client, runId, { status, accounts_processed: accountsProcessed, items_processed: itemsProcessed, error_message: errors.length ? `${errors.length} conta(s) falharam` : null, raw: { errors } });
-    return json({ success: status !== 'failed', runId, status, accountsProcessed, itemsProcessed, errors });
+    const status = (errors.length || itemErrors) ? (accountsProcessed ? 'partial' : 'failed') : 'success';
+    const errorSummary = [errors.length ? `${errors.length} conta(s) falharam` : null, itemErrors ? `${itemErrors} item(ns) descartado(s)` : null].filter(Boolean).join('; ') || null;
+    await finishRun(client, runId, { status, accounts_processed: accountsProcessed, items_processed: itemsProcessed, error_message: errorSummary, raw: { errors, itemErrors } });
+    return json({ success: status !== 'failed', runId, status, accountsProcessed, itemsProcessed, itemErrors, errors });
   } catch (error) {
     const message = errorMessage(error);
     if (runId) await finishRun(adminClient(), runId, { status: 'failed', error_message: message });

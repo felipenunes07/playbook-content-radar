@@ -67,12 +67,30 @@ function cta(content: unknown) {
   return ['AQUI', 'ABAIXO', 'AGORA', 'ISSO'].includes(keyword) ? null : keyword;
 }
 
+// Parse an Instagram timestamp defensively. Accepts epoch seconds/millis (number or
+// numeric string) and ISO strings; returns null on anything unparseable so a single bad
+// date never throws and silently drops the whole post from the sync.
+function toIsoDate(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  let date: Date;
+  if (typeof value === 'number' || /^\d+$/.test(String(value))) {
+    const n = Number(value);
+    date = new Date(n < 1e11 ? n * 1000 : n); // <1e11 => seconds, else millis
+  } else {
+    date = new Date(String(value));
+  }
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 function normalizeInstagramPost(item: Record<string, any>, metricDate: string) {
   const caption = String(firstValue(item, ['caption', 'text', 'description']) || '');
-  const externalId = String(firstValue(item, ['id', 'pk', 'postId', 'inputUrl']) || item.shortCode || '').trim();
+  const shortcode = String(firstValue(item, ['shortCode', 'shortcode', 'code']) || '');
+  // NB: never fall back to inputUrl for identity — it is the shared profile URL passed to
+  // the actor and is identical across every post, which would collapse all posts to one
+  // upsert row. Prefer the stable per-post id/pk, then the unique shortcode.
+  const externalId = String(firstValue(item, ['id', 'pk', 'postId']) || shortcode || '').trim();
   if (!externalId) throw new Error('Post do Instagram sem id');
 
-  const shortcode = String(firstValue(item, ['shortCode', 'shortcode', 'code']) || '');
   const postUrl = firstValue(item, ['url', 'postUrl', 'webLink'])
     || (shortcode ? `https://www.instagram.com/p/${shortcode}/` : null);
   const format = detectInstagramFormat(item);
@@ -83,7 +101,7 @@ function normalizeInstagramPost(item: Record<string, any>, metricDate: string) {
       external_post_id: externalId,
       post_url: postUrl ? String(postUrl) : null,
       shortcode: shortcode || null,
-      published_at: published ? new Date(typeof published === 'number' ? published * 1000 : published).toISOString() : null,
+      published_at: toIsoDate(published),
       caption,
       hook: hook(caption),
       format,
@@ -144,6 +162,7 @@ Deno.serve(async (request) => {
     const metricDate = new Date().toISOString().slice(0, 10);
     let accountsProcessed = 0;
     let itemsProcessed = 0;
+    let itemErrors = 0;
     const errors: Array<{ account: string; error: string }> = [];
 
     for (const account of accounts || []) {
@@ -153,14 +172,16 @@ Deno.serve(async (request) => {
         for (const item of Array.isArray(items) ? items : []) {
           try {
             const normalized = normalizeInstagramPost(item, metricDate);
+            const { classification_status: _clsStatus, ...postFields } = normalized.post;
             const { data: savedPost, error: postError } = await client.from('instagram_posts')
-              .upsert({ ...normalized.post, account_id: account.id }, { onConflict: 'external_post_id' }).select('id').single();
+              .upsert({ ...postFields, account_id: account.id }, { onConflict: 'external_post_id' }).select('id').single();
             if (postError) throw postError;
             const { error: metricError } = await client.from('instagram_post_daily_metrics')
               .upsert({ ...normalized.metric, post_id: savedPost.id }, { onConflict: 'post_id,metric_date,source' });
             if (metricError) throw metricError;
             itemsProcessed += 1;
           } catch (itemError) {
+            itemErrors += 1;
             console.error(`Erro ao normalizar post do Instagram:`, errorMessage(itemError));
           }
         }
@@ -174,14 +195,16 @@ Deno.serve(async (request) => {
               const normalized = normalizeInstagramPost(story, metricDate);
               normalized.post.format = 'story';
               normalized.post.media_type = normalized.post.media_url && /\.mp4|video/i.test(String(normalized.post.media_url)) ? 'video' : 'image';
+              const { classification_status: _clsStatus, ...storyFields } = normalized.post;
               const { data: savedStory, error: storyError } = await client.from('instagram_posts')
-                .upsert({ ...normalized.post, account_id: account.id }, { onConflict: 'external_post_id' }).select('id').single();
+                .upsert({ ...storyFields, account_id: account.id }, { onConflict: 'external_post_id' }).select('id').single();
               if (storyError) throw storyError;
               const { error: storyMetricError } = await client.from('instagram_post_daily_metrics')
                 .upsert({ ...normalized.metric, post_id: savedStory.id }, { onConflict: 'post_id,metric_date,source' });
               if (storyMetricError) throw storyMetricError;
               itemsProcessed += 1;
             } catch (storyItemError) {
+              itemErrors += 1;
               console.error('Erro ao normalizar story do Instagram:', errorMessage(storyItemError));
             }
           }
@@ -218,9 +241,10 @@ Deno.serve(async (request) => {
       }
     }
 
-    const status = errors.length ? (accountsProcessed ? 'partial' : 'failed') : 'success';
-    await finishRun(client, runId, { status, accounts_processed: accountsProcessed, items_processed: itemsProcessed, error_message: errors.length ? `${errors.length} conta(s) falharam` : null, raw: { errors } });
-    return json({ success: status !== 'failed', runId, status, accountsProcessed, itemsProcessed, errors });
+    const status = (errors.length || itemErrors) ? (accountsProcessed ? 'partial' : 'failed') : 'success';
+    const errorSummary = [errors.length ? `${errors.length} conta(s) falharam` : null, itemErrors ? `${itemErrors} item(ns) descartado(s)` : null].filter(Boolean).join('; ') || null;
+    await finishRun(client, runId, { status, accounts_processed: accountsProcessed, items_processed: itemsProcessed, error_message: errorSummary, raw: { errors, itemErrors } });
+    return json({ success: status !== 'failed', runId, status, accountsProcessed, itemsProcessed, itemErrors, errors });
   } catch (error) {
     const message = errorMessage(error);
     if (runId) await finishRun(adminClient(), runId, { status: 'failed', error_message: message });
