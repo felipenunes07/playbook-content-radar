@@ -196,6 +196,22 @@ export function buildWeeklyCadence(items) {
   return [...groups.values()].sort((a, b) => a.week.localeCompare(b.week));
 }
 
+// Cadência semanal separando Stories (efêmero) de Reels + Publicações (feed permanente).
+export function buildWeeklyContentTypeCadence(items) {
+  const groups = new Map();
+  for (const item of (Array.isArray(items) ? items : [])) {
+    const date = validDate(item.published_at);
+    if (!date) continue;
+    const week = isoWeekKey(date);
+    const current = groups.get(week) || { week, label: weekLabel(week), feed: 0, stories: 0, Total: 0 };
+    if (String(item.format || '').toLowerCase() === 'story') current.stories += 1;
+    else current.feed += 1;
+    current.Total += 1;
+    groups.set(week, current);
+  }
+  return [...groups.values()].sort((a, b) => a.week.localeCompare(b.week));
+}
+
 export function buildMovingAverageTrend(items, windowSize = 4) {
   const weeks = buildWeeklyCadence(items);
   return weeks.map((week, index) => {

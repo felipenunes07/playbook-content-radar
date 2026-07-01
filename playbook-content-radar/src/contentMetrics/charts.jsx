@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, LineChart,
+  Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, LineChart,
   ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis,
 } from 'recharts';
 
@@ -27,32 +27,56 @@ export function ContentTrendChart({ data, metric = 'engagement' }) {
   );
 }
 
+export function WeeklyContentTypeChart({ data }) {
+  if (!data.length) return <EmptyChart />;
+  return (
+    <div className="cm-chart cm-chart-large" aria-label="Publicações por semana por tipo de conteúdo">
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={data} margin={{ top: 12, right: 16, left: -10, bottom: 0 }}>
+          <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
+          <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={20} />
+          <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
+          <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Bar dataKey="feed" name="Reels + Publicações" fill="#0a66c2" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="stories" name="Stories" fill="#d946ef" radius={[4, 4, 0, 0]} />
+          <Line type="monotone" dataKey="Total" name="Total" stroke="#111827" strokeWidth={2.5} strokeDasharray="4 4" dot={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek }) {
   if (!data.length) return <EmptyChart />;
+  const handleBarClick = (barData) => {
+    if (onWeekClick && barData) {
+      onWeekClick({ week: barData.week, label: barData.label });
+    }
+  };
   return (
     <div className="cm-chart cm-chart-large" aria-label="Posts por semana por criador" style={{ position: 'relative' }}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart 
           data={data} 
           margin={{ top: 12, right: 16, left: -10, bottom: 0 }}
-          onClick={(state) => {
-            if (state && state.activePayload && state.activePayload[0]) {
-              const weekKey = state.activePayload[0].payload.week;
-              const weekLabel = state.activePayload[0].payload.label;
-              if (onWeekClick) {
-                onWeekClick({ week: weekKey, label: weekLabel });
-              }
-            }
-          }}
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: onWeekClick ? 'pointer' : 'default' }}
         >
           <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={20} />
           <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
           <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="Victor" fill="#0a66c2" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="Fernando" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="Victor" fill="#0a66c2" radius={[4, 4, 0, 0]} onClick={handleBarClick}>
+            {data.map((entry) => (
+              <Cell key={entry.week} fillOpacity={!selectedWeek || entry.week === selectedWeek ? 1 : 0.2} />
+            ))}
+          </Bar>
+          <Bar dataKey="Fernando" fill="#f59e0b" radius={[4, 4, 0, 0]} onClick={handleBarClick}>
+            {data.map((entry) => (
+              <Cell key={entry.week} fillOpacity={!selectedWeek || entry.week === selectedWeek ? 1 : 0.2} />
+            ))}
+          </Bar>
           <Line type="monotone" dataKey="Total" stroke="#111827" strokeWidth={2.5} strokeDasharray="4 4" dot={false} />
         </ComposedChart>
       </ResponsiveContainer>

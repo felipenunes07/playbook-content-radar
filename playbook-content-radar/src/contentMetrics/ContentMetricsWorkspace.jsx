@@ -45,6 +45,7 @@ import {
   buildMonthlyTrend,
   buildCalendarHeatmap,
   buildWeeklyCadence,
+  buildWeeklyContentTypeCadence,
   filterContent,
   filterYoutube,
   groupPerformance,
@@ -62,6 +63,7 @@ import {
   CalendarHeatmapChart,
   PerformanceBars,
   WeeklyCadenceChart,
+  WeeklyContentTypeChart,
   WeeklyEngagementChart,
 } from './charts.jsx';
 import victorPhoto from '../assets/victor.png';
@@ -497,13 +499,13 @@ function EmptyCollector({ platform, onSettings }) {
 function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSettings }) {
   if (!data.instagram.length) return <EmptyCollector platform="Instagram" onSettings={onSettings} />;
   const metrics = aggregateContentMetrics(filtered);
-  const weekly = buildWeeklyCadence(filtered);
+  const weekly = buildWeeklyContentTypeCadence(filtered);
   return <>
     <ContentFilters filters={filters} onChange={setFilters} posts={allPosts} advanced hideOwner />
     <MetricStrip metrics={metrics} />
     <section className="cm-panel cm-hero-chart">
-      <div className="cm-section-heading"><div><span className="cm-eyebrow">Cadência</span><h2>Publicações por semana</h2><p>Frequência de posts e reels no Instagram.</p></div><small>{weekly.length} semanas</small></div>
-      <WeeklyCadenceChart data={weekly} />
+      <div className="cm-section-heading"><div><span className="cm-eyebrow">Cadência</span><h2>Publicações por semana</h2><p>Stories separados de Reels + Publicações (feed permanente).</p></div><small>{weekly.length} semanas</small></div>
+      <WeeklyContentTypeChart data={weekly} />
     </section>
     <div className="cm-analysis-grid">
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>Reel · Story · Carrossel · Imagem</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
