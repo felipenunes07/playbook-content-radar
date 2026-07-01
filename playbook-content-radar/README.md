@@ -32,12 +32,23 @@ Depois abra o endereço que o Vite mostrar no terminal.
 5. Felipe vê os resultados no Dashboard.
 6. Em “Dados / Exportar”, exporte CSV para analisar no Google Sheets.
 
-## Próxima versão recomendada
+## Métricas de conteúdo
 
-Trocar localStorage por Supabase:
+Felipe tem uma nova área em `/content-dashboard` com:
 
-- `ideas`
-- `votes`
-- `users`
+- 222 posts históricos reais de Fernando e Victor;
+- filtros por pessoa, período, formato, tema e CTA;
+- tendências mensais, comparação entre criadores e rankings;
+- subtelas de LinkedIn, YouTube, posts, vídeos, contas, imports e configurações;
+- fallback local quando o novo schema do Supabase ainda não foi publicado;
+- migrations, importador, Edge Functions, API interna e Cron para operação automática.
 
-Depois sincronizar com Google Sheets via n8n ou Apps Script.
+Setup completo: [`docs/content-dashboard-setup.md`](docs/content-dashboard-setup.md).
+
+Verificação rápida:
+
+```bash
+npm run build:snapshot
+npm run test:run
+npm run build
+```

@@ -69,6 +69,7 @@ Deno.serve(async (req: Request) => {
 
     let authorName = '';
     let authorAvatar = '';
+    let authorHeadline = '';
     let articleBody = '';
     let parsedLikes = 0;
     let parsedComments = 0;
@@ -97,12 +98,19 @@ Deno.serve(async (req: Request) => {
         } else if (typeof jsonData.creator?.image === 'string') {
           authorAvatar = jsonData.creator.image;
         }
-        
+
+        // 2b. Author headline/description
+        if (jsonData.author?.description) {
+          authorHeadline = jsonData.author.description;
+        } else if (jsonData.creator?.description) {
+          authorHeadline = jsonData.creator.description;
+        }
+
         // 3. Full article/post body
         if (jsonData.articleBody) {
           articleBody = jsonData.articleBody;
         }
-        
+
         // 4. Comment count
         if (typeof jsonData.commentCount === 'number') {
           parsedComments = jsonData.commentCount;
@@ -150,6 +158,51 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Extra fallback: try to extract post text from HTML elements
+    // LinkedIn sometimes embeds the full text in specific HTML patterns
+    if (!articleBody) {
+      // Try data-ad-preview-text attribute
+      const adPreviewMatch = html.match(/data-ad-preview-text="([^"]+)"/i);
+      if (adPreviewMatch && adPreviewMatch[1].length > 100) {
+        articleBody = decodeHtmlEntities(adPreviewMatch[1]);
+      }
+    }
+    if (!articleBody) {
+      // Try to find text inside feed-shared-text or similar containers
+      const feedTextMatch = html.match(/class="feed-shared-(?:update-v2__description|text).*?"[^>]*>([\s\S]*?)<\/(?:div|span)>/i);
+      if (feedTextMatch && feedTextMatch[1]) {
+        const cleaned = feedTextMatch[1]
+          .replace(/<[^>]+>/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (cleaned.length > 100) {
+          articleBody = decodeHtmlEntities(cleaned);
+        }
+      }
+    }
+    if (!articleBody) {
+      // Try break-words class spans (common in LinkedIn post rendering)
+      const breakWordsMatch = html.match(/class="break-words[^"]*"[^>]*>([\s\S]*?)<\/(?:div|span)>/i);
+      if (breakWordsMatch && breakWordsMatch[1]) {
+        const cleaned = breakWordsMatch[1]
+          .replace(/<[^>]+>/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (cleaned.length > 100) {
+          articleBody = decodeHtmlEntities(cleaned);
+        }
+      }
+    }
+
+    // Track where the text came from for debugging
+    let textSource = 'none';
+    if (articleBody && articleBody === (html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/i) ? 'jsonld' : '')) {
+      textSource = 'jsonld';
+    }
+    if (articleBody) {
+      textSource = articleBody.length > 280 ? 'full' : 'truncated';
+    }
+
     const bestDescription = articleBody || ogDescription;
 
     // Filter out generic linkedin icons/logos from ogImage
@@ -163,35 +216,13 @@ Deno.serve(async (req: Request) => {
       authorAvatar = '';
     }
 
-    // Metrics simulation fallbacks if they are 0 or undefined
-    const mockLikes = parsedLikes || Math.floor(Math.random() * 220) + 60;
-    const mockComments = parsedComments || Math.floor(mockLikes * 0.08) + 2;
-    const mockReposts = Math.floor(mockLikes * 0.05) + 1;
+    // Use real metrics only — don't generate fake ones
+    const mockLikes = parsedLikes;
+    const mockComments = parsedComments;
+    const mockReposts = 0;
 
-    // Smart author headline inference based on category/content keywords with regex word boundaries
-    let authorHeadline = '';
-    const lowerContent = (bestDescription + ' ' + bestTitle).toLowerCase();
-    
-    const matchesKeyword = (words: string[]): boolean => {
-      return words.some(w => {
-        const regex = new RegExp(`(?:^|\\s|[.,!?;()\\-])` + w + `(?:$|\\s|[.,!?;()\\-])`, 'i');
-        return regex.test(lowerContent);
-      });
-    };
-
-    if (matchesKeyword(['vaga', 'vagas', 'hiring', 'recruiter', 'recrutamento', 'seleção', 'selecao', 'contratando', 'oportunidade', 'oportunidades'])) {
-      authorHeadline = 'Líder de Talent Acquisition & Tech Recruiter';
-    } else if (matchesKeyword(['ia', 'ai', 'gpt', 'llm', 'chatgpt', 'openai', 'inteligência artificial', 'artificial intelligence', 'machine learning'])) {
-      authorHeadline = 'Especialista em Inteligência Artificial & Computação Cognitiva';
-    } else if (matchesKeyword(['agente', 'agentes', 'agent', 'agents'])) {
-      authorHeadline = 'Arquiteto de Agentes de IA & Engenharia de Prompts';
-    } else if (matchesKeyword(['venda', 'vendas', 'sales', 'sdr', 'comercial', 'salesops', 'outbound', 'inbound', 'pipeline'])) {
-      authorHeadline = 'Head de GTM & Operações de Vendas (SalesOps)';
-    } else if (matchesKeyword(['automação', 'automacao', 'automation', 'zapier', 'make', 'n8n', 'integromat'])) {
-      authorHeadline = 'Engenheiro de Integrações & Automação de Processos';
-    } else {
-      authorHeadline = 'Profissional de Tecnologia & Negócios no LinkedIn';
-    }
+    // Use the real headline from JSON-LD if available, otherwise leave empty
+    // Don't fabricate headlines based on keywords
 
     // Decode HTML entities to guarantee standard characters and clean URLs
     const decodedAuthor = decodeHtmlEntities(authorName || 'Autor LinkedIn');
@@ -201,7 +232,7 @@ Deno.serve(async (req: Request) => {
     const decodedImage = decodeHtmlEntities(postImage);
 
     const result = {
-      success: !!bestDescription,
+      success: !!(bestDescription || bestTitle || authorName),
       author: decodedAuthor,
       authorHeadline: authorHeadline,
       authorAvatar: decodedAvatar,

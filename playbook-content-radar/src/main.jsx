@@ -12,11 +12,15 @@ import './styles.css';
 import { createClient } from '@supabase/supabase-js';
 import victorPhoto from './assets/victor.png';
 import fernandoPhoto from './assets/fernando.png';
+import felipePhoto from './assets/felipe.jfif';
+import playbookLogo from './assets/playbook-logo.png';
+import { pathToMetricsSection, sectionToMetricsPath } from './contentMetrics/routes.js';
 
 const SUPABASE_URL = 'https://xcihctupmfawtawbzwvm.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjaWhjdHVwbWZhd3Rhd2J6d3ZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNTY1MTIsImV4cCI6MjA5NTgzMjUxMn0.GFVSHYY0S9nwfunxUyGGio5EQgsZE04nvFZAFz-L4Ow';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const ContentMetricsWorkspace = React.lazy(() => import('./contentMetrics/ContentMetricsWorkspace.jsx'));
 
 // Custom Linkedin logo component for brand header
 const LinkedinIcon = ({ size = 24, ...props }) => (
@@ -82,7 +86,7 @@ const STORAGE_KEY = 'playbook-content-radar-v3';
 const USER_AVATARS = {
   Victor: victorPhoto,
   Fernando: fernandoPhoto,
-  Felipe: "https://ui-avatars.com/api/?name=Felipe&background=0a66c2&color=fff&bold=true&size=200"
+  Felipe: felipePhoto
 };
 
 // Safe UUID helper
@@ -448,38 +452,33 @@ function parseLinkedInUrl(url) {
           .join(' ');
       }
     } else {
-      // Try to parse feed/update/urn format: extract number or use a generic title
-      title = 'Insight de Negócios Mapeado';
-      author = 'Líder de GTM';
+      // URL é do tipo feed/update/urn — não temos como extrair dados da URL
+      // Não inventar dados falsos, retornar vazio para o usuário preencher
+      title = '';
+      author = '';
     }
     
-    // Smart Category Inference
-    const lowerTitle = title.toLowerCase();
-    const lowerUrl = url.toLowerCase();
-    if (lowerTitle.includes('ia') || lowerTitle.includes('ai') || lowerTitle.includes('gpt') || lowerTitle.includes('chat') || lowerUrl.includes('ia') || lowerUrl.includes('ai') || lowerUrl.includes('gpt')) {
-      category = 'IA';
-    } else if (lowerTitle.includes('agente') || lowerTitle.includes('agent') || lowerUrl.includes('agente') || lowerUrl.includes('agent')) {
-      category = 'Agentes de IA';
-    } else if (lowerTitle.includes('venda') || lowerTitle.includes('sale') || lowerTitle.includes('sdr') || lowerTitle.includes('comercial') || lowerUrl.includes('venda') || lowerUrl.includes('sale')) {
-      category = 'Vendas';
-    } else if (lowerTitle.includes('auto') || lowerTitle.includes('make') || lowerUrl.includes('auto') || lowerUrl.includes('make')) {
-      category = 'Automação';
-    } else if (lowerTitle.includes('vaga') || lowerTitle.includes('oportunidade') || lowerTitle.includes('engenhe') || lowerUrl.includes('vaga') || lowerUrl.includes('oportunidade') || lowerUrl.includes('engenhe')) {
-      category = 'Bastidores Playbook';
+    // Smart Category Inference (só se tiver título real)
+    if (title) {
+      const lowerTitle = title.toLowerCase();
+      const lowerUrl = url.toLowerCase();
+      if (lowerTitle.includes('ia') || lowerTitle.includes('ai') || lowerTitle.includes('gpt') || lowerTitle.includes('chat') || lowerUrl.includes('ia') || lowerUrl.includes('ai') || lowerUrl.includes('gpt')) {
+        category = 'IA';
+      } else if (lowerTitle.includes('agente') || lowerTitle.includes('agent') || lowerUrl.includes('agente') || lowerUrl.includes('agent')) {
+        category = 'Agentes de IA';
+      } else if (lowerTitle.includes('venda') || lowerTitle.includes('sale') || lowerTitle.includes('sdr') || lowerTitle.includes('comercial') || lowerUrl.includes('venda') || lowerUrl.includes('sale')) {
+        category = 'Vendas';
+      } else if (lowerTitle.includes('auto') || lowerTitle.includes('make') || lowerUrl.includes('auto') || lowerUrl.includes('make')) {
+        category = 'Automação';
+      } else if (lowerTitle.includes('vaga') || lowerTitle.includes('oportunidade') || lowerTitle.includes('engenhe') || lowerUrl.includes('vaga') || lowerUrl.includes('oportunidade') || lowerUrl.includes('engenhe')) {
+        category = 'Bastidores Playbook';
+      }
     }
-    
-    // Generate highly realistic LinkedIn metrics
-    const mockLikes = Math.floor(Math.random() * 320) + 80; 
-    const mockCommentsCount = Math.floor(mockLikes * (Math.random() * 0.1 + 0.04)) + 3;
-    const mockRepostsCount = Math.floor(mockLikes * 0.05) + 1;
     
     return {
-      author,
-      title: title.includes('Mapeado') ? title : `${title} (Mapeado)`,
-      category,
-      mockLikes,
-      mockCommentsCount,
-      mockRepostsCount
+      author: author || '',
+      title: title || '',
+      category
     };
   } catch (err) {
     console.error('Error parsing LinkedIn URL', err);
@@ -685,8 +684,46 @@ function App() {
   // Se o app foi aberto via compartilhamento de um post do LinkedIn, já entramos
   // como Felipe direto na tela de "Nova ideia" com o link pronto para importar.
   const [sharedUrl, setSharedUrl] = useState(getSharedLinkedInUrl);
-  const [user, setUser] = useState(sharedUrl ? 'Felipe' : null);
-  const [view, setView] = useState(sharedUrl ? 'new' : 'vote'); // vote | dashboard | new | ideas | data
+  const startsInMetrics = typeof window !== 'undefined' && window.location.pathname.startsWith('/content-dashboard');
+  const [user, setUser] = useState(sharedUrl || startsInMetrics ? 'Felipe' : null);
+  const [view, setView] = useState(sharedUrl ? 'new' : startsInMetrics ? 'metrics' : 'vote'); // vote | dashboard | metrics | new | ideas | data
+  const [metricsSection, setMetricsSection] = useState(() => pathToMetricsSection(typeof window !== 'undefined' ? window.location.pathname : ''));
+
+  React.useEffect(() => {
+    const handlePopState = () => {
+      if (window.location.pathname.startsWith('/content-dashboard')) {
+        setUser('Felipe');
+        setMetricsSection(pathToMetricsSection(window.location.pathname));
+        setView('metrics');
+      } else {
+        setView(current => current === 'metrics' ? 'dashboard' : current);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  React.useEffect(() => {
+    if ((view !== 'metrics' || !user) && typeof window !== 'undefined' && window.location.pathname.startsWith('/content-dashboard')) {
+      window.history.replaceState({}, '', '/');
+    }
+  }, [view, user]);
+
+  function openMetrics(section = 'overview') {
+    setMetricsSection(section);
+    setView('metrics');
+    const path = sectionToMetricsPath(section);
+    if (typeof window !== 'undefined' && window.location.pathname !== path) {
+      window.history.pushState({ contentMetrics: section }, '', path);
+    }
+  }
+
+  function leaveMetrics(nextView) {
+    setView(nextView);
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/content-dashboard')) {
+      window.history.pushState({}, '', '/');
+    }
+  }
 
   // Limpa os parâmetros da URL para que um refresh não reabra o fluxo de compartilhamento.
   React.useEffect(() => {
@@ -1041,9 +1078,15 @@ function App() {
               <>
                 <button 
                   className={view === 'dashboard' ? 'nav-link active' : 'nav-link'} 
-                  onClick={() => setView('dashboard')}
+                  onClick={() => leaveMetrics('dashboard')}
                 >
                   <BarChart3 size={16} /> Dashboard
+                </button>
+                <button
+                  className={view === 'metrics' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => openMetrics(metricsSection)}
+                >
+                  <TrendingUp size={16} /> Métricas
                 </button>
                 <button 
                   className={view === 'new' ? 'nav-link active' : 'nav-link'} 
@@ -1164,6 +1207,19 @@ function App() {
               }}
             />
           )}
+          {view === 'metrics' && user === 'Felipe' && (
+            <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Carregando métricas…</div>}>
+              <ContentMetricsWorkspace
+                client={supabase}
+                initialSection={metricsSection}
+                onSectionChange={(section) => {
+                  setMetricsSection(section);
+                  const path = sectionToMetricsPath(section);
+                  if (window.location.pathname !== path) window.history.pushState({ contentMetrics: section }, '', path);
+                }}
+              />
+            </React.Suspense>
+          )}
           {view === 'new' && user === 'Felipe' && (
             <NewIdeaView
               updateState={updateState}
@@ -1260,10 +1316,19 @@ function App() {
               <button 
                 type="button" 
                 className={view === 'dashboard' ? 'mobile-nav-item active' : 'mobile-nav-item'} 
-                onClick={() => setView('dashboard')}
+                onClick={() => leaveMetrics('dashboard')}
               >
                 <BarChart3 size={18} />
                 <span>Dashboard</span>
+              </button>
+
+              <button
+                type="button"
+                className={view === 'metrics' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => openMetrics(metricsSection)}
+              >
+                <TrendingUp size={18} />
+                <span>Métricas</span>
               </button>
               
               <button 
@@ -2046,6 +2111,25 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
   );
 }
 
+// Empty-state block reutilizado nas seções do feed do dashboard. Antes cada seção
+// vazia era uma caixa branca alta com uma única linha em itálico flutuando no meio,
+// o que parecia erro/espaço desperdiçado. Aqui viram estados intencionais com
+// ícone, título, uma linha de orientação e um CTA opcional.
+function FeedEmptyState({ icon: Icon, title, hint, actionLabel, onAction, tone = 'neutral' }) {
+  return (
+    <div className={`li-empty-state li-empty-state--${tone}`}>
+      <div className="li-empty-state-icon">{Icon && <Icon size={20} />}</div>
+      <p className="li-empty-state-title">{title}</p>
+      {hint && <p className="li-empty-state-hint">{hint}</p>}
+      {actionLabel && onAction && (
+        <button type="button" className="li-empty-state-btn" onClick={onAction}>
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ==================== ADMIN: DASHBOARD VIEW ====================
 function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, onNavigateToIdeas }) {
   const [activeTab, setActiveTab] = useState('curation');
@@ -2196,11 +2280,11 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
       <header className="li-company-card shadow-li">
         <div className="li-company-banner" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #0a66c2 100%)' }}></div>
         <div className="li-company-profile-row">
-          <img 
-            className="li-company-avatar" 
-            src="https://media.licdn.com/dms/image/v2/D4D0BAQE4WoqghkPp9w/company-logo_200_200/company-logo_200_200/0/1693484669385/ftx_inside_sales_logo?e=1781740800&v=beta&t=f4YRwAGJT4RtRt27DFMSLUwXT9c1gqAFIbFl6YP0kSs" 
-            alt="Playbook Lab Logo" 
-            style={{ borderRadius: '12px', border: '3px solid #ffffff', objectFit: 'cover', background: '#ffffff' }} 
+          <img
+            className="li-company-avatar"
+            src={playbookLogo}
+            alt="Playbook Lab Logo"
+            style={{ borderRadius: '12px', border: '3px solid #ffffff', objectFit: 'cover', background: '#ffffff' }}
           />
           <div className="li-company-info">
             <div className="li-company-title-row">
@@ -2335,9 +2419,14 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                   <span className="badge-pill success">Prontas para Sheets / Agendamento</span>
                 </div>
                 {approvedBoth.length === 0 ? (
-                  <div className="li-feed-post-card" style={{ textAlign: 'center', padding: '24px' }}>
-                    <p className="li-empty-text">Nenhuma pauta aprovada por ambos ainda.</p>
-                  </div>
+                  <FeedEmptyState
+                    icon={CheckCircle2}
+                    tone="success"
+                    title="Nenhuma pauta aprovada pelos dois ainda"
+                    hint="Quando Victor e Fernando aprovarem a mesma referência, ela aparece aqui pronta para agendar."
+                    actionLabel="Ver acervo"
+                    onAction={() => onNavigateToIdeas && onNavigateToIdeas('todos')}
+                  />
                 ) : (
                   <div className="li-feed-list">
                     {approvedBoth.map(item => (
@@ -2419,9 +2508,12 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                   <span className="badge-pill warning" style={{ background: '#fee2e2', color: '#991b1b' }}>Requer Conciliação Admin</span>
                 </div>
                 {divergentIdeas.length === 0 ? (
-                  <div className="li-feed-post-card" style={{ textAlign: 'center', padding: '24px', border: '1px solid rgba(0,0,0,0.08)' }}>
-                    <p className="li-empty-text">Nenhuma divergência identificada no radar.</p>
-                  </div>
+                  <FeedEmptyState
+                    icon={Check}
+                    tone="success"
+                    title="Nenhuma divergência no radar"
+                    hint="Sem conflitos de voto entre os curadores. Nada precisa de conciliação agora."
+                  />
                 ) : (
                   <div className="li-feed-list">
                     {divergentIdeas.map(item => {
@@ -2547,9 +2639,14 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                   <span className="badge-pill info">Aguardando Decisões</span>
                 </div>
                 {evaluatingIdeas.length === 0 ? (
-                  <div className="li-feed-post-card" style={{ textAlign: 'center', padding: '24px', border: '1px solid rgba(0,0,0,0.08)' }}>
-                    <p className="li-empty-text">Nenhuma pauta sob avaliação aguardando.</p>
-                  </div>
+                  <FeedEmptyState
+                    icon={Sparkles}
+                    tone="neutral"
+                    title="Nenhuma pauta aguardando avaliação"
+                    hint="Assim que novas referências forem mapeadas, elas entram nesta fila para os curadores decidirem."
+                    actionLabel="Nova ideia"
+                    onAction={() => onNavigateToIdeas && onNavigateToIdeas('todos')}
+                  />
                 ) : (
                   <div className="li-feed-list">
                     {evaluatingIdeas.map(item => {
@@ -2965,37 +3062,121 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
     addToast('Buscando dados reais do post no LinkedIn...', 'success');
 
     try {
-      const response = await fetch('https://xcihctupmfawtawbzwvm.supabase.co/functions/v1/scrape-linkedin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ url: targetUrl })
-      });
+      // ─── Tentar Supabase Edge Function (via principal) ───
+      let data = null;
+      let usedSupabase = false;
 
-      if (!response.ok) {
-        throw new Error('Falha na resposta do servidor.');
+      try {
+        const response = await fetch('https://xcihctupmfawtawbzwvm.supabase.co/functions/v1/scrape-linkedin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: targetUrl })
+        });
+        if (response.ok) {
+          data = await response.json();
+          usedSupabase = true;
+        }
+      } catch { /* Supabase indisponível, usar fallback */ }
+
+      // ─── Fallback: proxy CORS + parsing client-side ───
+      if (!data || (!data.description && !data.author && !data.title)) {
+        try {
+          const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(targetUrl);
+          const proxyResp = await fetch(proxyUrl);
+          if (proxyResp.ok) {
+            const html = await proxyResp.text();
+
+            const getMetaContent = (property) => {
+              const escaped = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const r1 = new RegExp('property="' + escaped + '"\\s+content="([^"]*)"', 'i');
+              const m1 = html.match(r1);
+              if (m1) return m1[1];
+              const r2 = new RegExp('content="([^"]*)"\\s+property="' + escaped + '"', 'i');
+              const m2 = html.match(r2);
+              if (m2) return m2[1];
+              return '';
+            };
+
+            const decodeEntities = (str) => {
+              if (!str) return '';
+              return str.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x27;/g, "'")
+                .replace(/&#x2F;/g, '/').replace(/&nbsp;/g, ' ');
+            };
+
+            const ogTitle = getMetaContent('og:title');
+            const ogDesc = getMetaContent('og:description');
+            const ogImage = getMetaContent('og:image');
+            const titleMatch = html.match(/<title>([^<]*)<\/title>/i);
+
+            let authorName = '', authorHeadline = '', authorAvatar = '', articleBody = '';
+            let parsedLikes = 0, parsedComments = 0;
+
+            const jsonLdRegex = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi;
+            let jsonLdMatch;
+            while ((jsonLdMatch = jsonLdRegex.exec(html)) !== null) {
+              try {
+                const jd = JSON.parse(jsonLdMatch[1]);
+                if (jd.author?.name) authorName = jd.author.name;
+                if (jd.author?.description) authorHeadline = jd.author.description;
+                if (jd.articleBody) articleBody = jd.articleBody;
+                if (jd.author?.image?.url) authorAvatar = jd.author.image.url;
+                else if (typeof jd.author?.image === 'string') authorAvatar = jd.author.image;
+                if (typeof jd.commentCount === 'number') parsedComments = jd.commentCount;
+                if (Array.isArray(jd.interactionStatistic)) {
+                  for (const s of jd.interactionStatistic) {
+                    if (s.interactionType?.includes('LikeAction') && typeof s.userInteractionCount === 'number') parsedLikes = s.userInteractionCount;
+                    if (s.interactionType?.includes('CommentAction') && typeof s.userInteractionCount === 'number' && !parsedComments) parsedComments = s.userInteractionCount;
+                  }
+                }
+              } catch { /* ignore */ }
+            }
+
+            const bestTitle = ogTitle || (titleMatch ? titleMatch[1] : '');
+            if (!authorName && bestTitle) {
+              const am = bestTitle.match(/^(.+?)(?:\s+on\s+LinkedIn|\s+no\s+LinkedIn|\s+\|\s+LinkedIn)/i);
+              if (am) authorName = am[1].trim();
+            }
+
+            // Filtrar imagens genéricas
+            let postImage = ogImage;
+            if (ogImage && (ogImage.includes('static.licdn.com') || ogImage.includes('favicon'))) postImage = '';
+            if (authorAvatar && (authorAvatar.includes('static.licdn.com') || authorAvatar.includes('ghost'))) authorAvatar = '';
+
+            data = {
+              author: decodeEntities(authorName),
+              authorHeadline: decodeEntities(authorHeadline),
+              authorAvatar: decodeEntities(authorAvatar),
+              title: decodeEntities(bestTitle),
+              description: decodeEntities(articleBody || ogDesc),
+              image: decodeEntities(postImage),
+              mockLikes: parsedLikes,
+              mockCommentsCount: parsedComments,
+              isAuthwall: html.includes('authwall') || html.includes('auth_wall')
+            };
+          }
+        } catch { /* proxy também falhou */ }
       }
 
-      const data = await response.json();
-      if (!data || !data.success) {
-        throw new Error(data?.error || 'Não foi possível extrair os dados do post.');
+      // ─── Se nenhuma via funcionou, throw ───
+      if (!data || (!data.description && !data.author && !data.title)) {
+        throw new Error('Nenhum dado extraído do LinkedIn.');
       }
 
-      // Build a clean title from the description or parsed title
+      // ─── Processar dados (independente da fonte) ───
       let cleanTitle = '';
       if (data.description) {
         const firstLine = data.description.split('\n').find(l => l.trim().length > 5) || '';
         cleanTitle = firstLine.slice(0, 80).trim();
         if (firstLine.length > 80) cleanTitle += '...';
       }
-      if (!cleanTitle) {
-        cleanTitle = data.title ? data.title.split('|')[0].trim().slice(0, 80) : '';
+      if (!cleanTitle && data.title) {
+        cleanTitle = data.title.split('|')[0].trim().slice(0, 80);
       }
 
-      // Smart category inference
+      // Inferência de categoria
       const lowerContent = ((data.description || '') + ' ' + (cleanTitle || '')).toLowerCase();
-      let category = 'IA'; // default or smart match
+      let category = 'LinkedIn';
       if (lowerContent.includes('vaga') || lowerContent.includes('hiring') || lowerContent.includes('recrutamento') || lowerContent.includes('oportunidade')) {
         category = 'Bastidores Playbook';
       } else if (lowerContent.includes('ia ') || lowerContent.includes('ai ') || lowerContent.includes('gpt') || lowerContent.includes('inteligência artificial')) {
@@ -3012,17 +3193,25 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
         category = 'GTM';
       } else if (lowerContent.includes('conteúdo') || lowerContent.includes('content') || lowerContent.includes('marketing')) {
         category = 'Conteúdo';
-      } else {
-        category = 'LinkedIn';
+      }
+
+      const importedText = data.description || '';
+      const isTextTruncated = importedText.length > 0 && importedText.length < 280;
+
+      // Ignorar headline fabricado pelo backend (contém keywords genéricas)
+      const fabricatedHeadlines = ['Profissional de Tecnologia', 'Líder de Talent', 'Especialista em Inteligência', 'Arquiteto de Agentes', 'Head de GTM', 'Engenheiro de Integrações'];
+      let realHeadline = data.authorHeadline || '';
+      if (fabricatedHeadlines.some(fh => realHeadline.includes(fh))) {
+        realHeadline = ''; // Era fabricado, descartar
       }
 
       setForm(prev => ({
         ...prev,
         title: cleanTitle || prev.title,
         sourceAuthor: data.author || prev.sourceAuthor,
-        authorHeadline: data.authorHeadline || prev.authorHeadline,
+        authorHeadline: realHeadline || prev.authorHeadline,
         authorAvatar: data.authorAvatar || prev.authorAvatar,
-        summary: data.description || prev.summary,
+        summary: importedText || prev.summary,
         imageUrl: data.image || prev.imageUrl,
         category: category,
         mockLikes: data.mockLikes || prev.mockLikes,
@@ -3030,26 +3219,29 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
         mockRepostsCount: data.mockRepostsCount || prev.mockRepostsCount
       }));
 
-      addToast('✅ Post real importado do LinkedIn com sucesso!', 'success');
+      if (!importedText) {
+        addToast('⚠️ Dados básicos importados, mas o texto do post não pôde ser extraído' + (data.isAuthwall ? ' (LinkedIn exigiu login)' : '') + '. Cole o texto manualmente.', 'error');
+      } else if (isTextTruncated) {
+        addToast('⚠️ Post importado, mas o texto pode estar truncado (' + importedText.length + ' chars). Confira e complete se necessário.', 'error');
+      } else {
+        addToast('✅ Post importado do LinkedIn com sucesso!', 'success');
+      }
 
     } catch (err) {
       console.error('LinkedIn scrape failed:', err);
       
-      // Fallback: use the URL parser for basic metadata
+      // Fallback final: extrair dados básicos da URL
       const parsed = parseLinkedInUrl(targetUrl);
-      if (parsed) {
+      if (parsed && (parsed.title || parsed.author)) {
         setForm(prev => ({
           ...prev,
           title: prev.title || parsed.title,
           sourceAuthor: prev.sourceAuthor || parsed.author,
-          category: parsed.category,
-          mockLikes: parsed.mockLikes,
-          mockCommentsCount: parsed.mockCommentsCount,
-          mockRepostsCount: parsed.mockRepostsCount
+          category: parsed.category || prev.category
         }));
-        addToast('⚠️ Não foi possível ler o post completo. Dados básicos da URL foram extraídos. Cole o texto do post manualmente.', 'error');
+        addToast('⚠️ Não foi possível acessar o post. Dados básicos da URL foram extraídos. Preencha o resto manualmente.', 'error');
       } else {
-        addToast('❌ Falha ao importar. Verifique se o link é público e tente novamente.', 'error');
+        addToast('❌ Não foi possível importar o post. Preencha os dados manualmente.', 'error');
       }
     } finally {
       setIsImporting(false);
@@ -3318,14 +3510,18 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
         </div>
 
         <label>
-          Texto Completo do Post (Copie exatamente igual do LinkedIn) *
+          Texto Completo do Post {form.summary ? '✅' : '(Cole o texto do LinkedIn)'}
           <textarea 
             value={form.summary} 
             onChange={e => update('summary', e.target.value)} 
             placeholder="Cole aqui o texto completo do post do LinkedIn preservando emojis, quebras de linha e caracteres especiais para que Victor e Fernando leiam o post inteiro de forma idêntica..." 
-            style={{ minHeight: '160px' }}
-            required
+            style={{ minHeight: '160px', borderColor: form.summary ? '#10b981' : undefined }}
           />
+          {!form.summary && (
+            <span style={{ fontSize: '11.5px', color: '#ef4444', fontWeight: 600, marginTop: '4px', display: 'block', lineHeight: 1.3 }}>
+              ⚠️ O LinkedIn frequentemente bloqueia a extração automática do texto. <strong>Cole o texto completo do post aqui manualmente.</strong>
+            </span>
+          )}
         </label>
 
         <label>

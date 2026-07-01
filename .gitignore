@@ -31,3 +31,7 @@ pnpm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local visual brainstorming artifacts
+.superpowers/
+**/.superpowers/

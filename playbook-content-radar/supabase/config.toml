@@ -1,0 +1,16 @@
+project_id = "playbook-content-radar"
+
+[functions.scrape-linkedin]
+verify_jwt = false
+
+[functions.collect-youtube]
+verify_jwt = false
+
+[functions.collect-linkedin]
+verify_jwt = false
+
+[functions.classify-content]
+verify_jwt = false
+
+[functions.content-dashboard-api]
+verify_jwt = false

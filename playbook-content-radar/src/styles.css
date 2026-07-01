@@ -376,11 +376,11 @@ button:active {
 }
 
 .main-area {
-  padding: 20px;
+  padding: 20px 32px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  max-width: 1380px; /* Highly spacious full width for dashboards */
+  max-width: 1760px; /* Fills widescreen (elimina as faixas cinza laterais); teto evita esticar demais em ultrawide */
   width: 100%;
   margin: 0 auto;
 }
@@ -2730,6 +2730,70 @@ kbd {
   padding: 16px 0;
 }
 
+/* Intentional empty states for the dashboard feed sections.
+   Substituem as caixas altas e vazias por um bloco compacto com ícone,
+   título, orientação e CTA — para o espaço parecer proposital, não erro. */
+.li-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 24px 20px;
+  background: #ffffff;
+  border: 1px dashed rgba(0, 0, 0, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+.li-empty-state-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eaf1f8;
+  color: #0a66c2;
+  margin-bottom: 2px;
+}
+
+.li-empty-state--success .li-empty-state-icon {
+  background: #e6f4ea;
+  color: #057642;
+}
+
+.li-empty-state-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.82);
+}
+
+.li-empty-state-hint {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.55);
+  line-height: 1.45;
+  max-width: 340px;
+}
+
+.li-empty-state-btn {
+  margin-top: 8px;
+  background: #ffffff;
+  color: #0a66c2;
+  border: 1px solid #0a66c2;
+  border-radius: 100px;
+  padding: 6px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.li-empty-state-btn:hover {
+  background: #0a66c2;
+  color: #ffffff;
+}
+
 /* Feed lists */
 .li-feed-list {
   display: flex;
@@ -3003,6 +3067,14 @@ kbd {
     grid-template-columns: repeat(4, 1fr);
   }
 
+  .mobile-bottom-nav:has(.mobile-nav-item:nth-child(5)) {
+    grid-template-columns: repeat(5, 1fr);
+  }
+
+  .mobile-bottom-nav:has(.mobile-nav-item:nth-child(6)) {
+    grid-template-columns: repeat(6, 1fr);
+  }
+
   .mobile-nav-item {
     display: flex;
     flex-direction: column;
@@ -3028,6 +3100,11 @@ kbd {
   
   .mobile-nav-item svg {
     margin-bottom: 2px;
+  }
+
+  .mobile-bottom-nav:has(.mobile-nav-item:nth-child(6)) .mobile-nav-item {
+    font-size: 9px;
+    gap: 2px;
   }
 }
 

@@ -1,1 +1,29 @@
-{"scripts":{"dev":"vite --host 0.0.0.0","build":"vite build","preview":"vite preview --host 0.0.0.0"},"dependencies":{"@supabase/supabase-js":"^2.106.2","@vitejs/plugin-react":"latest","framer-motion":"latest","lucide-react":"latest","react":"latest","react-dom":"latest","vite":"latest"}}
+{
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "build:snapshot": "node scripts/build-linkedin-snapshot.mjs",
+    "import:linkedin": "node scripts/import-linkedin-history.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.2",
+    "@vitejs/plugin-react": "latest",
+    "framer-motion": "latest",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "recharts": "^3.9.1",
+    "vite": "^8.1.2"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "jsdom": "^29.1.1",
+    "tsx": "^4.22.4",
+    "vitest": "^4.1.9"
+  }
+}
