@@ -11,7 +11,7 @@ export function filterContent(items, filters = {}) {
   const to = filters.to ? new Date(`${filters.to}T23:59:59.999Z`).getTime() : null;
   const search = lower(filters.search);
 
-  return (Array.isArray(items) ? items : []).filter((item) => {
+  const passed = (Array.isArray(items) ? items : []).filter((item) => {
     if (item.is_repost === true || item.format === 'repost' || item.repost_id || (item.raw && (item.raw.repostedBy || item.raw.repostedAt))) return false;
     if (item.owner_name && item.author_name && item.owner_name !== item.author_name) return false;
     const published = item.published_at ? new Date(item.published_at).getTime() : null;
@@ -29,6 +29,22 @@ export function filterContent(items, filters = {}) {
     }
     return true;
   });
+
+  // Deduplicate by hook: when two posts share the exact same hook text
+  // (repost scenario), keep only the original (prefer where owner === author, or first seen).
+  const seen = new Map();
+  for (const item of passed) {
+    const key = lower(item.hook || '');
+    if (!key || key.length < 15) { seen.set(item.external_post_id || Math.random(), item); continue; }
+    const existing = seen.get(key);
+    if (!existing) { seen.set(key, item); continue; }
+    // Keep the one where owner matches author (original), or higher engagement
+    const existingIsOriginal = !existing.author_name || existing.owner_name === existing.author_name;
+    const currentIsOriginal = !item.author_name || item.owner_name === item.author_name;
+    if (!existingIsOriginal && currentIsOriginal) seen.set(key, item);
+    // otherwise keep existing (first seen / original)
+  }
+  return [...seen.values()];
 }
 
 export function filterYoutube(items, filters = {}) {
@@ -194,7 +210,32 @@ export function buildWeeklyCadence(items) {
     current.averageEngagement = round(current.engagement / current.Total);
     groups.set(week, current);
   }
-  return [...groups.values()].sort((a, b) => a.week.localeCompare(b.week));
+  const sorted = [...groups.values()].sort((a, b) => a.week.localeCompare(b.week));
+  if (sorted.length < 2) return sorted;
+
+  // Fill missing weeks between first and last with zero entries
+  const filled = [];
+  const firstMonday = weekKeyToMonday(sorted[0].week);
+  const lastMonday = weekKeyToMonday(sorted[sorted.length - 1].week);
+  const cursor = new Date(firstMonday);
+  while (cursor <= lastMonday) {
+    const wk = isoWeekKey(cursor);
+    const existing = groups.get(wk);
+    filled.push(existing || { week: wk, label: weekLabel(wk), Victor: 0, Fernando: 0, Total: 0, engagement: 0, comments: 0, averageEngagement: 0 });
+    cursor.setUTCDate(cursor.getUTCDate() + 7);
+  }
+  return filled;
+}
+
+function weekKeyToMonday(weekKey) {
+  const parts = weekKey.split('-W');
+  const year = parseInt(parts[0], 10);
+  const week = parseInt(parts[1], 10);
+  const simple = new Date(Date.UTC(year, 0, 4));
+  const day = simple.getUTCDay() || 7;
+  const monday = new Date(simple.getTime());
+  monday.setUTCDate(simple.getUTCDate() - day + 1 + (week - 1) * 7);
+  return monday;
 }
 
 // Cadência semanal separando Stories (efêmero) de Reels + Publicações (feed permanente).
