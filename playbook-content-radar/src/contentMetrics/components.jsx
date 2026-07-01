@@ -61,7 +61,22 @@ export function TopContentTable({ rows, metric = 'engagement_score', title = 'To
           <tbody>{rows.map((row, index) => <tr key={row.external_post_id || row.id || index}>
             <td className="cm-rank">{String(index + 1).padStart(2, '0')}</td>
             <td><strong className="cm-hook">{row.hook || row.title || 'Sem título'}</strong><small>{row.published_at ? date.format(new Date(row.published_at)) : 'Data indisponível'}{row.cta_keyword ? ` · CTA ${row.cta_keyword}` : ''}</small></td>
-            <td>{row.owner_name}</td><td><span className="cm-tag">{row.format || '—'}</span></td>
+            <td>{row.owner_name}</td>
+            <td>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <span 
+                  className="cm-tag"
+                  style={{
+                    background: (row.platform === 'youtube' || row.video_id) ? '#fee2e2' : '#e0e7ff',
+                    color: (row.platform === 'youtube' || row.video_id) ? '#b91c1c' : '#4338ca',
+                    fontWeight: 600
+                  }}
+                >
+                  {(row.platform === 'youtube' || row.video_id) ? 'YouTube' : 'LinkedIn'}
+                </span>
+                <span className="cm-tag">{row.format || '—'}</span>
+              </div>
+            </td>
             <td>{integer.format(row.likes || 0)}</td><td>{integer.format(row.comments || 0)}</td><td>{integer.format(row.shares || 0)}</td>
             <td><strong>{integer.format(metric === 'comments' ? row.comments || 0 : row.engagement_score || 0)}</strong></td>
             <td>{row.post_url && <a className="cm-open" href={row.post_url} target="_blank" rel="noreferrer" aria-label={`Abrir ${row.hook || 'post'}`}><ExternalLink size={15} /></a>}</td>

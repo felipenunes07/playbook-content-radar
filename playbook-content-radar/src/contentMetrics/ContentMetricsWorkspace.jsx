@@ -199,7 +199,17 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
     return filtered;
   }, [filtered, selectedDate, selectedWeek]);
 
-  const summary = buildExecutiveSummary(interactiveFiltered, filters);
+  const stableSummary = buildExecutiveSummary(filtered, filters);
+  const interactiveSummary = buildExecutiveSummary(interactiveFiltered, filters);
+  
+  const summary = {
+    ...interactiveSummary,
+    postsLast30Days: stableSummary.postsLast30Days,
+    averagePostsPerWeek: stableSummary.averagePostsPerWeek,
+    daysSinceLastPost: stableSummary.daysSinceLastPost,
+    cadenceTrend: stableSummary.cadenceTrend,
+  };
+  
   const weekly = buildWeeklyCadence(filtered);
   const heatmap = buildCalendarHeatmap(filtered);
   const comparison = buildCreatorComparison(interactiveFiltered);
