@@ -37,6 +37,8 @@ async function run() {
       format = 'unknown';
     }
 
+    const isRepost = item.is_repost === true || item.format === 'repost' || !!item.repost_id || !!(item.raw && (item.raw.repostedBy || item.raw.repostedAt));
+
     // Insert post
     const { data: post, error: postErr } = await supabase.from('content_posts').upsert({
       account_id: accountId,
@@ -48,7 +50,10 @@ async function run() {
       cta_keyword: item.cta_keyword || 'Sem CTA',
       theme: item.theme,
       funnel_stage: item.funnel_stage,
-      commercial_intent: item.commercial_intent
+      commercial_intent: item.commercial_intent,
+      is_repost: isRepost,
+      repost_id: item.repost_id || null,
+      raw: item.raw || {}
     }, { onConflict: 'external_post_id' }).select('id').single();
 
     if (postErr) {
@@ -89,7 +94,8 @@ async function run() {
       published_at: item.published_at,
       thumbnail_url: item.thumbnail_url,
       duration: item.duration || '00:00:00',
-      theme: item.theme || 'Não classificado'
+      theme: item.theme || 'Não classificado',
+      raw: item.raw || {}
     }, { onConflict: 'video_id' }).select('id').single();
 
     if (videoErr) {

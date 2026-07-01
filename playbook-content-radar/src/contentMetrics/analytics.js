@@ -12,6 +12,7 @@ export function filterContent(items, filters = {}) {
   const search = lower(filters.search);
 
   return (Array.isArray(items) ? items : []).filter((item) => {
+    if (item.is_repost === true || item.format === 'repost' || item.repost_id || (item.raw && (item.raw.repostedBy || item.raw.repostedAt))) return false;
     const published = item.published_at ? new Date(item.published_at).getTime() : null;
     if (filters.owner && item.owner_name !== filters.owner) return false;
     if (filters.format && item.format !== filters.format) return false;
