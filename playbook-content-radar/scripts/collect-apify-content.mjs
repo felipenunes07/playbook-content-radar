@@ -2,12 +2,15 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import {
+  buildInstagramActorInput,
   buildLinkedInActorInput,
   buildYoutubeActorInput,
   defaultAccounts,
   latestDateByOwner,
+  mergeInstagramSnapshot,
   mergeLinkedInSnapshot,
   mergeYoutubeSnapshot,
+  normalizeApifyInstagramItem,
   normalizeApifyYoutubeItem,
   normalizeHarvestLinkedInPost,
 } from './collect-apify-content.lib.js';
@@ -17,6 +20,7 @@ const appRoot = process.cwd();
 const paths = {
   linkedin: path.join(appRoot, 'src/contentMetrics/data/linkedin-history.json'),
   youtube: path.join(appRoot, 'src/contentMetrics/data/youtube-history.json'),
+  instagram: path.join(appRoot, 'src/contentMetrics/data/instagram-history.json'),
   rawDir: path.join(appRoot, 'tmp/apify-content'),
 };
 
@@ -35,7 +39,7 @@ function parseArgs(argv) {
       index += 1;
     }
   }
-  if (!['all', 'linkedin', 'youtube'].includes(values.platform)) throw new Error('--platform deve ser all, linkedin ou youtube');
+  if (!['all', 'linkedin', 'youtube', 'instagram'].includes(values.platform)) throw new Error('--platform deve ser all, linkedin, youtube ou instagram');
   return values;
 }
 
@@ -144,6 +148,43 @@ async function collectYouTube(token, options) {
   return { platform: 'youtube', actorId, existing: existing.records?.length || 0, collected: normalized.length, merged, raw, errors };
 }
 
+async function collectInstagram(token, options) {
+  const actorId = options.instagramActor || process.env.APIFY_INSTAGRAM_ACTOR_ID || 'apify/instagram-scraper';
+  const existing = await readJson(paths.instagram, { records: [] });
+  const latest = latestDateByOwner(existing.records || []);
+  const metricDate = new Date().toISOString().slice(0, 10);
+  const raw = [];
+  const normalized = [];
+  const errors = [];
+
+  for (const account of defaultAccounts.instagram) {
+    const input = buildInstagramActorInput(account, {
+      since: options.since || latest[account.ownerName] || '2020-01-01',
+      maxPosts: options.maxPosts || process.env.APIFY_INSTAGRAM_MAX_POSTS || 200,
+    });
+    if (options.dryRun) {
+      raw.push({ account, actorId, input, items: [] });
+      continue;
+    }
+    try {
+      const items = await runActor(actorId, token, input, { waitSecs: Number(options.waitSecs || 240) });
+      raw.push({ account, actorId, input, items });
+      for (const item of Array.isArray(items) ? items : []) {
+        try {
+          const norm = normalizeApifyInstagramItem(item, account, metricDate);
+          if (norm) normalized.push(norm);
+        }
+        catch (error) { errors.push({ platform: 'instagram', account: account.ownerName, error: error.message, item }); }
+      }
+    } catch (error) {
+      errors.push({ platform: 'instagram', account: account.ownerName, error: error.message });
+    }
+  }
+
+  const merged = mergeInstagramSnapshot(existing, normalized, defaultAccounts.instagram, metricDate);
+  return { platform: 'instagram', actorId, existing: existing.records?.length || 0, collected: normalized.length, merged, raw, errors };
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const token = process.env.APIFY_TOKEN;
@@ -153,13 +194,13 @@ async function main() {
   const results = [];
   if (options.platform === 'all' || options.platform === 'linkedin') results.push(await collectLinkedIn(token, options));
   if (options.platform === 'all' || options.platform === 'youtube') results.push(await collectYouTube(token, options));
+  if (options.platform === 'all' || options.platform === 'instagram') results.push(await collectInstagram(token, options));
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   for (const result of results) {
     await writeFile(path.join(paths.rawDir, `${stamp}-${result.platform}-raw.json`), JSON.stringify(result.raw, null, 2));
     if (options.writeLocal && !options.dryRun) {
-      const target = result.platform === 'linkedin' ? paths.linkedin : paths.youtube;
-      await writeFile(target, JSON.stringify(result.merged, null, 2));
+      await writeFile(paths[result.platform], JSON.stringify(result.merged, null, 2));
     }
   }
 

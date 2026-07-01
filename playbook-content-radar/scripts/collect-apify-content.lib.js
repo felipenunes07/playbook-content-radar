@@ -47,6 +47,16 @@ const youtubeId = (item) => {
   return url.match(/[?&]v=([^&]+)/)?.[1] || url.match(/youtu\.be\/([^?&/]+)/)?.[1] || url.match(/youtube\.com\/shorts\/([^?&/]+)/)?.[1] || null;
 };
 
+const instagramId = (item) => {
+  const code = first(item, ['shortCode', 'shortcode', 'code']);
+  if (code) return String(code);
+  const url = String(first(item, ['url', 'postUrl', 'link']) || '');
+  const fromUrl = url.match(/\/(?:p|reel|reels|tv)\/([^/?#]+)/)?.[1];
+  if (fromUrl) return fromUrl;
+  const direct = first(item, ['id', 'postId', 'pk']);
+  return direct ? String(direct) : url.trim() || null;
+};
+
 export const defaultAccounts = {
   linkedin: [
     { ownerName: 'Fernando Tedesco', accountUrl: 'https://www.linkedin.com/in/fernando-tedesco/' },
@@ -55,6 +65,9 @@ export const defaultAccounts = {
   youtube: [
     { ownerName: 'Fernando Tedesco', accountUrl: 'https://www.youtube.com/@fernando_tedesco' },
     { ownerName: 'Victor Baggio', accountUrl: 'https://www.youtube.com/@VictorBaggio-AI' },
+  ],
+  instagram: [
+    { ownerName: 'Victor Baggio', accountUrl: 'https://www.instagram.com/victor.baggio.ai/', handle: 'victor.baggio.ai' },
   ],
 };
 
@@ -91,6 +104,17 @@ export function buildYoutubeActorInput(account, options = {}) {
     oldestPostDate: options.since || undefined,
     sortVideosBy: 'NEWEST',
     downloadSubtitles: false,
+  };
+}
+
+// Input para o apify/instagram-scraper (posts + reels de um perfil).
+export function buildInstagramActorInput(account, options = {}) {
+  return {
+    directUrls: [account.accountUrl],
+    resultsType: 'posts',
+    resultsLimit: Number(options.maxPosts || 200),
+    onlyPostsNewerThan: options.since || undefined,
+    addParentData: false,
   };
 }
 
@@ -175,6 +199,64 @@ export function normalizeApifyYoutubeItem(item, account, metricDate = new Date()
   };
 }
 
+export function normalizeApifyInstagramItem(item, account, metricDate = new Date().toISOString().slice(0, 10)) {
+  const id = instagramId(item);
+  if (!id) return null;
+  const content = String(first(item, ['caption', 'text', 'title']) || '');
+  const likes = number(first(item, ['likesCount', 'likes', 'likeCount']));
+  const comments = number(first(item, ['commentsCount', 'comments', 'commentCount']));
+  const shares = number(first(item, ['sharesCount', 'shares', 'reshareCount', 'shareCount']));
+  const views = number(first(item, ['videoPlayCount', 'videoViewCount', 'views', 'viewCount', 'playCount']));
+  const published = first(item, ['timestamp', 'takenAt', 'taken_at', 'date', 'publishedAt', 'createdAt']);
+  const type = String(first(item, ['type']) || '').toLowerCase();
+  const productType = String(first(item, ['productType', 'product_type']) || '').toLowerCase();
+  const format = productType === 'clips' ? 'reel'
+    : type === 'video' ? 'video'
+    : type === 'sidecar' ? 'carousel'
+    : type === 'image' ? 'image'
+    : (views ? 'reel' : 'image');
+  const shortCode = first(item, ['shortCode', 'shortcode', 'code']);
+  return {
+    platform: 'instagram',
+    external_post_id: id,
+    entity_id: id,
+    short_code: shortCode || null,
+    post_url: first(item, ['url', 'postUrl']) || (shortCode ? `https://www.instagram.com/p/${shortCode}/` : null),
+    author_name: first(item, ['ownerFullName', 'author.fullName', 'authorName']) || account.ownerName,
+    author_identifier: first(item, ['ownerUsername', 'username', 'author.username']) || account.handle || null,
+    published_at: published ? new Date(published).toISOString() : null,
+    content,
+    hook: hook(content),
+    format,
+    theme: null,
+    content_pillar: null,
+    cta_keyword: detectCta(content),
+    funnel_stage: null,
+    commercial_intent: null,
+    is_repost: false,
+    repost_id: null,
+    media_type: format,
+    media_url: first(item, ['videoUrl', 'displayUrl', 'imageUrl', 'thumbnailUrl']) || null,
+    classification_status: 'pending',
+    metric_date: metricDate,
+    likes,
+    comments,
+    shares,
+    reactions_total: likes,
+    views: views || null,
+    engagement_total: likes + comments + shares,
+    engagement_score: likes + comments * 3 + shares * 4,
+    engagement_rate: views ? Number((((likes + comments) / views) * 100).toFixed(2)) : 0,
+    is_sponsored: Boolean(first(item, ['isSponsored', 'sponsored'])),
+    hashtags: Array.isArray(item.hashtags) ? item.hashtags : [],
+    source: 'apify_instagram',
+    metric_type: 'daily_collect',
+    owner_name: account.ownerName,
+    account_url: account.accountUrl,
+    raw: item,
+  };
+}
+
 const mergeRow = (oldRow = {}, newRow = {}) => {
   const cleanNew = Object.fromEntries(Object.entries(newRow).filter(([, value]) => value !== undefined && value !== null && value !== ''));
   return { ...oldRow, ...cleanNew };
@@ -196,6 +278,26 @@ export function mergeLinkedInSnapshot(existing = {}, incoming = [], accounts = d
     generated_at: new Date().toISOString(),
     collected_at: collectedAt,
     source: 'historical_json+apify',
+    summary,
+    duplicate_count: (existing.records || []).length + incoming.length - records.length,
+    records,
+  };
+}
+
+export function mergeInstagramSnapshot(existing = {}, incoming = [], accounts = defaultAccounts.instagram, collectedAt = new Date().toISOString().slice(0, 10)) {
+  const byId = new Map();
+  for (const row of existing.records || []) byId.set(row.external_post_id, row);
+  for (const row of incoming) if (row.external_post_id) byId.set(row.external_post_id, mergeRow(byId.get(row.external_post_id), row));
+  const records = newestFirst([...byId.values()]);
+  const summary = {};
+  for (const account of accounts) {
+    const count = records.filter((row) => row.owner_name === account.ownerName).length;
+    summary[account.ownerName] = { sourceCount: count, normalizedCount: count, skippedCount: 0 };
+  }
+  return {
+    generated_at: new Date().toISOString(),
+    collected_at: collectedAt,
+    source: 'apify_instagram',
     summary,
     duplicate_count: (existing.records || []).length + incoming.length - records.length,
     records,

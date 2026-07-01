@@ -4,6 +4,16 @@ import {
   Activity, BarChart3, Database, ExternalLink, FileClock, MessageSquare,
   Play, RefreshCw, Settings, SlidersHorizontal, Users, Video,
 } from 'lucide-react';
+
+// lucide-react removeu os ícones de marca (Instagram, LinkedIn…) por questão de
+// trademark, então usamos um glyph SVG local — mesmo padrão do LinkedinIcon no app.
+const InstagramGlyph = ({ size = 24, ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+  </svg>
+);
 import {
   aggregateContentMetrics,
   aggregateYoutubeMetrics,
@@ -49,9 +59,10 @@ const fallbackAccounts = [
   { id: 'linkedin-fernando', platform: 'linkedin', owner_name: 'Fernando Tedesco', account_name: 'Fernando Tedesco LinkedIn', account_url: 'https://www.linkedin.com/in/fernando-tedesco/', handle: 'fernando-tedesco', status: 'active' },
   { id: 'youtube-victor', platform: 'youtube', owner_name: 'Victor Baggio', account_name: 'Victor Baggio AI', account_url: 'https://www.youtube.com/@VictorBaggio-AI', handle: '@VictorBaggio-AI', status: 'active' },
   { id: 'youtube-fernando', platform: 'youtube', owner_name: 'Fernando Tedesco', account_name: 'Fernando Tedesco', account_url: 'https://www.youtube.com/@fernando_tedesco', handle: '@fernando_tedesco', status: 'active' },
+  { id: 'instagram-victor', platform: 'instagram', owner_name: 'Victor Baggio', account_name: 'Victor Baggio Instagram', account_url: 'https://www.instagram.com/victor.baggio.ai/', handle: 'victor.baggio.ai', status: 'active' },
 ];
 
-const sectionIcons = { overview: BarChart3, linkedin: MessageSquare, youtube: Video, posts: Activity, videos: Play, accounts: Users, imports: FileClock, settings: Settings };
+const sectionIcons = { overview: BarChart3, linkedin: MessageSquare, youtube: Video, instagram: InstagramGlyph, posts: Activity, videos: Play, accounts: Users, imports: FileClock, settings: Settings };
 
 function validUtcDate(value) {
   const date = value ? new Date(value) : null;
@@ -419,9 +430,35 @@ function LinkedinAnalysis({ filtered, allPosts, data, filters, setFilters }) {
   </>;
 }
 
+const collectorCopy = {
+  YouTube: { icon: Video, text: 'Configure APIFY_TOKEN e APIFY_YOUTUBE_ACTOR_ID no backend para coletar canais, vídeos, views, comentários e inscritos sem expor chave no front-end.' },
+  Instagram: { icon: InstagramGlyph, text: 'Configure APIFY_TOKEN e APIFY_INSTAGRAM_ACTOR_ID no backend e rode a coleta (npm run collect:apify -- --platform instagram --write-local) para trazer posts e reels de victor.baggio.ai.' },
+  LinkedIn: { icon: Activity, text: 'Configure APIFY_TOKEN e APIFY_LINKEDIN_ACTOR_ID no backend para buscar novos posts e atualizar métricas diariamente.' },
+};
+
 function EmptyCollector({ platform, onSettings }) {
-  const youtube = platform === 'YouTube';
-  return <div className="cm-collector-empty"><div className="cm-empty-icon">{youtube ? <Video size={28} /> : <Activity size={28} />}</div><span className="cm-eyebrow">Coleta aguardando Apify</span><h2>{platform}</h2><p>{youtube ? 'Configure APIFY_TOKEN e APIFY_YOUTUBE_ACTOR_ID no backend para coletar canais, vídeos, views, comentários e inscritos sem expor chave no front-end.' : 'Configure APIFY_TOKEN e APIFY_LINKEDIN_ACTOR_ID no backend para buscar novos posts e atualizar métricas diariamente.'}</p><button type="button" onClick={onSettings}><Settings size={15} /> Abrir configurações</button></div>;
+  const copy = collectorCopy[platform] || collectorCopy.LinkedIn;
+  const Icon = copy.icon;
+  return <div className="cm-collector-empty"><div className="cm-empty-icon"><Icon size={28} /></div><span className="cm-eyebrow">Coleta aguardando Apify</span><h2>{platform}</h2><p>{copy.text}</p><button type="button" onClick={onSettings}><Settings size={15} /> Abrir configurações</button></div>;
+}
+
+function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSettings }) {
+  if (!data.instagram.length) return <EmptyCollector platform="Instagram" onSettings={onSettings} />;
+  const metrics = aggregateContentMetrics(filtered);
+  const weekly = buildWeeklyCadence(filtered);
+  return <>
+    <ContentFilters filters={filters} onChange={setFilters} posts={allPosts} advanced hideOwner />
+    <MetricStrip metrics={metrics} />
+    <section className="cm-panel cm-hero-chart">
+      <div className="cm-section-heading"><div><span className="cm-eyebrow">Cadência</span><h2>Publicações por semana</h2><p>Frequência de posts e reels no Instagram.</p></div><small>{weekly.length} semanas</small></div>
+      <WeeklyCadenceChart data={weekly} />
+    </section>
+    <div className="cm-analysis-grid">
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>Reel vs imagem vs carrossel</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">CTA</span><h2>Comentários por chamada</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'cta_keyword')} valueKey="comments" label="Comentários" /></section>
+    </div>
+    <TopContentTable rows={rankContent(filtered, 'engagement_score', 20)} title="Top conteúdos do Instagram" />
+  </>;
 }
 
 function YoutubeSection({ data, videos, filters, setFilters, onSettings }) {
@@ -516,7 +553,7 @@ function SettingsSection({ data, client }) {
     setMessage(error ? error.message : `${name} iniciado com sucesso.`); setRunning('');
   };
   const secrets = [
-    ['Apify token', 'APIFY_TOKEN'], ['Apify LinkedIn actor', 'APIFY_LINKEDIN_ACTOR_ID'], ['Apify YouTube actor', 'APIFY_YOUTUBE_ACTOR_ID'], ['Classificação', 'CLASSIFICATION_API_KEY'],
+    ['Apify token', 'APIFY_TOKEN'], ['Apify LinkedIn actor', 'APIFY_LINKEDIN_ACTOR_ID'], ['Apify YouTube actor', 'APIFY_YOUTUBE_ACTOR_ID'], ['Apify Instagram actor', 'APIFY_INSTAGRAM_ACTOR_ID'], ['Classificação', 'CLASSIFICATION_API_KEY'],
   ];
   return <div className="cm-settings-grid"><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Secrets</span><h2>Integrações sem chave no front</h2></div></div><div className="cm-secret-list">{secrets.map(([label, name]) => <div key={name}><span>{label}</span><code>{name}</code><StatusPill status={data.source === 'supabase' ? 'pending' : 'paused'} /></div>)}</div><p className="cm-table-note">Tokens reais nunca são exibidos no frontend. O token da Apify deve ficar só nos Edge Function Secrets.</p></section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Agenda</span><h2>Coletas automáticas</h2></div></div><div className="cm-schedule"><div><span>YouTube via Apify</span><strong>Todos os dias · 06:00</strong><button onClick={() => run('collect-youtube')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'collect-youtube' ? 'spin' : ''} /> Executar agora</button></div><div><span>LinkedIn via Apify</span><strong>Todos os dias · 06:30</strong><button onClick={() => run('collect-linkedin')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'collect-linkedin' ? 'spin' : ''} /> Executar agora</button></div></div>{message && <div className="cm-settings-message">{message}</div>}</section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Incremental</span><h2>Onde parou e o que entra novo</h2></div></div><div className="cm-config-summary"><div><span>LinkedIn histórico importado</span><strong>12/05/2026</strong></div><div><span>Deduplicação</span><strong>external_post_id / video_id</strong></div><div><span>Novas coletas</span><strong>Upsert + snapshot diário</strong></div><div><span>Classificação</span><strong>Formato, tema, CTA, funil e intenção</strong></div></div><p className="cm-table-note">A coleta consulta os perfis/canais ativos, salva só registros novos ou métricas novas e marca erro por conta quando algum scraper falha.</p></section></div>;
 }
@@ -527,18 +564,20 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   const [loading, setLoading] = useState(!initialData);
   const [filters, setFilters] = useState(() => defaultContentFilters(initialData));
   const [youtubeFilters, setYoutubeFilters] = useState(() => defaultYoutubeFilters(initialData));
+  const [instagramFilters, setInstagramFilters] = useState(() => defaultDateFilters(initialData?.instagram || []));
   const [operationMessage, setOperationMessage] = useState('');
 
   useEffect(() => { setSection(initialSection); }, [initialSection]);
   useEffect(() => {
     if (initialData) return;
     let active = true;
-    loadContentMetrics({ supabase: client }).then((result) => { if (active) { setFilters(defaultContentFilters(result)); setYoutubeFilters(defaultYoutubeFilters(result)); setData(result); setLoading(false); } });
+    loadContentMetrics({ supabase: client }).then((result) => { if (active) { setFilters(defaultContentFilters(result)); setYoutubeFilters(defaultYoutubeFilters(result)); setInstagramFilters(defaultDateFilters(result.instagram || [])); setData(result); setLoading(false); } });
     return () => { active = false; };
   }, [client, initialData]);
 
   const filtered = useMemo(() => filterContent(data?.linkedin || [], filters), [data, filters]);
   const filteredYoutube = useMemo(() => filterYoutube(data?.youtube || [], youtubeFilters), [data, youtubeFilters]);
+  const filteredInstagram = useMemo(() => filterContent(data?.instagram || [], instagramFilters), [data, instagramFilters]);
 
   // Combine LinkedIn posts and YouTube videos for the consolidated Overview
   const filteredYoutubeForOverview = useMemo(() => {
@@ -558,9 +597,13 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     }));
   }, [filteredYoutubeForOverview]);
 
+  const filteredInstagramForOverview = useMemo(() => {
+    return filterContent(data?.instagram || [], filters);
+  }, [data?.instagram, filters]);
+
   const combinedOverviewData = useMemo(() => {
-    return [...filtered, ...normalizedYoutubeForOverview];
-  }, [filtered, normalizedYoutubeForOverview]);
+    return [...filtered, ...normalizedYoutubeForOverview, ...filteredInstagramForOverview];
+  }, [filtered, normalizedYoutubeForOverview, filteredInstagramForOverview]);
 
   const navigate = (next) => { setSection(next); onSectionChange?.(next); };
   const title = METRICS_SECTIONS.find((item) => item.id === section)?.label || 'Visão geral';
@@ -568,7 +611,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   if (loading || !data) return <div className="cm-loading"><RefreshCw className="spin" size={20} /> Carregando métricas…</div>;
 
   return <div className="content-metrics-workspace">
-    <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Performance publicada</span><h1>Métricas de conteúdo</h1><p>Leitura histórica e operação diária de LinkedIn e YouTube.</p></div><div className="cm-header-meta"><span>{data.linkedin.length} posts carregados</span><SlidersHorizontal size={16} /></div></header>
+    <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Performance publicada</span><h1>Métricas de conteúdo</h1><p>Leitura histórica e operação diária de LinkedIn, YouTube e Instagram.</p></div><div className="cm-header-meta"><span>{data.linkedin.length} posts carregados</span><SlidersHorizontal size={16} /></div></header>
     <SourceNotice data={data} />
     {operationMessage && <div className="cm-operation-message">{operationMessage}<button type="button" onClick={() => setOperationMessage('')}>Fechar</button></div>}
     <nav className="cm-tabs" aria-label="Seções de métricas">{METRICS_SECTIONS.map((item) => { const Icon = sectionIcons[item.id]; return <button type="button" key={item.id} className={section === item.id ? 'active' : ''} onClick={() => navigate(item.id)} aria-label={item.label}><Icon size={14} />{item.label}</button>; })}</nav>
@@ -577,6 +620,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       {section === 'overview' && <Overview filtered={combinedOverviewData} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'linkedin' && <LinkedinAnalysis filtered={filtered} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'youtube' && <YoutubeSection data={data} videos={filteredYoutube} filters={youtubeFilters} setFilters={setYoutubeFilters} onSettings={() => navigate('settings')} />}
+      {section === 'instagram' && <InstagramSection data={data} filtered={filteredInstagram} allPosts={data.instagram} filters={instagramFilters} setFilters={setInstagramFilters} onSettings={() => navigate('settings')} />}
       {section === 'posts' && <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} onAction={(action) => setOperationMessage(action === 'history' ? 'O histórico completo ficará disponível assim que os snapshots diários forem publicados no Supabase.' : 'Essa ação usa a API administrativa protegida. Publique o schema e autentique o operador antes de alterar dados.')} />}
       {section === 'videos' && <VideosSection data={data} onSettings={() => navigate('settings')} />}
       {section === 'accounts' && <AccountsSection data={data} />}

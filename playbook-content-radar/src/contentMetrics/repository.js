@@ -1,8 +1,10 @@
 import bundledHistory from './data/linkedin-history.json';
 import bundledYoutubeHistory from './data/youtube-history.json';
+import bundledInstagramHistory from './data/instagram-history.json';
 
 const empty = {
   youtube: bundledYoutubeHistory.records || [],
+  instagram: bundledInstagramHistory.records || [],
   accounts: [],
   imports: [],
   runs: [],
@@ -52,8 +54,9 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
     const linkedinResult = await supabase.from('v_latest_linkedin_post_metrics').select('*');
     if (linkedinResult.error) throw new Error(linkedinResult.error.message || 'Falha ao ler métricas do LinkedIn');
 
-    const [youtubeResult, accountsResult, importsResult, runsResult, accountMetricsResult] = await Promise.all([
+    const [youtubeResult, instagramResult, accountsResult, importsResult, runsResult, accountMetricsResult] = await Promise.all([
       supabase.from('v_latest_youtube_video_metrics').select('*'),
+      supabase.from('v_latest_instagram_post_metrics').select('*'),
       supabase.from('content_accounts').select('*'),
       supabase.from('import_batches').select('*'),
       supabase.from('collection_runs').select('*'),
@@ -66,6 +69,7 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
       source: 'supabase',
       linkedin: linkedinResult.data || [],
       youtube: youtubeResult.data?.length ? youtubeResult.data : (bundledYoutubeHistory.records || []),
+      instagram: instagramResult.data?.length ? instagramResult.data : (bundledInstagramHistory.records || []),
       accounts,
       imports: importsResult.data || [],
       runs: runsResult.data || [],

@@ -6,6 +6,7 @@ describe('metrics routes', () => {
     ['/content-dashboard', 'overview'],
     ['/content-dashboard/linkedin', 'linkedin'],
     ['/content-dashboard/youtube', 'youtube'],
+    ['/content-dashboard/instagram', 'instagram'],
     ['/content-dashboard/posts', 'posts'],
     ['/content-dashboard/videos', 'videos'],
     ['/content-dashboard/accounts', 'accounts'],
