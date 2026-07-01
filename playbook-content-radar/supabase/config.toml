@@ -3,6 +3,9 @@ project_id = "playbook-content-radar"
 [functions.scrape-linkedin]
 verify_jwt = false
 
+[functions.scrape-instagram]
+verify_jwt = false
+
 [functions.collect-youtube]
 verify_jwt = false
 

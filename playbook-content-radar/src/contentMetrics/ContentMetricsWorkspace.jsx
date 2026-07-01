@@ -496,11 +496,34 @@ function EmptyCollector({ platform, onSettings }) {
   return <div className="cm-collector-empty"><div className="cm-empty-icon"><Icon size={28} /></div><span className="cm-eyebrow">Coleta aguardando Apify</span><h2>{platform}</h2><p>{copy.text}</p><button type="button" onClick={onSettings}><Settings size={15} /> Abrir configurações</button></div>;
 }
 
-function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSettings }) {
+function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSettings, client }) {
+  const [pulling, setPulling] = useState(false);
+  const [pullMsg, setPullMsg] = useState('');
+  const pullNow = async () => {
+    if (!client?.functions?.invoke) { setPullMsg('Coleta manual indisponível no modo offline.'); return; }
+    setPulling(true); setPullMsg('');
+    try {
+      const { data: res, error } = await client.functions.invoke('collect-instagram', { body: { manual: true } });
+      if (error) throw error;
+      setPullMsg(`Sincronização concluída: ${res?.itemsProcessed ?? 0} item(s). Atualize a página para ver.`);
+    } catch (e) {
+      setPullMsg(`Falha na coleta: ${e?.message || e}`);
+    } finally {
+      setPulling(false);
+    }
+  };
   if (!data.instagram.length) return <EmptyCollector platform="Instagram" onSettings={onSettings} />;
   const metrics = aggregateContentMetrics(filtered);
   const weekly = buildWeeklyContentTypeCadence(filtered);
   return <>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, background: 'transparent', marginBottom: 4 }}>
+      {pullMsg && <span style={{ fontSize: 12, color: '#475569' }}>{pullMsg}</span>}
+      <button type="button" onClick={pullNow} disabled={pulling}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: pulling ? 'default' : 'pointer', opacity: pulling ? 0.7 : 1 }}
+        title="Dispara uma coleta agora. Útil para capturar Stories enquanto estão no ar.">
+        <RefreshCw size={14} className={pulling ? 'spin' : ''} /> {pulling ? 'Sincronizando…' : 'Sincronizar'}
+      </button>
+    </div>
     <ContentFilters filters={filters} onChange={setFilters} posts={allPosts} advanced hideOwner />
     <MetricStrip metrics={metrics} />
     <section className="cm-panel cm-hero-chart">
@@ -707,7 +730,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       {section === 'overview' && <Overview filtered={combinedOverviewData} allPosts={allPostsForOverview} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'linkedin' && <LinkedinAnalysis filtered={filtered} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'youtube' && <YoutubeSection data={data} videos={filteredYoutube} filters={youtubeFilters} setFilters={setYoutubeFilters} onSettings={() => navigate('settings')} />}
-      {section === 'instagram' && <InstagramSection data={data} filtered={filteredInstagram} allPosts={data.instagram} filters={instagramFilters} setFilters={setInstagramFilters} onSettings={() => navigate('settings')} />}
+      {section === 'instagram' && <InstagramSection data={data} filtered={filteredInstagram} allPosts={data.instagram} filters={instagramFilters} setFilters={setInstagramFilters} onSettings={() => navigate('settings')} client={client} />}
       {section === 'posts' && <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} onAction={(action) => setOperationMessage(action === 'history' ? 'O histórico completo ficará disponível assim que os snapshots diários forem publicados no Supabase.' : 'Essa ação usa a API administrativa protegida. Publique o schema e autentique o operador antes de alterar dados.')} />}
       {section === 'videos' && <VideosSection data={data} onSettings={() => navigate('settings')} />}
       {section === 'accounts' && <AccountsSection data={data} />}

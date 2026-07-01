@@ -101,17 +101,24 @@ const generateUUID = () => {
   });
 };
 
-// Share Target (PWA): quando o Felipe compartilha um post do LinkedIn pelo celular
-// usando "Enviar para -> Content Radar", o app abre com a URL nos parâmetros.
-// O LinkedIn às vezes manda o link dentro de "text" (ex.: "Veja isso https://...").
-// Aqui extraímos a primeira URL do linkedin.com encontrada em url/text/title.
+// Descobre a plataforma de origem a partir da própria URL. Evita mexer no schema do
+// Supabase (a tabela `ideas` guarda a URL em linkedin_url, que reaproveitamos como
+// campo genérico de origem): o card e a lógica derivam a plataforma na hora.
+function detectPlatform(url) {
+  return /instagram\.com/i.test(String(url || '')) ? 'instagram' : 'linkedin';
+}
+
+// Share Target (PWA): quando o Felipe compartilha um post pelo celular usando
+// "Enviar para -> Content Radar", o app abre com a URL nos parâmetros. LinkedIn e
+// Instagram às vezes mandam o link dentro de "text" (ex.: "Veja isso https://...").
+// Aqui extraímos a primeira URL de linkedin.com OU instagram.com em url/text/title.
 function getSharedLinkedInUrl() {
   if (typeof window === 'undefined') return null;
   try {
     const params = new URLSearchParams(window.location.search);
     const candidates = [params.get('url'), params.get('text'), params.get('title')].filter(Boolean);
     for (const c of candidates) {
-      const match = c.match(/https?:\/\/[^\s"']*linkedin\.com\/[^\s"']+/i);
+      const match = c.match(/https?:\/\/[^\s"']*(?:linkedin\.com|instagram\.com)\/[^\s"']+/i);
       if (match) return match[0].replace(/[)\].,;\s]+$/, '');
     }
   } catch {
@@ -1858,6 +1865,8 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
 function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) {
   const [imageError, setImageError] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const platform = detectPlatform(idea.linkedinUrl);
+  const isInstagram = platform === 'instagram';
 
   React.useEffect(() => {
     setImageError(false);
@@ -1888,12 +1897,13 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
           )}
           <div className="li-post-author-meta">
             <span className="li-post-author-name">
-              {idea.sourceAuthor || 'Autor LinkedIn'}
-              <span className="li-premium-badge">in</span>
-              <span className="li-post-connection-degree">• 2nd</span>
+              {idea.sourceAuthor || (isInstagram ? 'Perfil do Instagram' : 'Autor LinkedIn')}
+              {isInstagram
+                ? <span className="li-post-connection-degree">• Instagram</span>
+                : <><span className="li-premium-badge">in</span><span className="li-post-connection-degree">• 2nd</span></>}
             </span>
             <span className="li-post-author-headline">
-              {idea.authorHeadline || 'Profissional no LinkedIn'}
+              {idea.authorHeadline || (isInstagram ? 'Instagram' : 'Profissional no LinkedIn')}
             </span>
             <span className="li-post-time-globe">
               3d · 🌐
@@ -2031,20 +2041,32 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
         )}
       </AnimatePresence>
 
-      {/* Mock Social Counters Bar matching LinkedIn exact Dark Mode format */}
+      {/* Barra de contadores sociais — rótulos por plataforma (Instagram não tem repost) */}
       <div className="li-social-counters-row">
         <div className="li-social-reactions">
           <div className="li-social-icons-bubble">
-            <span className="li-reaction-icon-mock like">👍</span>
-            <span className="li-reaction-icon-mock celebrate">👏</span>
-            <span className="li-reaction-icon-mock love">❤️</span>
+            {isInstagram ? (
+              <span className="li-reaction-icon-mock love">❤️</span>
+            ) : (
+              <>
+                <span className="li-reaction-icon-mock like">👍</span>
+                <span className="li-reaction-icon-mock celebrate">👏</span>
+                <span className="li-reaction-icon-mock love">❤️</span>
+              </>
+            )}
           </div>
           <span>
-            Flavia Sant Ana Dias e {(idea.mockLikes || 105) + idea.score} outros
+            {isInstagram
+              ? `${(idea.mockLikes || 0) + idea.score} curtidas`
+              : `Flavia Sant Ana Dias e ${(idea.mockLikes || 105) + idea.score} outros`}
           </span>
         </div>
         <div>
-          <span>{(idea.mockCommentsCount || 6) + comments.length} comments • {idea.mockRepostsCount || 7} reposts</span>
+          <span>
+            {isInstagram
+              ? `${(idea.mockCommentsCount || 0) + comments.length} comentários`
+              : `${(idea.mockCommentsCount || 6) + comments.length} comments • ${idea.mockRepostsCount || 7} reposts`}
+          </span>
         </div>
       </div>
 
@@ -2098,7 +2120,7 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
               navigator.clipboard.writeText(idea.linkedinUrl);
               addToast("Link copiado para a área de transferência!", "success");
             } else {
-              addToast("Link do LinkedIn indisponível para cópia.", "error");
+              addToast("Link do post indisponível para cópia.", "error");
             }
           }}
           title="Copiar link do post"
@@ -3038,7 +3060,7 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
     const origin = window.location.origin;
     const code =
       "javascript:(function(){var h=location.href;" +
-      "if(h.indexOf('linkedin.com')===-1){alert('Abra um post do LinkedIn antes de clicar aqui.');return;}" +
+      "if(h.indexOf('linkedin.com')===-1&&h.indexOf('instagram.com')===-1){alert('Abra um post do LinkedIn ou do Instagram antes de clicar aqui.');return;}" +
       "window.open('" + origin + "/?url='+encodeURIComponent(h),'_blank');})();";
     bookmarkletRef.current.setAttribute('href', code);
   }, []);
@@ -3053,8 +3075,48 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
       return;
     }
 
-    if (!targetUrl.toLowerCase().includes('linkedin.com')) {
-      addToast('A URL precisa ser do LinkedIn (linkedin.com).', 'error');
+    const lowerUrl = targetUrl.toLowerCase();
+    const isInstagram = lowerUrl.includes('instagram.com');
+    if (!lowerUrl.includes('linkedin.com') && !isInstagram) {
+      addToast('A URL precisa ser do LinkedIn ou do Instagram.', 'error');
+      return;
+    }
+
+    // ─── Instagram: raspa via Edge Function scrape-instagram (Apify) ───
+    if (isInstagram) {
+      setIsImporting(true);
+      addToast('Buscando dados reais do post no Instagram...', 'success');
+      try {
+        const response = await fetch('https://xcihctupmfawtawbzwvm.supabase.co/functions/v1/scrape-instagram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: targetUrl })
+        });
+        const data = response.ok ? await response.json() : null;
+        if (!data || !data.success || (!data.description && !data.author)) {
+          throw new Error(data?.error || 'Nenhum dado extraído do Instagram.');
+        }
+        setForm(prev => ({
+          ...prev,
+          title: data.title || prev.title,
+          sourceAuthor: data.author || prev.sourceAuthor,
+          authorHeadline: data.authorHeadline || prev.authorHeadline,
+          authorAvatar: data.authorAvatar || prev.authorAvatar,
+          summary: data.description || prev.summary,
+          imageUrl: data.image || prev.imageUrl,
+          category: prev.category,
+          contentType: 'Carrossel',
+          mockLikes: data.mockLikes || prev.mockLikes,
+          mockCommentsCount: data.mockCommentsCount || prev.mockCommentsCount,
+          mockRepostsCount: 0
+        }));
+        addToast(data.description ? '✅ Post importado do Instagram com sucesso!' : '⚠️ Dados básicos importados. Complete o texto manualmente.', data.description ? 'success' : 'error');
+      } catch (err) {
+        console.error('Instagram scrape failed:', err);
+        addToast('❌ Não foi possível importar o post do Instagram. Preencha os dados manualmente.', 'error');
+      } finally {
+        setIsImporting(false);
+      }
       return;
     }
 
@@ -3389,7 +3451,7 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
         </strong>
         <p style={{ fontSize: '13px', color: '#334155', margin: '8px 0 12px', lineHeight: 1.5 }}>
           Arraste o botão abaixo para a <b>barra de favoritos</b> do seu navegador (só precisa fazer isso uma vez).
-          Depois, sempre que estiver vendo um post no LinkedIn, é só <b>clicar nele</b> que o post abre aqui já importado — pronto pra salvar.
+          Depois, sempre que estiver vendo um post no LinkedIn ou no Instagram, é só <b>clicar nele</b> que o post abre aqui já importado — pronto pra salvar.
         </p>
         <a
           ref={bookmarkletRef}
@@ -3422,7 +3484,7 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
       <form className="idea-form" onSubmit={submit}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--linkedin-dark-gray)' }}>Link Original do Post (LinkedIn) *</span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--linkedin-dark-gray)' }}>Link Original do Post (LinkedIn ou Instagram) *</span>
             {form.linkedinUrl && (
               <button
                 type="button"
@@ -3444,14 +3506,14 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
                   boxShadow: '0 1px 3px rgba(10, 102, 194, 0.3)'
                 }}
               >
-                {isImporting ? '⏳ Buscando post real...' : '🔗 Importar do LinkedIn'}
+                {isImporting ? '⏳ Buscando post real...' : (detectPlatform(form.linkedinUrl) === 'instagram' ? '🔗 Importar do Instagram' : '🔗 Importar do LinkedIn')}
               </button>
             )}
           </div>
           <input
             value={form.linkedinUrl}
             onChange={e => update('linkedinUrl', e.target.value)}
-            placeholder="https://www.linkedin.com/posts/nome-autor_slug-do-post..."
+            placeholder="Cole o link do LinkedIn ou do Instagram (ex.: instagram.com/p/... ou /reel/...)"
             required
           />
         </div>

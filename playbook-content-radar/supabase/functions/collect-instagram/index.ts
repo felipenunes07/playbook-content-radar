@@ -1,6 +1,6 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { errorMessage, parseApifyInput } from '../_shared/content.ts';
-import { adminClient, corsHeaders, finishRun, json, requireCollectorSecret, startRun } from '../_shared/server.ts';
+import { adminClient, corsHeaders, finishRun, json, startRun } from '../_shared/server.ts';
 
 const APIFY_API = 'https://api.apify.com/v2';
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -140,17 +140,77 @@ function renderInput(account: Record<string, any>) {
   );
 }
 
-// Stories são efêmeros (somem em ~24h) e vêm de um resultsType separado, então
-// coletamos num stream à parte e forçamos format='story' para não misturar com Reels.
+// Stories são efêmeros (somem em ~24h) e o actor de posts NÃO os retorna de forma
+// confiável. Usamos um actor DEDICADO de stories (sem login) que aceita usernames.
+function instagramHandle(account: Record<string, any>) {
+  const handle = String(account.handle || '').replace(/^@/, '').trim();
+  if (handle) return handle;
+  return String(account.account_url || '').match(/instagram\.com\/([^/?#]+)/i)?.[1] || '';
+}
+
 function renderStoriesInput(account: Record<string, any>) {
-  return { directUrls: [account.account_url], resultsType: 'stories', resultsLimit: 100 };
+  return { usernames: [instagramHandle(account)] };
+}
+
+// Story tem poucos campos e nenhuma métrica pública de engajamento. Geramos um id
+// estável (story_<id>) para não colidir com posts e forçamos format='story'.
+function normalizeStoryItem(item: Record<string, any>, account: Record<string, any>, metricDate: string) {
+  // Actors de story às vezes devolvem itens de erro/aviso (trial/rental) em vez de stories.
+  // Nunca criamos registro a partir disso.
+  if (!item || typeof item !== 'object' || item.error || item.errorDescription || item.trial_actor_id) return null;
+  const rawId = firstValue(item, ['id', 'pk', 'storyId', 'story_id', 'mediaId', 'shortCode', 'code']);
+  const published = firstValue(item, ['takenAt', 'taken_at', 'takenAtTimestamp', 'timestamp', 'date', 'createdAt', 'expiringAt']);
+  const publishedMs = typeof published === 'number' ? (published > 1e12 ? published : published * 1000) : published;
+  const publishedIso = publishedMs ? new Date(publishedMs).toISOString() : null;
+  const mediaUrl = firstValue(item, ['videoUrl', 'video_url', 'imageUrl', 'image_url', 'displayUrl', 'display_url', 'mediaUrl', 'media_url', 'url']);
+  // Exige um sinal ESTÁVEL de identidade (id real ou timestamp). URL do IG tem token
+  // que muda entre coletas, então não serve de id — sem id/timestamp, ignoramos.
+  const stableId = rawId ? `story_${rawId}` : (publishedIso ? `story_${instagramHandle(account) || 'ig'}_${publishedIso}` : null);
+  if (!stableId || (!rawId && !publishedIso && !mediaUrl)) return null;
+  const externalId = stableId;
+  const isVideo = Boolean(firstValue(item, ['videoUrl', 'video_url', 'isVideo'])) || /video/i.test(String(item.mediaType || item.type || ''));
+  return {
+    post: {
+      external_post_id: externalId,
+      post_url: firstValue(item, ['url', 'permalink']) ? String(firstValue(item, ['url', 'permalink'])) : null,
+      shortcode: firstValue(item, ['shortCode', 'code']) ? String(firstValue(item, ['shortCode', 'code'])) : null,
+      published_at: publishedIso,
+      caption: String(firstValue(item, ['caption', 'text']) || ''),
+      hook: '',
+      format: 'story',
+      cta_keyword: null,
+      is_repost: false,
+      media_url: mediaUrl ? String(mediaUrl) : null,
+      media_type: isVideo ? 'video' : 'image',
+      classification_status: 'pending',
+      raw: item,
+    },
+    metric: {
+      metric_date: metricDate,
+      likes: 0,
+      comments: 0,
+      shares: 0,
+      saves: 0,
+      views: integer(firstValue(item, ['viewCount', 'views', 'viewersCount'])) || null,
+      plays: null,
+      source: 'apify_instagram',
+      raw: item,
+    },
+  };
 }
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   let runId: string | null = null;
   try {
-    requireCollectorSecret(request);
+    // Aceita dois modos de disparo: (1) o cron, que manda o segredo do coletor; e
+    // (2) o botão "Puxar agora" do dashboard, que manda { manual: true } (já protegido
+    // pelo verify_jwt da função, que exige a anon key). Útil para Stories, que são
+    // efêmeros e só existem enquanto estão no ar.
+    const body = await request.json().catch(() => ({}));
+    const expectedSecret = Deno.env.get('COLLECTOR_SHARED_SECRET');
+    const hasSecret = Boolean(expectedSecret) && request.headers.get('x-collector-secret') === expectedSecret;
+    if (!hasSecret && body?.manual !== true) throw new Error('Execução não autorizada');
     const token = Deno.env.get('APIFY_TOKEN');
     const actorId = Deno.env.get('APIFY_INSTAGRAM_ACTOR_ID') || 'apify/instagram-scraper';
     if (!token || !actorId) throw new Error('APIFY_TOKEN e APIFY_INSTAGRAM_ACTOR_ID são obrigatórios');
@@ -188,21 +248,15 @@ Deno.serve(async (request) => {
           }
         }
 
-        // Stream separado de Stories (efêmero, best-effort). Captura só o que estiver
-        // ativo no momento da coleta; falhas aqui não derrubam a coleta de posts/reels.
+        // Stream separado de Stories via actor DEDICADO (sem login). Captura só o que
+        // estiver ativo no momento da coleta; falhas aqui não derrubam posts/reels.
         try {
-          const stories = await runActor(actorId, token, renderStoriesInput(account));
+          const storyActorId = Deno.env.get('APIFY_INSTAGRAM_STORY_ACTOR_ID') || 'datavoyantlab/advanced-instagram-stories-scraper';
+          const stories = await runActor(storyActorId, token, renderStoriesInput(account));
           for (const story of Array.isArray(stories) ? stories : []) {
             try {
-              const normalized = normalizeInstagramPost(story, metricDate);
-              // Quando não há stories ativos, o Apify devolve posts/reels recentes neste
-              // resultsType. Pula o que já foi coletado como post ou que é reel (productType
-              // 'clips') para não sobrescrever o formato correto com 'story'.
-              if (collectedPostIds.has(normalized.post.external_post_id) || String(story.productType || '').toLowerCase() === 'clips') {
-                continue;
-              }
-              normalized.post.format = 'story';
-              normalized.post.media_type = normalized.post.media_url && /\.mp4|video/i.test(String(normalized.post.media_url)) ? 'video' : 'image';
+              const normalized = normalizeStoryItem(story, account, metricDate);
+              if (!normalized || collectedPostIds.has(normalized.post.external_post_id)) continue;
               const { classification_status: _clsStatus, ...storyFields } = normalized.post;
               const { data: savedStory, error: storyError } = await client.from('instagram_posts')
                 .upsert({ ...storyFields, account_id: account.id }, { onConflict: 'external_post_id' }).select('id').single();

@@ -114,7 +114,7 @@ export function normalizeLinkedInPost(post, context) {
       cta_keyword: extractCtaKeyword(post.content),
       funnel_stage: null,
       commercial_intent: null,
-      is_repost: Boolean(post.repostId),
+      is_repost: Boolean(post.repostId || post.repostedBy || post.repostedAt),
       repost_id: post.repostId ? String(post.repostId) : null,
       ...media,
       classification_status: 'pending',
