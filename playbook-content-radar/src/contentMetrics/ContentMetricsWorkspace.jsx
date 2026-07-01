@@ -4,14 +4,45 @@ import {
   Activity, BarChart3, Database, ExternalLink, FileClock, MessageSquare,
   Play, RefreshCw, Settings, SlidersHorizontal, Users, Video,
 } from 'lucide-react';
-import { aggregateContentMetrics, aggregateYoutubeMetrics, buildCreatorComparison, buildMonthlyTrend, filterContent, filterYoutube, groupPerformance, rankContent } from './analytics.js';
+import {
+  aggregateContentMetrics,
+  aggregateYoutubeMetrics,
+  buildCreatorComparison,
+  buildExecutiveSummary,
+  buildMonthlyTrend,
+  buildCalendarHeatmap,
+  buildWeeklyCadence,
+  filterContent,
+  filterYoutube,
+  groupPerformance,
+  rankContent,
+} from './analytics.js';
 import { loadContentMetrics } from './repository.js';
 import { METRICS_SECTIONS } from './routes.js';
 import { ContentFilters, MetricStrip, OperationalPostsTable, StatusPill, TopContentTable, YoutubeFilters, YoutubeVideosTable } from './components.jsx';
-import { AccountGrowthChart, ContentTrendChart, CreatorComparisonChart, PerformanceBars } from './charts.jsx';
+import {
+  AccountGrowthChart,
+  ContentTrendChart,
+  CreatorComparisonChart,
+  FrequencyResultScatter,
+  CalendarHeatmapChart,
+  PerformanceBars,
+  WeeklyCadenceChart,
+  WeeklyEngagementChart,
+} from './charts.jsx';
+import victorPhoto from '../assets/victor.png';
+import fernandoPhoto from '../assets/fernando.png';
 import './contentMetrics.css';
 
 const integer = new Intl.NumberFormat('pt-BR');
+const decimal = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
+
+const creators = [
+  { id: '', label: 'Ambos', owner: '', photo: null, color: '#111827' },
+  { id: 'victor', label: 'Victor', owner: 'Victor Baggio', photo: victorPhoto, color: '#0a66c2' },
+  { id: 'fernando', label: 'Fernando', owner: 'Fernando Tedesco', photo: fernandoPhoto, color: '#f59e0b' },
+];
+
 const fallbackAccounts = [
   { id: 'linkedin-victor', platform: 'linkedin', owner_name: 'Victor Baggio', account_name: 'Victor Baggio LinkedIn', account_url: 'https://www.linkedin.com/in/victorzbaggio/', handle: 'victorzbaggio', status: 'active' },
   { id: 'linkedin-fernando', platform: 'linkedin', owner_name: 'Fernando Tedesco', account_name: 'Fernando Tedesco LinkedIn', account_url: 'https://www.linkedin.com/in/fernando-tedesco/', handle: 'fernando-tedesco', status: 'active' },
@@ -22,34 +53,153 @@ const fallbackAccounts = [
 const sectionIcons = { overview: BarChart3, linkedin: MessageSquare, youtube: Video, posts: Activity, videos: Play, accounts: Users, imports: FileClock, settings: Settings };
 
 function SourceNotice({ data }) {
-  return <div className={`cm-source ${data.source}`}><Database size={15} /><div><strong>{data.source === 'supabase' ? 'Supabase conectado' : 'Snapshot histórico local'}</strong><span>{data.source === 'supabase' ? `Última métrica: ${data.freshness || 'não informada'}` : <>Baseline de 12/05/2026 · <b>222 posts no arquivo completo</b>. Crescimento retroativo não está disponível.</>}</span></div>{data.source !== 'supabase' && <span className="cm-source-reason" title={data.warning || ''}>Schema ainda não publicado</span>}</div>;
+  const isSupabase = data.source === 'supabase';
+
+  const allPublishDates = [
+    ...(data.linkedin || []).map(p => p.published_at),
+    ...(data.youtube || []).map(v => v.published_at)
+  ].filter(Boolean).sort((a, b) => b.localeCompare(a));
+
+  const latestDateStr = allPublishDates[0]
+    ? new Date(allPublishDates[0]).toLocaleDateString('pt-BR')
+    : '12/05/2026';
+
+  if (isSupabase) {
+    return (
+      <div className="cm-source supabase" style={{ borderColor: '#a7f3d0', background: '#f0fdf4', padding: '14px 18px', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', background: '#d1fae5', color: '#047857', flexShrink: 0 }}>
+          <Database size={16} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <strong style={{ color: '#065f46', fontSize: '13px' }}>Banco de Dados de Produção Conectado (Supabase)</strong>
+          <span style={{ color: '#047857', fontSize: '11.5px', marginTop: 4, lineHeight: 1.4, display: 'block' }}>
+            Banco de dados online e sincronizado. Última coleta bem-sucedida: <b>{data.freshness || latestDateStr}</b>. As coletas automáticas rodam diariamente às <b>06:00 (YouTube)</b> e <b>06:30 (LinkedIn)</b> via Deno Edge Functions.
+          </span>
+        </div>
+        <span className="cm-status success" style={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: '999px', fontSize: '10.5px' }}>
+          <span className="spin" style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />
+          Sincronizado
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="cm-source local_snapshot" style={{ borderColor: '#fde047', background: '#fefce8', padding: '14px 18px', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', background: '#fef08a', color: '#a16207', flexShrink: 0 }}>
+        <Database size={16} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <strong style={{ color: '#854d0e', fontSize: '13px' }}>Snapshot histórico local (Modo Offline de Demonstração)</strong>
+        <span style={{ color: '#713f12', fontSize: '11.5px', marginTop: 4, lineHeight: 1.4, display: 'block' }}>
+          Dados locais carregados até <b>{latestDateStr}</b> com <b>{data.linkedin.length} posts no arquivo completo</b>. Para ativar coletas automáticas diárias na nuvem, publique as migrações do Supabase e configure as Edge Functions. Os agendamentos automáticos rodarão diariamente às 06:00 (YouTube) e 06:30 (LinkedIn).
+        </span>
+      </div>
+      <span className="cm-source-reason" style={{ alignSelf: 'center', color: '#854d0e', background: '#fef08a', borderColor: '#fef08a' }}>
+        Schema ainda não publicado
+      </span>
+    </div>
+  );
+}
+
+function CreatorToggle({ selectedOwner, onChange }) {
+  return <div className="cm-creator-toggle" aria-label="Filtro de criador">
+    {creators.map((creator) => {
+      const active = (selectedOwner || '') === creator.owner;
+      return <button key={creator.id || 'all'} type="button" className={active ? 'active' : ''} onClick={() => onChange(creator.owner)} aria-pressed={active} aria-label={`Ver ${creator.label}`}>
+        {creator.photo ? <img src={creator.photo} alt={creator.owner} /> : <span className="cm-avatar-stack"><img src={victorPhoto} alt="" /><img src={fernandoPhoto} alt="" /></span>}
+        <span>{creator.label}</span>
+      </button>;
+    })}
+  </div>;
+}
+
+function ExecutiveCards({ summary }) {
+  const trendLabel = summary.cadenceTrend === 'up' ? 'Subiu' : summary.cadenceTrend === 'down' ? 'Caiu' : 'Estável';
+  const cards = [
+    ['Posts últimos 30 dias', integer.format(summary.postsLast30Days)],
+    ['Média posts/semana', decimal.format(summary.averagePostsPerWeek)],
+    ['Engagement total', integer.format(summary.totalEngagement)],
+    ['Comentários', integer.format(summary.totalComments)],
+    ['Melhor CTA', summary.bestCta || 'Sem CTA'],
+    ['Dias desde último post', summary.daysSinceLastPost == null ? '—' : integer.format(summary.daysSinceLastPost)],
+    ['Tendência de cadência', trendLabel],
+  ];
+  return <div className="cm-executive-cards">{cards.map(([label, value]) => <div className="cm-executive-card" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>;
 }
 
 function Overview({ filtered, allPosts, data, filters, setFilters }) {
-  const metrics = aggregateContentMetrics(filtered);
-  const trend = buildMonthlyTrend(filtered);
+  const summary = buildExecutiveSummary(filtered, filters);
+  const weekly = buildWeeklyCadence(filtered);
+  const heatmap = buildCalendarHeatmap(filtered);
   const comparison = buildCreatorComparison(filtered);
   const youtubeViews = data.youtube.reduce((sum, video) => sum + Number(video.views || 0), 0);
   return <>
-    <ContentFilters filters={filters} onChange={setFilters} posts={allPosts} />
-    <MetricStrip metrics={metrics} youtubeViews={youtubeViews} />
+    <div className="cm-executive-toolbar">
+      <div><span className="cm-eyebrow">Filtro principal</span><h2>Victor, Fernando ou Playbook total</h2></div>
+      <CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} />
+    </div>
+    <ContentFilters filters={filters} onChange={setFilters} posts={allPosts} hideOwner />
+    <ExecutiveCards summary={summary} />
+    <section className="cm-panel cm-hero-chart"><div className="cm-section-heading"><div><span className="cm-eyebrow">Cadência</span><h2>Posts por semana</h2><p>Victor vs Fernando vs Total Playbook. Este é o gráfico central para saber se a frequência aumentou ou caiu.</p></div><small>{weekly.length} semanas</small></div><WeeklyCadenceChart data={weekly} /></section>
     <div className="cm-primary-grid">
-      <section className="cm-panel cm-trend-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Evolução</span><h2>Engagement por mês</h2></div><small>{trend.length} períodos</small></div><ContentTrendChart data={trend} /></section>
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Criadores</span><h2>Victor vs Fernando</h2></div></div><CreatorComparisonChart data={comparison} /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Distribuição</span><h2>Frequência diária</h2><p>Consistência de posts dia a dia ao longo do ano.</p></div><small>{heatmap.days.length} dias</small></div><CalendarHeatmapChart data={heatmap} /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Resultado</span><h2>Engagement por semana</h2></div></div><WeeklyEngagementChart data={weekly} /></section>
     </div>
     <TopContentTable rows={rankContent(filtered, 'engagement_score', 10)} />
+    <div className="cm-analysis-grid">
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">CTA</span><h2>CTA que mais gera comentários</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'cta_keyword')} valueKey="comments" label="Comentários" /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>Formato por média de score</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Criadores</span><h2>Victor vs Fernando</h2></div></div><CreatorComparisonChart data={comparison} /></section>
+    </div>
+    {youtubeViews > 0 && <div className="cm-table-note">YouTube já coletado: {integer.format(youtubeViews)} views acumuladas nos vídeos monitorados.</div>}
   </>;
 }
 
-function LinkedinAnalysis({ filtered, allPosts, filters, setFilters }) {
+function LinkedinAnalysis({ filtered, allPosts, data, filters, setFilters }) {
   const metrics = aggregateContentMetrics(filtered);
+  const weekly = buildWeeklyCadence(filtered);
+
+  const filteredGrowth = useMemo(() => {
+    if (!data?.growth) return [];
+    const linkedinGrowth = data.growth.filter(g => g.platform === 'linkedin' || (!g.platform && g.followers !== undefined));
+    if (filters.owner) {
+      return linkedinGrowth.filter(g => g.owner_name === filters.owner);
+    }
+    const grouped = {};
+    linkedinGrowth.forEach(g => {
+      const date = g.metric_date;
+      if (!grouped[date]) {
+        grouped[date] = { metric_date: date, followers: 0 };
+      }
+      grouped[date].followers += Number(g.followers || 0);
+    });
+    return Object.values(grouped).sort((a, b) => a.metric_date.localeCompare(b.metric_date));
+  }, [data?.growth, filters.owner]);
+
+  const growthSection = filteredGrowth.length ? (
+    <section className="cm-panel">
+      <div className="cm-section-heading">
+        <div>
+          <span className="cm-eyebrow">Seguidores</span>
+          <h2>Crescimento de contas</h2>
+          <p>Evolução do número total de seguidores no LinkedIn ao longo do tempo.</p>
+        </div>
+      </div>
+      <AccountGrowthChart data={filteredGrowth} />
+    </section>
+  ) : null;
+
   return <>
-    <ContentFilters filters={filters} onChange={setFilters} posts={allPosts} advanced />
+    <div className="cm-executive-toolbar compact"><CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} /></div>
+    <ContentFilters filters={filters} onChange={setFilters} posts={allPosts} advanced hideOwner />
     <MetricStrip metrics={metrics} />
+    {growthSection}
     <div className="cm-analysis-grid">
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>O que mais performa</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'format')} valueKey="score" label="Score" /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>O que mais performa</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">CTA</span><h2>Comentários por chamada</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'cta_keyword')} valueKey="comments" label="Comentários" /></section>
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Tema</span><h2>Performance temática</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'theme')} valueKey="engagement" /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Tema</span><h2>Performance temática</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'theme')} valueKey="comments" label="Comentários" /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Estratégia</span><h2>Frequência vs resultado</h2></div></div><FrequencyResultScatter data={weekly} /></section>
     </div>
     <TopContentTable rows={rankContent(filtered, 'comments', 10)} metric="comments" title="Top posts por comentários" />
   </>;
@@ -57,19 +207,52 @@ function LinkedinAnalysis({ filtered, allPosts, filters, setFilters }) {
 
 function EmptyCollector({ platform, onSettings }) {
   const youtube = platform === 'YouTube';
-  return <div className="cm-collector-empty"><div className="cm-empty-icon">{youtube ? <Video size={28} /> : <Activity size={28} />}</div><span className="cm-eyebrow">Coleta aguardando configuração</span><h2>{platform}</h2><p>{youtube ? 'Adicione YOUTUBE_API_KEY e execute collect-youtube para carregar canais, vídeos, views, likes e inscritos públicos.' : 'Adicione APIFY_TOKEN e APIFY_LINKEDIN_ACTOR_ID para iniciar snapshots diários.'}</p><button type="button" onClick={onSettings}><Settings size={15} /> Abrir configurações</button></div>;
+  return <div className="cm-collector-empty"><div className="cm-empty-icon">{youtube ? <Video size={28} /> : <Activity size={28} />}</div><span className="cm-eyebrow">Coleta aguardando Apify</span><h2>{platform}</h2><p>{youtube ? 'Configure APIFY_TOKEN e APIFY_YOUTUBE_ACTOR_ID no backend para coletar canais, vídeos, views, comentários e inscritos sem expor chave no front-end.' : 'Configure APIFY_TOKEN e APIFY_LINKEDIN_ACTOR_ID no backend para buscar novos posts e atualizar métricas diariamente.'}</p><button type="button" onClick={onSettings}><Settings size={15} /> Abrir configurações</button></div>;
 }
 
 function YoutubeSection({ data, videos, filters, setFilters, onSettings }) {
-  const growth = data.growth.length ? <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Conta</span><h2>Crescimento de contas</h2></div></div><AccountGrowthChart data={data.growth} /></section> : null;
-  if (!data.youtube.length) return <>{growth}<EmptyCollector platform="YouTube" onSettings={onSettings} /></>;
+  const filteredGrowth = useMemo(() => {
+    if (!data?.growth) return [];
+    const youtubeGrowth = data.growth.filter(g => g.platform === 'youtube' || (!g.platform && (g.subscribers !== undefined || g.total_views !== undefined)));
+    const grouped = {};
+    youtubeGrowth.forEach(g => {
+      const date = g.metric_date;
+      if (!grouped[date]) {
+        grouped[date] = { metric_date: date };
+      }
+      if (filters.owner) {
+        if (g.owner_name === filters.owner) {
+          grouped[date]["subscribers"] = Number(g.subscribers || 0);
+          if (g.total_views) grouped[date]["total_views"] = Number(g.total_views || 0);
+        }
+      } else {
+        grouped[date][g.owner_name] = Number(g.subscribers || 0);
+      }
+    });
+    return Object.values(grouped).sort((a, b) => a.metric_date.localeCompare(b.metric_date));
+  }, [data?.growth, filters.owner]);
+
+  const growthSection = filteredGrowth.length ? (
+    <section className="cm-panel">
+      <div className="cm-section-heading">
+        <div>
+          <span className="cm-eyebrow">Canal</span>
+          <h2>Crescimento de contas</h2>
+          <p>Evolução de inscritos e views totais do YouTube.</p>
+        </div>
+      </div>
+      <AccountGrowthChart data={filteredGrowth} />
+    </section>
+  ) : null;
+
+  if (!data.youtube.length) return <>{growthSection}<EmptyCollector platform="YouTube" onSettings={onSettings} /></>;
   const totals = aggregateYoutubeMetrics(videos);
   const trend = buildMonthlyTrend(videos.map((video) => ({ ...video, engagement_total: video.engagement_total || 0, shares: 0 })));
-  return <><YoutubeFilters filters={filters} onChange={setFilters} videos={data.youtube} /><div className="cm-metric-strip"><div className="cm-metric"><span>Vídeos</span><strong>{totals.videos}</strong></div><div className="cm-metric"><span>Views</span><strong>{integer.format(totals.views)}</strong></div><div className="cm-metric"><span>Likes</span><strong>{integer.format(totals.likes)}</strong></div><div className="cm-metric"><span>Comentários</span><strong>{integer.format(totals.comments)}</strong></div><div className="cm-metric"><span>Engagement</span><strong>{integer.format(totals.engagement)}</strong></div><div className="cm-metric"><span>Taxa média</span><strong>{totals.engagementRate.toLocaleString('pt-BR')}%</strong></div></div><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Publicação</span><h2>Vídeos publicados por mês</h2></div><small>{trend.length} períodos</small></div><ContentTrendChart data={trend} metric="posts" /></section>{growth}<YoutubeVideosTable rows={[...videos].sort((a, b) => Number(b.views || 0) - Number(a.views || 0)).slice(0, 50)} title="Top vídeos por views" /></>;
+  return <><YoutubeFilters filters={filters} onChange={setFilters} videos={data.youtube} /><div className="cm-metric-strip"><div className="cm-metric"><span>Vídeos</span><strong>{totals.videos}</strong></div><div className="cm-metric"><span>Views</span><strong>{integer.format(totals.views)}</strong></div><div className="cm-metric"><span>Likes</span><strong>{integer.format(totals.likes)}</strong></div><div className="cm-metric"><span>Comentários</span><strong>{integer.format(totals.comments)}</strong></div><div className="cm-metric"><span>Engagement</span><strong>{integer.format(totals.engagement)}</strong></div><div className="cm-metric"><span>Taxa média</span><strong>{totals.engagementRate.toLocaleString('pt-BR')}%</strong></div></div><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Publicação</span><h2>Vídeos publicados por mês</h2></div><small>{trend.length} períodos</small></div><ContentTrendChart data={trend} metric="posts" /></section>{growthSection}<YoutubeVideosTable rows={[...videos].sort((a, b) => Number(b.views || 0) - Number(a.views || 0)).slice(0, 50)} title="Top vídeos por views" /></>;
 }
 
 function PostsSection({ filtered, allPosts, filters, setFilters, onAction }) {
-  return <><ContentFilters filters={filters} onChange={setFilters} posts={allPosts} compact advanced /><OperationalPostsTable rows={rankContent(filtered, 'engagement_score', 250)} onAction={onAction} /></>;
+  return <><div className="cm-executive-toolbar compact"><CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} /></div><ContentFilters filters={filters} onChange={setFilters} posts={allPosts} compact advanced hideOwner /><OperationalPostsTable rows={rankContent(filtered, 'engagement_score', 250)} onAction={onAction} /></>;
 }
 
 function VideosSection({ data, onSettings }) {
@@ -100,17 +283,19 @@ function SettingsSection({ data, client }) {
     setMessage(error ? error.message : `${name} iniciado com sucesso.`); setRunning('');
   };
   const secrets = [
-    ['YouTube API', 'YOUTUBE_API_KEY'], ['Apify token', 'APIFY_TOKEN'], ['Apify actor', 'APIFY_LINKEDIN_ACTOR_ID'], ['Classificação', 'CLASSIFICATION_API_KEY'],
+    ['Apify token', 'APIFY_TOKEN'], ['Apify LinkedIn actor', 'APIFY_LINKEDIN_ACTOR_ID'], ['Apify YouTube actor', 'APIFY_YOUTUBE_ACTOR_ID'], ['Classificação', 'CLASSIFICATION_API_KEY'],
   ];
-  return <div className="cm-settings-grid"><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Secrets</span><h2>Integrações</h2></div></div><div className="cm-secret-list">{secrets.map(([label, name]) => <div key={name}><span>{label}</span><code>{name}</code><StatusPill status={data.source === 'supabase' ? 'pending' : 'paused'} /></div>)}</div><p className="cm-table-note">Tokens reais nunca são exibidos no frontend. Configure-os no painel de Edge Function Secrets.</p></section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Agenda</span><h2>Coletas automáticas</h2></div></div><div className="cm-schedule"><div><span>YouTube</span><strong>Todos os dias · 06:00</strong><button onClick={() => run('collect-youtube')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'collect-youtube' ? 'spin' : ''} /> Executar agora</button></div><div><span>LinkedIn</span><strong>Todos os dias · 06:30</strong><button onClick={() => run('collect-linkedin')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'collect-linkedin' ? 'spin' : ''} /> Executar agora</button></div></div>{message && <div className="cm-settings-message">{message}</div>}</section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Histórico</span><h2>Backfill e classificação</h2></div></div><div className="cm-config-summary"><div><span>Data-base importada</span><strong>12/05/2026</strong></div><div><span>Janela de backfill</span><strong>Configurável por coleta</strong></div><div><span>Taxonomia</span><strong>Formato, tema, CTA, funil e intenção</strong></div><div><span>Revisão manual</span><strong>Disponível pela API protegida</strong></div></div><p className="cm-table-note">As regras vivem em <code>classify-content</code>; alterações manuais preservam o status e a data da revisão.</p></section></div>;
+  return <div className="cm-settings-grid"><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Secrets</span><h2>Integrações sem chave no front</h2></div></div><div className="cm-secret-list">{secrets.map(([label, name]) => <div key={name}><span>{label}</span><code>{name}</code><StatusPill status={data.source === 'supabase' ? 'pending' : 'paused'} /></div>)}</div><p className="cm-table-note">Tokens reais nunca são exibidos no frontend. O token da Apify deve ficar só nos Edge Function Secrets.</p></section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Agenda</span><h2>Coletas automáticas</h2></div></div><div className="cm-schedule"><div><span>YouTube via Apify</span><strong>Todos os dias · 06:00</strong><button onClick={() => run('collect-youtube')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'collect-youtube' ? 'spin' : ''} /> Executar agora</button></div><div><span>LinkedIn via Apify</span><strong>Todos os dias · 06:30</strong><button onClick={() => run('collect-linkedin')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'collect-linkedin' ? 'spin' : ''} /> Executar agora</button></div></div>{message && <div className="cm-settings-message">{message}</div>}</section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Incremental</span><h2>Onde parou e o que entra novo</h2></div></div><div className="cm-config-summary"><div><span>LinkedIn histórico importado</span><strong>12/05/2026</strong></div><div><span>Deduplicação</span><strong>external_post_id / video_id</strong></div><div><span>Novas coletas</span><strong>Upsert + snapshot diário</strong></div><div><span>Classificação</span><strong>Formato, tema, CTA, funil e intenção</strong></div></div><p className="cm-table-note">A coleta consulta os perfis/canais ativos, salva só registros novos ou métricas novas e marca erro por conta quando algum scraper falha.</p></section></div>;
 }
 
 export default function ContentMetricsWorkspace({ client, initialData, initialSection = 'overview', onSectionChange }) {
   const [section, setSection] = useState(initialSection);
   const [data, setData] = useState(initialData || null);
   const [loading, setLoading] = useState(!initialData);
-  const [filters, setFilters] = useState({});
-  const [youtubeFilters, setYoutubeFilters] = useState({});
+  const defaultTo = new Date().toISOString().slice(0, 10);
+  const defaultFrom = new Date(new Date().getTime() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const [filters, setFilters] = useState({ from: defaultFrom, to: defaultTo });
+  const [youtubeFilters, setYoutubeFilters] = useState({ from: defaultFrom, to: defaultTo });
   const [operationMessage, setOperationMessage] = useState('');
 
   useEffect(() => { setSection(initialSection); }, [initialSection]);
@@ -136,7 +321,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     <AnimatePresence mode="wait"><motion.div key={section} className="cm-view" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}>
       {section !== 'overview' && <div className="cm-view-title"><span className="cm-eyebrow">Content Dashboard</span><h1>{title}</h1></div>}
       {section === 'overview' && <Overview filtered={filtered} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
-      {section === 'linkedin' && <LinkedinAnalysis filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} />}
+      {section === 'linkedin' && <LinkedinAnalysis filtered={filtered} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'youtube' && <YoutubeSection data={data} videos={filteredYoutube} filters={youtubeFilters} setFilters={setYoutubeFilters} onSettings={() => navigate('settings')} />}
       {section === 'posts' && <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} onAction={(action) => setOperationMessage(action === 'history' ? 'O histórico completo ficará disponível assim que os snapshots diários forem publicados no Supabase.' : 'Essa ação usa a API administrativa protegida. Publique o schema e autentique o operador antes de alterar dados.')} />}
       {section === 'videos' && <VideosSection data={data} onSettings={() => navigate('settings')} />}
@@ -146,3 +331,4 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     </motion.div></AnimatePresence>
   </div>;
 }
+

@@ -7,7 +7,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "build:snapshot": "node scripts/build-linkedin-snapshot.mjs",
-    "import:linkedin": "node scripts/import-linkedin-history.mjs"
+    "import:linkedin": "node scripts/import-linkedin-history.mjs",
+    "collect:apify": "node scripts/collect-apify-content.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",

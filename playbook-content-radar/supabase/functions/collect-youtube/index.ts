@@ -1,39 +1,65 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { chunk, errorMessage, normalizeYouTubeVideo } from '../_shared/content.ts';
+import { errorMessage, normalizeApifyYouTubeVideo, parseApifyInput } from '../_shared/content.ts';
 import { adminClient, corsHeaders, finishRun, json, requireCollectorSecret, startRun } from '../_shared/server.ts';
 
-const YOUTUBE_API = 'https://www.googleapis.com/youtube/v3';
+const APIFY_API = 'https://api.apify.com/v2';
+const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-async function youtube(path: string, params: Record<string, string>, apiKey: string) {
-  const url = new URL(`${YOUTUBE_API}/${path}`);
-  Object.entries({ ...params, key: apiKey }).forEach(([key, value]) => url.searchParams.set(key, value));
-  const response = await fetch(url);
+async function apify(path: string, token: string, init?: RequestInit) {
+  const separator = path.includes('?') ? '&' : '?';
+  const response = await fetch(`${APIFY_API}/${path}${separator}token=${encodeURIComponent(token)}`, init);
   const body = await response.json();
-  if (!response.ok) throw new Error(body?.error?.message || `YouTube API ${response.status}`);
-  return body;
+  if (!response.ok) throw new Error(body?.error?.message || `Apify API ${response.status}`);
+  return body.data ?? body;
 }
 
-async function resolveChannel(account: Record<string, any>, apiKey: string) {
-  const params: Record<string, string> = { part: 'id,snippet,statistics,contentDetails' };
-  if (account.external_id) params.id = account.external_id;
-  else if (account.handle) params.forHandle = String(account.handle).replace(/^@/, '');
-  else throw new Error(`Conta ${account.owner_name} sem external_id ou handle`);
-  const result = await youtube('channels', params, apiKey);
-  if (!result.items?.[0]) throw new Error(`Canal não encontrado para ${account.owner_name}`);
-  return result.items[0];
+async function runActor(actorId: string, token: string, input: Record<string, unknown>) {
+  let run = await apify(`acts/${encodeURIComponent(actorId)}/runs?waitForFinish=100`, token, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  });
+  for (let attempt = 0; attempt < 10 && !['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(run.status); attempt += 1) {
+    await wait(5000);
+    run = await apify(`actor-runs/${run.id}`, token);
+  }
+  if (run.status !== 'SUCCEEDED') throw new Error(`Actor terminou com status ${run.status || 'desconhecido'}`);
+  return apify(`datasets/${run.defaultDatasetId}/items?clean=true&limit=1000`, token);
 }
 
-async function listUploadIds(playlistId: string, apiKey: string, limit: number) {
-  const ids: string[] = [];
-  let pageToken = '';
-  do {
-    const result = await youtube('playlistItems', {
-      part: 'contentDetails', playlistId, maxResults: '50', ...(pageToken ? { pageToken } : {}),
-    }, apiKey);
-    ids.push(...(result.items || []).map((item: any) => item.contentDetails?.videoId).filter(Boolean));
-    pageToken = result.nextPageToken || '';
-  } while (pageToken && ids.length < limit);
-  return ids.slice(0, limit);
+async function latestYouTubeSince(client: ReturnType<typeof adminClient>, accountId: string) {
+  const { data, error } = await client
+    .from('youtube_videos')
+    .select('published_at')
+    .eq('account_id', accountId)
+    .not('published_at', 'is', null)
+    .order('published_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.published_at ? String(data.published_at).slice(0, 10) : '2020-01-01';
+}
+
+function renderInput(account: Record<string, any>, since: string) {
+  const maxVideos = Math.max(1, Math.min(1000, Number(Deno.env.get('APIFY_YOUTUBE_MAX_VIDEOS') || 200)));
+  const template = Deno.env.get('APIFY_YOUTUBE_INPUT_JSON')
+    || `{"startUrls":[{"url":"{{accountUrl}}"}],"maxResults":${maxVideos},"maxResultsShorts":${maxVideos},"maxResultStreams":0,"oldestPostDate":"{{since}}","sortVideosBy":"NEWEST","downloadSubtitles":false}`;
+  return parseApifyInput(
+    template
+      .replaceAll('{{since}}', since)
+      .replaceAll('{{handle}}', String(account.handle || ''))
+      .replaceAll('{{externalId}}', String(account.external_id || '')),
+    account.account_url,
+  );
+}
+
+function accountStats(items: Record<string, any>[]) {
+  const first = items[0] || {};
+  const number = (value: unknown) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : null;
+  };
+  const subscribers = number(first.channelSubscriberCount ?? first.subscriberCount ?? first.subscribers ?? first.numberOfSubscribers);
+  const totalViews = number(first.channelViewCount ?? first.channelViews ?? first.totalViews) ?? items.reduce((sum, item) => sum + (number(item.viewCount ?? item.views) || 0), 0);
+  return { subscribers, totalViews, totalVideos: items.length };
 }
 
 Deno.serve(async (request) => {
@@ -41,46 +67,40 @@ Deno.serve(async (request) => {
   let runId: string | null = null;
   try {
     requireCollectorSecret(request);
-    const apiKey = Deno.env.get('YOUTUBE_API_KEY');
-    if (!apiKey) throw new Error('YOUTUBE_API_KEY não configurado');
+    const token = Deno.env.get('APIFY_TOKEN');
+    const actorId = Deno.env.get('APIFY_YOUTUBE_ACTOR_ID') || 'streamers/youtube-scraper';
+    if (!token || !actorId) throw new Error('APIFY_TOKEN e APIFY_YOUTUBE_ACTOR_ID são obrigatórios');
     const client = adminClient();
-    runId = await startRun(client, 'youtube_data_api');
+    runId = await startRun(client, 'apify_youtube');
     const { data: accounts, error: accountsError } = await client.from('content_accounts').select('*').eq('platform', 'youtube').eq('status', 'active');
     if (accountsError) throw accountsError;
 
     const metricDate = new Date().toISOString().slice(0, 10);
-    const maxVideos = Math.max(1, Math.min(500, Number(Deno.env.get('YOUTUBE_MAX_VIDEOS') || 200)));
     let accountsProcessed = 0;
     let itemsProcessed = 0;
     const errors: Array<{ account: string; error: string }> = [];
 
     for (const account of accounts || []) {
       try {
-        const channel = await resolveChannel(account, apiKey);
-        const uploads = channel.contentDetails?.relatedPlaylists?.uploads;
-        if (!uploads) throw new Error('Playlist de uploads não disponível');
-        const videoIds = await listUploadIds(uploads, apiKey, maxVideos);
-        const videos: Record<string, any>[] = [];
-        for (const batch of chunk(videoIds, 50)) {
-          if (!batch.length) continue;
-          const result = await youtube('videos', { part: 'snippet,statistics,contentDetails', id: batch.join(',') }, apiKey);
-          videos.push(...(result.items || []));
-        }
+        const since = await latestYouTubeSince(client, account.id);
+        const input = renderInput(account, since);
+        const rawItems = await runActor(actorId, token, input);
+        const items = Array.isArray(rawItems) ? rawItems : [];
+        const stats = accountStats(items);
 
-        const stats = channel.statistics || {};
         const { error: accountMetricError } = await client.from('account_daily_metrics').upsert({
           account_id: account.id,
           metric_date: metricDate,
-          subscribers: stats.hiddenSubscriberCount ? null : Number(stats.subscriberCount || 0),
-          total_views: Number(stats.viewCount || 0),
-          total_videos: Number(stats.videoCount || videos.length),
-          source: 'youtube_data_api',
-          raw: channel,
+          subscribers: stats.subscribers,
+          total_views: stats.totalViews,
+          total_videos: stats.totalVideos,
+          source: 'apify_youtube',
+          raw: { input, firstItem: items[0] || null },
         }, { onConflict: 'account_id,metric_date,source' });
         if (accountMetricError) throw accountMetricError;
 
-        for (const item of videos) {
-          const normalized = normalizeYouTubeVideo(item, metricDate);
+        for (const item of items) {
+          const normalized = normalizeApifyYouTubeVideo(item, metricDate);
           const { data: savedVideo, error: videoError } = await client.from('youtube_videos')
             .upsert({ ...normalized.video, account_id: account.id }, { onConflict: 'video_id' }).select('id').single();
           if (videoError) throw videoError;
@@ -90,7 +110,7 @@ Deno.serve(async (request) => {
           itemsProcessed += 1;
         }
 
-        await client.from('content_accounts').update({ external_id: channel.id, last_collected_at: new Date().toISOString(), last_error: null }).eq('id', account.id);
+        await client.from('content_accounts').update({ last_collected_at: new Date().toISOString(), last_error: null }).eq('id', account.id);
         accountsProcessed += 1;
       } catch (error) {
         const message = errorMessage(error);

@@ -25,12 +25,12 @@ export function MetricStrip({ metrics, youtubeViews = 0 }) {
   );
 }
 
-export function ContentFilters({ filters, onChange, posts, compact = false, advanced = false }) {
+export function ContentFilters({ filters, onChange, posts, compact = false, advanced = false, hideOwner = false }) {
   const values = (field, fallback = '') => [...new Set(posts.map((post) => post[field] || fallback).filter(Boolean))].sort();
   const set = (field) => (event) => onChange({ ...filters, [field]: event.target.value });
   return (
     <div className={`cm-filters${compact ? ' compact' : ''}${advanced ? ' advanced' : ''}`}>
-      <label>Pessoa<select aria-label="Pessoa" value={filters.owner || ''} onChange={set('owner')}><option value="">Todas</option>{values('owner_name').map((value) => <option key={value}>{value}</option>)}</select></label>
+      {!hideOwner && <label>Pessoa<select aria-label="Pessoa" value={filters.owner || ''} onChange={set('owner')}><option value="">Todas</option>{values('owner_name').map((value) => <option key={value}>{value}</option>)}</select></label>}
       {!compact && <label>De<input aria-label="Data inicial" type="date" value={filters.from || ''} onChange={set('from')} /></label>}
       {!compact && <label>Até<input aria-label="Data final" type="date" value={filters.to || ''} onChange={set('to')} /></label>}
       <label>Formato<select aria-label="Formato" value={filters.format || ''} onChange={set('format')}><option value="">Todos</option>{values('format').map((value) => <option key={value}>{value}</option>)}</select></label>

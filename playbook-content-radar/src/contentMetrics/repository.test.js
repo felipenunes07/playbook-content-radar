@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadContentMetrics } from './repository.js';
+import bundledYoutubeHistory from './data/youtube-history.json';
 
 function fakeSupabase(results) {
   return {
@@ -43,7 +44,7 @@ describe('loadContentMetrics', () => {
     expect(result).toMatchObject({
       source: 'local_snapshot',
       linkedin: [{ id: 'local' }],
-      youtube: [],
+      youtube: bundledYoutubeHistory.records || [],
       freshness: '2026-05-12',
       warning: 'relation does not exist',
     });

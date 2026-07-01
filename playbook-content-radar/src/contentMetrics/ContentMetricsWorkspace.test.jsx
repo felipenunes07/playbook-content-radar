@@ -28,11 +28,11 @@ describe('ContentMetricsWorkspace', () => {
 
     expect(await screen.findByRole('heading', { name: 'Métricas de conteúdo' })).toBeInTheDocument();
     expect(screen.getByText(/Snapshot histórico local/i)).toBeInTheDocument();
-    expect(screen.getByText('222 posts no arquivo completo')).toBeInTheDocument();
+    expect(screen.getByText('2 posts no arquivo completo')).toBeInTheDocument();
     expect(screen.getByText('Post campeão de IA')).toBeInTheDocument();
     expect(screen.getByText('187')).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText('Pessoa'), { target: { value: 'Victor Baggio' } });
+    fireEvent.click(screen.getByRole('button', { name: /Victor/i }));
     await waitFor(() => expect(screen.getByText('112')).toBeInTheDocument());
     expect(screen.queryByText('Post de vendas')).not.toBeInTheDocument();
   });
@@ -40,7 +40,8 @@ describe('ContentMetricsWorkspace', () => {
   it('exposes every required subsection and honest YouTube empty state', async () => {
     render(<ContentMetricsWorkspace initialData={data} initialSection="youtube" />);
     expect(await screen.findByRole('heading', { name: 'YouTube', level: 1 })).toBeInTheDocument();
-    expect(screen.getByText(/YOUTUBE_API_KEY/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Apify/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/YOUTUBE_API_KEY/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Configurações' })).toBeInTheDocument();
   });
 
@@ -61,13 +62,13 @@ describe('ContentMetricsWorkspace', () => {
       ...data,
       source: 'supabase',
       growth: [{ account_id: 'a1', owner_name: 'Victor Baggio', metric_date: '2026-07-01', subscribers: 1200, total_views: 50000 }],
-      runs: [{ id: 'run-1', source: 'youtube_data_api', status: 'success', started_at: '2026-07-01T09:00:00Z', accounts_processed: 2, items_processed: 40 }],
+      runs: [{ id: 'run-1', source: 'apify_youtube', status: 'success', started_at: '2026-07-01T09:00:00Z', accounts_processed: 2, items_processed: 40 }],
     };
     const { rerender } = render(<ContentMetricsWorkspace initialData={collected} initialSection="youtube" />);
     expect(await screen.findByRole('heading', { name: 'Crescimento de contas' })).toBeInTheDocument();
 
     rerender(<ContentMetricsWorkspace initialData={collected} initialSection="imports" />);
-    expect(await screen.findByText('youtube_data_api')).toBeInTheDocument();
+    expect(await screen.findByText('apify_youtube')).toBeInTheDocument();
     expect(screen.getByText('40')).toBeInTheDocument();
   });
 
@@ -79,6 +80,23 @@ describe('ContentMetricsWorkspace', () => {
     expect(screen.getAllByRole('button', { name: /Reclassificar/i })).toHaveLength(2);
   });
 
+
+  it('uses an avatar toggle for both creators and filters every executive chart', async () => {
+    render(<ContentMetricsWorkspace initialData={data} initialSection="overview" />);
+
+    expect(await screen.findByRole('button', { name: /Ambos/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Victor/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Fernando/i })).toBeInTheDocument();
+    expect(screen.getByAltText('Victor Baggio')).toBeInTheDocument();
+    expect(screen.getByAltText('Fernando Tedesco')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Posts por semana/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Frequência diária/i })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Média móvel de 4 semanas/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Fernando/i }));
+    await waitFor(() => expect(screen.getByText('Post de vendas')).toBeInTheDocument());
+    expect(screen.queryByText('Post campeão de IA')).not.toBeInTheDocument();
+  });
   it('shows YouTube filters when video data exists', async () => {
     render(<ContentMetricsWorkspace initialData={{ ...data, source: 'supabase', youtube: [{ id: 'v1', video_id: 'v1', owner_name: 'Victor Baggio', title: 'IA aplicada', published_at: '2026-06-01', theme: 'IA', views: 10 }] }} initialSection="youtube" />);
     expect(await screen.findByLabelText('Canal')).toBeInTheDocument();
@@ -86,3 +104,5 @@ describe('ContentMetricsWorkspace', () => {
     expect(screen.getByRole('heading', { name: 'Vídeos publicados por mês' })).toBeInTheDocument();
   });
 });
+
+

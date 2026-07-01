@@ -1,7 +1,8 @@
 import bundledHistory from './data/linkedin-history.json';
+import bundledYoutubeHistory from './data/youtube-history.json';
 
 const empty = {
-  youtube: [],
+  youtube: bundledYoutubeHistory.records || [],
   accounts: [],
   imports: [],
   runs: [],
@@ -41,7 +42,7 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
     return {
       source: 'supabase',
       linkedin: linkedinResult.data || [],
-      youtube: youtubeResult.data || [],
+      youtube: youtubeResult.data?.length ? youtubeResult.data : (bundledYoutubeHistory.records || []),
       accounts: accountsResult.data || [],
       imports: importsResult.data || [],
       runs: runsResult.data || [],

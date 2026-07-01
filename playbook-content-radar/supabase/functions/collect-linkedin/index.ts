@@ -3,7 +3,6 @@ import { errorMessage, normalizeApifyPost, parseApifyInput } from '../_shared/co
 import { adminClient, corsHeaders, finishRun, json, requireCollectorSecret, startRun } from '../_shared/server.ts';
 
 const APIFY_API = 'https://api.apify.com/v2';
-
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 async function apify(path: string, token: string, init?: RequestInit) {
@@ -26,13 +25,39 @@ async function runActor(actorId: string, token: string, input: Record<string, un
   return apify(`datasets/${run.defaultDatasetId}/items?clean=true&limit=1000`, token);
 }
 
+async function latestLinkedInSince(client: ReturnType<typeof adminClient>, accountId: string) {
+  const { data, error } = await client
+    .from('content_posts')
+    .select('published_at')
+    .eq('account_id', accountId)
+    .not('published_at', 'is', null)
+    .order('published_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.published_at ? String(data.published_at).slice(0, 10) : '2020-01-01';
+}
+
+function renderInput(account: Record<string, any>, since: string) {
+  const maxPosts = Math.max(1, Math.min(1000, Number(Deno.env.get('APIFY_LINKEDIN_MAX_POSTS') || 500)));
+  const template = Deno.env.get('APIFY_LINKEDIN_INPUT_JSON')
+    || `{"authorUrls":["{{accountUrl}}"],"maxPosts":${maxPosts},"postedLimitDate":"{{since}}","sortBy":"date","profileScraperMode":"short","scrapeReactions":false,"scrapeComments":false}`;
+  return parseApifyInput(
+    template
+      .replaceAll('{{since}}', since)
+      .replaceAll('{{handle}}', String(account.handle || ''))
+      .replaceAll('{{externalId}}', String(account.external_id || '')),
+    account.account_url,
+  );
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   let runId: string | null = null;
   try {
     requireCollectorSecret(request);
     const token = Deno.env.get('APIFY_TOKEN');
-    const actorId = Deno.env.get('APIFY_LINKEDIN_ACTOR_ID');
+    const actorId = Deno.env.get('APIFY_LINKEDIN_ACTOR_ID') || 'harvestapi/linkedin-post-search';
     if (!token || !actorId) throw new Error('APIFY_TOKEN e APIFY_LINKEDIN_ACTOR_ID são obrigatórios');
     const client = adminClient();
     runId = await startRun(client, 'apify_linkedin');
@@ -46,7 +71,8 @@ Deno.serve(async (request) => {
 
     for (const account of accounts || []) {
       try {
-        const input = parseApifyInput(Deno.env.get('APIFY_LINKEDIN_INPUT_JSON'), account.account_url);
+        const since = await latestLinkedInSince(client, account.id);
+        const input = renderInput(account, since);
         const items = await runActor(actorId, token, input);
         for (const item of Array.isArray(items) ? items : []) {
           const normalized = normalizeApifyPost(item, metricDate);
@@ -58,6 +84,27 @@ Deno.serve(async (request) => {
           if (metricError) throw metricError;
           itemsProcessed += 1;
         }
+
+        // Scrape and track profile followers count daily
+        try {
+          const profileActorId = Deno.env.get('APIFY_LINKEDIN_PROFILE_ACTOR_ID') || 'microworlds/linkedin-profile-scraper';
+          const profileResults = await runActor(profileActorId, token, { urls: [account.account_url] });
+          const profileData = Array.isArray(profileResults) ? profileResults[0] : null;
+          const followers = profileData ? (Number(profileData.followersCount || profileData.followers || 0)) : 0;
+          if (followers > 0) {
+            const { error: growthError } = await client.from('account_daily_metrics').upsert({
+              account_id: account.id,
+              metric_date: metricDate,
+              followers: followers,
+              source: 'apify_linkedin_profile',
+              raw: { firstItem: profileData }
+            }, { onConflict: 'account_id,metric_date,source' });
+            if (growthError) console.error(`Erro ao salvar métrica de seguidores do LinkedIn:`, growthError.message);
+          }
+        } catch (e: any) {
+          console.error(`Erro ao coletar seguidores do LinkedIn para ${account.owner_name}:`, e.message);
+        }
+
         await client.from('content_accounts').update({ last_collected_at: new Date().toISOString(), last_error: null }).eq('id', account.id);
         accountsProcessed += 1;
       } catch (error) {

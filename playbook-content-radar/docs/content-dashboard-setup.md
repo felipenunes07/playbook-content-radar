@@ -53,10 +53,13 @@ O primeiro migration cria tabelas, índices, RLS, políticas somente de leitura,
 
 Copie `supabase/functions/.env.example` para um arquivo local fora do Git e preencha:
 
-- `YOUTUBE_API_KEY`;
 - `APIFY_TOKEN`;
 - `APIFY_LINKEDIN_ACTOR_ID`;
 - `APIFY_LINKEDIN_INPUT_JSON` conforme o contrato do Actor escolhido;
+- `APIFY_LINKEDIN_MAX_POSTS` opcional, padrão 500;
+- `APIFY_YOUTUBE_ACTOR_ID`;
+- `APIFY_YOUTUBE_INPUT_JSON` conforme o contrato do Actor escolhido;
+- `APIFY_YOUTUBE_MAX_VIDEOS` opcional, padrão 200;
 - `CLASSIFICATION_API_KEY`;
 - `CLASSIFICATION_MODEL`;
 - `COLLECTOR_SHARED_SECRET`, com um valor aleatório longo.
@@ -181,7 +184,7 @@ Todas as mutações exigem o header `x-collector-secret`. Os GETs usam dados já
 ## 8. Diagnóstico
 
 - **“Snapshot histórico local” no app:** schema ainda não existe, a view não está acessível ou o projeto está indisponível. O dashboard continua usando os 222 registros locais.
-- **YouTube vazio:** confirme `YOUTUBE_API_KEY`, handles e `collection_runs`.
+- **YouTube vazio:** confirme `APIFY_TOKEN`, `APIFY_YOUTUBE_ACTOR_ID`, o template `APIFY_YOUTUBE_INPUT_JSON`, handles e `collection_runs`.
 - **LinkedIn falhou:** confirme o input exigido pelo Actor e ajuste `APIFY_LINKEDIN_INPUT_JSON` usando `{{accountUrl}}`.
 - **Cron 401:** os valores `collector_shared_secret` do Vault e `COLLECTOR_SHARED_SECRET` da função não coincidem.
 - **Tabela inacessível:** verifique Data API grants além de RLS.

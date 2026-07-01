@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { 
-  ExternalLink, Plus, BarChart3, UserRound, Check, X, Star, RotateCcw, 
-  Search, Download, Trash2, AlertCircle, MessageSquare, FileText, 
+import {
+  ExternalLink, Plus, BarChart3, UserRound, Check, X, Star, RotateCcw,
+  Search, Download, Trash2, AlertCircle, MessageSquare, FileText,
   CheckCircle2, XCircle, AlertTriangle, ArrowLeft, Archive,
   ThumbsUp, ThumbsDown, Lightbulb, MoreHorizontal, Calendar,
   TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock
@@ -32,7 +32,7 @@ const LinkedinIcon = ({ size = 24, ...props }) => (
     fill="currentColor"
     {...props}
   >
-    <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+    <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" />
   </svg>
 );
 
@@ -94,7 +94,7 @@ const generateUUID = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
@@ -158,7 +158,7 @@ function openWhatsAppNotice(title) {
 const renderVoteBadge = (vote) => {
   const voteType = vote || 'empty';
   const label = voteType === 'like' ? 'Gostei' : voteType === 'maybe' ? 'Talvez' : voteType === 'dislike' ? 'Não gostei' : 'Pendente';
-  
+
   const getIcon = () => {
     switch (voteType) {
       case 'like':
@@ -184,7 +184,7 @@ const renderVoteBadge = (vote) => {
 const renderScoreColumn = (score, decision) => {
   const scoreVal = score || 0;
   const scoreClass = scoreVal >= 1.5 ? 'high' : scoreVal > 0 ? 'medium' : 'low';
-  
+
   let dotColor = '#94a3b8'; // gray
   let decisionColor = '#64748b';
 
@@ -205,20 +205,20 @@ const renderScoreColumn = (score, decision) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', alignItems: 'flex-start', userSelect: 'none' }}>
       {/* Score Number with a simple colored dot */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <span style={{ 
-          width: '6px', 
-          height: '6px', 
-          borderRadius: '50%', 
-          background: dotColor, 
-          display: 'inline-block' 
+        <span style={{
+          width: '6px',
+          height: '6px',
+          borderRadius: '50%',
+          background: dotColor,
+          display: 'inline-block'
         }} />
         <span style={{ fontSize: '14.5px', fontWeight: 700, color: '#0f172a' }}>{scoreVal}</span>
       </div>
-      
+
       {/* Very clean borderless subtext */}
-      <span style={{ 
-        fontSize: '10px', 
-        fontWeight: 700, 
+      <span style={{
+        fontSize: '10px',
+        fontWeight: 700,
         color: decisionColor,
         textTransform: 'uppercase',
         letterSpacing: '0.05em'
@@ -233,9 +233,9 @@ const renderScoreColumn = (score, decision) => {
 // Premium Custom Dropdown to replace native HTML select for Manual Status (Status do Radar)
 function StatusDropdown({ idea, onChange, currentUser, isSmall = false }) {
   const [isOpen, setIsOpen] = useState(false);
-  
+
   if (currentUser !== 'Felipe') return null;
-  
+
   const options = [
     { value: 'auto', label: 'Automático (Votos)', icon: Sparkles, color: '#475569', bg: '#f8fafc', border: '#cbd5e1' },
     { value: 'aprovado', label: 'Aprovada', icon: CheckCircle2, color: '#057642', bg: '#eaf7f0', border: '#a7f3d0' },
@@ -244,11 +244,11 @@ function StatusDropdown({ idea, onChange, currentUser, isSmall = false }) {
     { value: 'publicada', label: 'Publicada', icon: ExternalLink, color: '#0369a1', bg: '#f0f9ff', border: '#bae6fd' },
     { value: 'arquivada', label: 'Arquivada', icon: Archive, color: '#334155', bg: '#f1f5f9', border: '#cbd5e1' }
   ];
-  
+
   const currentVal = idea.manualStatus || 'auto';
   const selectedOpt = options.find(o => o.value === currentVal) || options[0];
   const Icon = selectedOpt.icon;
-  
+
   return (
     <div style={{ position: 'relative', display: 'inline-block', width: '100%', maxWidth: isSmall ? '150px' : '170px', zIndex: isOpen ? 50 : 2 }}>
       {/* Selector Button */}
@@ -315,17 +315,17 @@ function StatusDropdown({ idea, onChange, currentUser, isSmall = false }) {
       {isOpen && (
         <>
           {/* Backdrop to close dropdown on click outside */}
-          <div 
-            style={{ 
-              position: 'fixed', 
-              inset: 0, 
-              zIndex: 9998, 
-              background: 'transparent' 
-            }} 
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9998,
+              background: 'transparent'
+            }}
             onClick={(e) => {
               e.stopPropagation();
               setIsOpen(false);
-            }} 
+            }}
           />
           <div
             style={{
@@ -404,27 +404,27 @@ function StatusDropdown({ idea, onChange, currentUser, isSmall = false }) {
 function parseLinkedInUrl(url) {
   try {
     if (!url) return null;
-    
+
     // Check if it's a linkedin url
     if (!url.toLowerCase().includes('linkedin.com')) {
       return null;
     }
-    
+
     // Split query parameters
-    const cleanUrl = url.split('?')[0]; 
+    const cleanUrl = url.split('?')[0];
     const parts = cleanUrl.split('/posts/');
-    
+
     let author = 'Conexão do LinkedIn';
     let title = 'Referência de Conteúdo';
     let category = 'LinkedIn';
-    
+
     if (parts.length >= 2) {
-      const slug = parts[1]; 
+      const slug = parts[1];
       const slugParts = slug.split('_');
-      
+
       let rawAuthor = slugParts[0] || 'Autor LinkedIn';
       let rawTitle = slugParts[1] || '';
-      
+
       // Capitalize author name and replace dashes/underscores with spaces
       author = rawAuthor
         .split('-')
@@ -433,10 +433,10 @@ function parseLinkedInUrl(url) {
         .split('_')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
-        
+
       // Inject spaces in camelCase usernames
       author = author.replace(/([A-Z])/g, ' $1').replace(/\s+/g, ' ').trim();
-      
+
       // Format Title
       if (rawTitle) {
         let cleanTitle = rawTitle;
@@ -445,7 +445,7 @@ function parseLinkedInUrl(url) {
         // Strip ending hashes/numbers (like -7466926641567649792-YOqg)
         cleanTitle = cleanTitle.replace(/-\d+.*$/, '');
         cleanTitle = cleanTitle.replace(/-[a-zA-Z0-9]+$/, ''); // Strip last short hash if exists
-        
+
         title = cleanTitle
           .split('-')
           .map(word => word.charAt(0).toUpperCase() + word.slice(1))
@@ -457,7 +457,7 @@ function parseLinkedInUrl(url) {
       title = '';
       author = '';
     }
-    
+
     // Smart Category Inference (só se tiver título real)
     if (title) {
       const lowerTitle = title.toLowerCase();
@@ -474,7 +474,7 @@ function parseLinkedInUrl(url) {
         category = 'Bastidores Playbook';
       }
     }
-    
+
     return {
       author: author || '',
       title: title || '',
@@ -487,19 +487,19 @@ function parseLinkedInUrl(url) {
 }
 
 const CATEGORIES = [
-  'IA', 'Agentes de IA', 'Vendas', 'GTM', 'Automação', 
-  'RevOps', 'Conteúdo', 'LinkedIn', 'Produto', 'Mercado', 
+  'IA', 'Agentes de IA', 'Vendas', 'GTM', 'Automação',
+  'RevOps', 'Conteúdo', 'LinkedIn', 'Produto', 'Mercado',
   'Ferramentas', 'Bastidores Playbook', 'Outro'
 ];
 
 const CONTENT_TYPES = [
-  'Post LinkedIn', 'Carrossel', 'Vídeo curto', 'Vídeo longo', 
+  'Post LinkedIn', 'Carrossel', 'Vídeo curto', 'Vídeo longo',
   'Newsletter', 'Roteiro', 'Artigo', 'Ideia para live', 'Análise técnica'
 ];
 
 const QUICK_COMMENTS = [
-  'Bom para post', 'Bom para vídeo', 'Muito genérico', 
-  'Muito técnico', 'Já falamos disso', 'Precisa de dados', 
+  'Bom para post', 'Bom para vídeo', 'Muito genérico',
+  'Muito técnico', 'Já falamos disso', 'Precisa de dados',
   'Bom gancho', 'Boa provocação', 'Não combina com a Playbook'
 ];
 
@@ -756,15 +756,15 @@ function App() {
         .from('ideas')
         .select('*')
         .order('created_at', { ascending: false });
-        
+
       if (ideasErr) throw ideasErr;
-      
+
       const { data: dbVotes, error: votesErr } = await supabase
         .from('votes')
         .select('*');
-        
+
       if (votesErr) throw votesErr;
-      
+
       // Seed Supabase with starter ideas if it's empty
       if (!dbIdeas || dbIdeas.length === 0) {
         const formattedSeed = seedIdeas.map(idea => ({
@@ -787,11 +787,11 @@ function App() {
           mock_comments_count: idea.mockCommentsCount,
           mock_reposts_count: idea.mockRepostsCount
         }));
-        
+
         const { error: seedErr } = await supabase
           .from('ideas')
           .insert(formattedSeed);
-          
+
         if (seedErr) {
           console.error('Seeding error:', seedErr);
         } else {
@@ -831,7 +831,7 @@ function App() {
         finalPostText: item.final_post_text,
         finalImageUrl: item.final_post_text ? item.image_url : ''
       }));
-      
+
       const mappedVotes = (dbVotes || []).map(item => ({
         id: item.id,
         createdAt: item.created_at,
@@ -904,7 +904,7 @@ function App() {
           prevIdea.imageUrl !== nextIdea.imageUrl
         )) {
           await supabase.from('ideas')
-            .update({ 
+            .update({
               manual_status: nextIdea.manualStatus,
               scheduled_at: nextIdea.scheduledAt || null,
               scheduled_assignee: nextIdea.scheduledAssignee || null,
@@ -926,7 +926,7 @@ function App() {
           .delete()
           .eq('idea_id', vote.ideaId)
           .eq('voter_name', vote.voterName);
-          
+
         await supabase.from('votes').insert([{
           id: vote.id,
           created_at: vote.createdAt || new Date().toISOString(),
@@ -1008,11 +1008,11 @@ function App() {
               <h1>Content Radar</h1>
               <p style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 Playbook Lab
-                <span 
-                  onClick={loadData} 
+                <span
+                  onClick={loadData}
                   className={isLoading ? "sync-dot loading" : "sync-dot synced"}
-                  style={{ 
-                    cursor: 'pointer', 
+                  style={{
+                    cursor: 'pointer',
                     fontSize: '11px',
                     lineHeight: 1
                   }}
@@ -1030,10 +1030,10 @@ function App() {
 
           <div className="user-panel">
             <div className="user-panel-avatar" style={{ padding: 0, overflow: 'hidden' }}>
-              <img 
-                src={USER_AVATARS[user]} 
-                alt={user} 
-                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
+              <img
+                src={USER_AVATARS[user]}
+                alt={user}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user)}&background=0a66c2&color=fff&bold=true`;
@@ -1049,14 +1049,14 @@ function App() {
           <nav className="nav-group">
             {user !== 'Felipe' && (
               <>
-                <button 
-                  className={view === 'vote' ? 'nav-link active' : 'nav-link'} 
+                <button
+                  className={view === 'vote' ? 'nav-link active' : 'nav-link'}
                   onClick={() => setView('vote')}
                 >
                   <LinkedinIcon size={14} /> Votar ideias
                 </button>
-                <button 
-                  className={view === 'ideas' ? 'nav-link active' : 'nav-link'} 
+                <button
+                  className={view === 'ideas' ? 'nav-link active' : 'nav-link'}
                   onClick={() => {
                     setCuratorFilter(`${user.toLowerCase()}_voted`);
                     setActiveFilter('todas');
@@ -1065,19 +1065,19 @@ function App() {
                 >
                   <FileText size={16} /> Minhas Curadorias
                 </button>
-                <button 
-                  className={view === 'calendar' ? 'nav-link active' : 'nav-link'} 
+                <button
+                  className={view === 'calendar' ? 'nav-link active' : 'nav-link'}
                   onClick={() => setView('calendar')}
                 >
                   <Calendar size={16} /> Calendário Editorial
                 </button>
               </>
             )}
-            
+
             {user === 'Felipe' && (
               <>
-                <button 
-                  className={view === 'dashboard' ? 'nav-link active' : 'nav-link'} 
+                <button
+                  className={view === 'dashboard' ? 'nav-link active' : 'nav-link'}
                   onClick={() => leaveMetrics('dashboard')}
                 >
                   <BarChart3 size={16} /> Dashboard
@@ -1088,14 +1088,14 @@ function App() {
                 >
                   <TrendingUp size={16} /> Métricas
                 </button>
-                <button 
-                  className={view === 'new' ? 'nav-link active' : 'nav-link'} 
+                <button
+                  className={view === 'new' ? 'nav-link active' : 'nav-link'}
                   onClick={() => setView('new')}
                 >
                   <Plus size={16} /> Nova ideia
                 </button>
-                <button 
-                  className={view === 'ideas' ? 'nav-link active' : 'nav-link'} 
+                <button
+                  className={view === 'ideas' ? 'nav-link active' : 'nav-link'}
                   onClick={() => {
                     setCuratorFilter('todos');
                     setActiveFilter('todas');
@@ -1104,14 +1104,14 @@ function App() {
                 >
                   <FileText size={16} /> Listagem de Ideias
                 </button>
-                <button 
-                  className={view === 'calendar' ? 'nav-link active' : 'nav-link'} 
+                <button
+                  className={view === 'calendar' ? 'nav-link active' : 'nav-link'}
                   onClick={() => setView('calendar')}
                 >
                   <Calendar size={16} /> Calendário Editorial
                 </button>
-                <button 
-                  className={view === 'data' ? 'nav-link active' : 'nav-link'} 
+                <button
+                  className={view === 'data' ? 'nav-link active' : 'nav-link'}
                   onClick={() => setView('data')}
                 >
                   <Download size={16} /> Dados / Exportar
@@ -1124,8 +1124,8 @@ function App() {
             <div className="sidebar-votes-section">
               <h3>Suas decisões</h3>
               <div className="sidebar-vote-items">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="sidebar-vote-item like interactive"
                   onClick={() => {
                     setCuratorFilter(`${user.toLowerCase()}_like`);
@@ -1139,8 +1139,8 @@ function App() {
                   </span>
                   <span className="count">{userCurationStats.like}</span>
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="sidebar-vote-item maybe interactive"
                   onClick={() => {
                     setCuratorFilter(`${user.toLowerCase()}_maybe`);
@@ -1154,8 +1154,8 @@ function App() {
                   </span>
                   <span className="count">{userCurationStats.maybe}</span>
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="sidebar-vote-item dislike interactive"
                   onClick={() => {
                     setCuratorFilter(`${user.toLowerCase()}_dislike`);
@@ -1184,19 +1184,19 @@ function App() {
       {user ? (
         <main className="main-area">
           {view === 'vote' && user !== 'Felipe' && (
-            <VoteView 
-              user={user} 
-              ideas={enrichedIdeas} 
-              votes={state.votes} 
-              updateState={updateState} 
+            <VoteView
+              user={user}
+              ideas={enrichedIdeas}
+              votes={state.votes}
+              updateState={updateState}
               addToast={addToast}
               onBackToSelect={() => setUser(null)}
             />
           )}
           {view === 'dashboard' && user === 'Felipe' && (
-            <DashboardView 
-              ideas={enrichedIdeas} 
-              votes={state.votes} 
+            <DashboardView
+              ideas={enrichedIdeas}
+              votes={state.votes}
               updateState={updateState}
               addToast={addToast}
               onScheduleIdea={(idea) => setSchedulingIdea(idea)}
@@ -1231,12 +1231,12 @@ function App() {
             />
           )}
           {view === 'ideas' && (
-            <IdeasListView 
-              ideas={enrichedIdeas} 
+            <IdeasListView
+              ideas={enrichedIdeas}
               votes={state.votes}
-              updateState={updateState} 
-              query={query} 
-              setQuery={setQuery} 
+              updateState={updateState}
+              query={query}
+              setQuery={setQuery}
               addToast={addToast}
               curatorFilter={curatorFilter}
               setCuratorFilter={setCuratorFilter}
@@ -1248,9 +1248,9 @@ function App() {
             />
           )}
           {view === 'calendar' && (
-            <CalendarView 
-              ideas={enrichedIdeas} 
-              updateState={updateState} 
+            <CalendarView
+              ideas={enrichedIdeas}
+              updateState={updateState}
               currentUser={user}
               onScheduleIdea={(idea) => setSchedulingIdea(idea)}
               onScheduleDate={(date) => setSchedulingDate(date)}
@@ -1271,18 +1271,18 @@ function App() {
         <div className="mobile-bottom-nav">
           {user !== 'Felipe' ? (
             <>
-              <button 
-                type="button" 
-                className={view === 'vote' ? 'mobile-nav-item active' : 'mobile-nav-item'} 
+              <button
+                type="button"
+                className={view === 'vote' ? 'mobile-nav-item active' : 'mobile-nav-item'}
                 onClick={() => setView('vote')}
               >
                 <ThumbsUp size={18} />
                 <span>Votar</span>
               </button>
-              
-              <button 
-                type="button" 
-                className={view === 'ideas' ? 'mobile-nav-item active' : 'mobile-nav-item'} 
+
+              <button
+                type="button"
+                className={view === 'ideas' ? 'mobile-nav-item active' : 'mobile-nav-item'}
                 onClick={() => {
                   setCuratorFilter(`${user.toLowerCase()}_voted`);
                   setActiveFilter('todas');
@@ -1293,18 +1293,18 @@ function App() {
                 <span>Curadorias</span>
               </button>
 
-              <button 
-                type="button" 
-                className={view === 'calendar' ? 'mobile-nav-item active' : 'mobile-nav-item'} 
+              <button
+                type="button"
+                className={view === 'calendar' ? 'mobile-nav-item active' : 'mobile-nav-item'}
                 onClick={() => setView('calendar')}
               >
                 <Calendar size={18} />
                 <span>Agenda</span>
               </button>
 
-              <button 
-                type="button" 
-                className="mobile-nav-item" 
+              <button
+                type="button"
+                className="mobile-nav-item"
                 onClick={() => setUser(null)}
               >
                 <RotateCcw size={18} />
@@ -1313,9 +1313,9 @@ function App() {
             </>
           ) : (
             <>
-              <button 
-                type="button" 
-                className={view === 'dashboard' ? 'mobile-nav-item active' : 'mobile-nav-item'} 
+              <button
+                type="button"
+                className={view === 'dashboard' ? 'mobile-nav-item active' : 'mobile-nav-item'}
                 onClick={() => leaveMetrics('dashboard')}
               >
                 <BarChart3 size={18} />
@@ -1330,19 +1330,19 @@ function App() {
                 <TrendingUp size={18} />
                 <span>Métricas</span>
               </button>
-              
-              <button 
-                type="button" 
-                className={view === 'new' ? 'mobile-nav-item active' : 'mobile-nav-item'} 
+
+              <button
+                type="button"
+                className={view === 'new' ? 'mobile-nav-item active' : 'mobile-nav-item'}
                 onClick={() => setView('new')}
               >
                 <Plus size={18} />
                 <span>Nova</span>
               </button>
 
-              <button 
-                type="button" 
-                className={view === 'ideas' ? 'mobile-nav-item active' : 'mobile-nav-item'} 
+              <button
+                type="button"
+                className={view === 'ideas' ? 'mobile-nav-item active' : 'mobile-nav-item'}
                 onClick={() => {
                   setCuratorFilter('todos');
                   setActiveFilter('todas');
@@ -1353,18 +1353,18 @@ function App() {
                 <span>Acervo</span>
               </button>
 
-              <button 
-                type="button" 
-                className={view === 'calendar' ? 'mobile-nav-item active' : 'mobile-nav-item'} 
+              <button
+                type="button"
+                className={view === 'calendar' ? 'mobile-nav-item active' : 'mobile-nav-item'}
                 onClick={() => setView('calendar')}
               >
                 <Calendar size={18} />
                 <span>Agenda</span>
               </button>
 
-              <button 
-                type="button" 
-                className="mobile-nav-item" 
+              <button
+                type="button"
+                className="mobile-nav-item"
                 onClick={() => setUser(null)}
               >
                 <RotateCcw size={18} />
@@ -1377,27 +1377,27 @@ function App() {
 
       {/* Editorial Calendar Scheduling Modal */}
       {(schedulingIdea || schedulingDate) && (
-        <SchedulerModal 
-          idea={schedulingIdea} 
+        <SchedulerModal
+          idea={schedulingIdea}
           preselectedDate={schedulingDate}
           unscheduledIdeas={enrichedIdeas.filter(i => !i.scheduledAt && (i.computedStatus === 'aprovado' || i.computedStatus === 'em_producao' || i.computedStatus === 'avaliar'))}
           onClose={() => {
             setSchedulingIdea(null);
             setSchedulingDate(null);
-          }} 
-          updateState={updateState} 
-          addToast={addToast} 
+          }}
+          updateState={updateState}
+          addToast={addToast}
         />
       )}
 
       {/* Editorial Publisher Studio Modal */}
       {studioIdea && (
-        <PublisherStudioModal 
-          idea={studioIdea} 
-          currentUser={user} 
-          onClose={() => setStudioIdea(null)} 
-          updateState={updateState} 
-          addToast={addToast} 
+        <PublisherStudioModal
+          idea={studioIdea}
+          currentUser={user}
+          onClose={() => setStudioIdea(null)}
+          updateState={updateState}
+          addToast={addToast}
         />
       )}
 
@@ -1417,9 +1417,9 @@ function App() {
 // ==================== IDENTITY/LOGIN SCREEN ====================
 function IdentityScreen({ selectUser, ideas, votes }) {
   const pendingFor = name => {
-    return ideas.filter(idea => 
-      idea.manualStatus !== 'arquivada' && 
-      idea.manualStatus !== 'publicada' && 
+    return ideas.filter(idea =>
+      idea.manualStatus !== 'arquivada' &&
+      idea.manualStatus !== 'publicada' &&
       !votes.some(v => v.ideaId === idea.id && v.voterName === name)
     ).length;
   };
@@ -1437,11 +1437,11 @@ function IdentityScreen({ selectUser, ideas, votes }) {
         <div className="identity-grid">
           <button onClick={() => selectUser('Victor')}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <img 
-                className="avatar-initial" 
-                src={USER_AVATARS.Victor} 
-                alt="Victor" 
-                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} 
+              <img
+                className="avatar-initial"
+                src={USER_AVATARS.Victor}
+                alt="Victor"
+                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = `https://ui-avatars.com/api/?name=Victor&background=057642&color=fff&bold=true`;
@@ -1455,14 +1455,14 @@ function IdentityScreen({ selectUser, ideas, votes }) {
               <span style={{ color: 'var(--vote-green)', fontSize: '12px', fontWeight: 600 }}>Tudo limpo</span>
             )}
           </button>
-          
+
           <button onClick={() => selectUser('Fernando')}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <img 
-                className="avatar-initial" 
-                src={USER_AVATARS.Fernando} 
-                alt="Fernando" 
-                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} 
+              <img
+                className="avatar-initial"
+                src={USER_AVATARS.Fernando}
+                alt="Fernando"
+                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = `https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff&bold=true`;
@@ -1479,11 +1479,11 @@ function IdentityScreen({ selectUser, ideas, votes }) {
 
           <button className="admin-btn" onClick={() => selectUser('Felipe')}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <img 
-                className="avatar-initial" 
-                src={USER_AVATARS.Felipe} 
-                alt="Felipe" 
-                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} 
+              <img
+                className="avatar-initial"
+                src={USER_AVATARS.Felipe}
+                alt="Felipe"
+                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = `https://ui-avatars.com/api/?name=Felipe&background=0a66c2&color=fff&bold=true`;
@@ -1502,9 +1502,9 @@ function IdentityScreen({ selectUser, ideas, votes }) {
 // ==================== SWIPE & VOTE SCREEN ====================
 function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect }) {
   const pending = useMemo(() => {
-    return ideas.filter(idea => 
-      idea.manualStatus !== 'arquivada' && 
-      idea.manualStatus !== 'publicada' && 
+    return ideas.filter(idea =>
+      idea.manualStatus !== 'arquivada' &&
+      idea.manualStatus !== 'publicada' &&
       !votes.some(v => v.ideaId === idea.id && v.voterName === user)
     );
   }, [ideas, votes, user]);
@@ -1514,7 +1514,7 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
   const [currentVote, setCurrentVote] = useState(null); // 'like' | 'maybe' | 'dislike'
   const [customComment, setCustomComment] = useState('');
   const [selectedQuickComment, setSelectedQuickComment] = useState('');
-  
+
   const current = pending[index];
 
   // Motion values — apenas o eixo X é usado para votar (swipe horizontal).
@@ -1540,9 +1540,9 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
 
   function handleSaveVote(withComment = true) {
     if (!current) return;
-    
-    const finalComment = withComment 
-      ? (selectedQuickComment ? `[${selectedQuickComment}] ${customComment}`.trim() : customComment.trim()) 
+
+    const finalComment = withComment
+      ? (selectedQuickComment ? `[${selectedQuickComment}] ${customComment}`.trim() : customComment.trim())
       : '';
 
     updateState(prev => ({
@@ -1561,7 +1561,7 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
     }));
 
     addToast(`Voto "${voteLabel(currentVote)}" registrado!`);
-    
+
     // reset states
     setCommentPanelOpen(false);
     setCurrentVote(null);
@@ -1574,7 +1574,7 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
   // Keyboard curation listeners for desktop efficiency
   React.useEffect(() => {
     if (commentPanelOpen || !current) return;
-    
+
     function handleKeyDown(e) {
       const key = e.key.toLowerCase();
       if (key === 'arrowright' || key === 'd') {
@@ -1592,7 +1592,7 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
         setCommentPanelOpen(true);
       }
     }
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [commentPanelOpen, current]);
@@ -1690,14 +1690,14 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
                     Rejeitado
                   </motion.div>
 
-                  <LinkedInCard 
-                    idea={current} 
+                  <LinkedInCard
+                    idea={current}
                     comments={ideaComments}
-                    onVote={handleVoteTrigger} 
+                    onVote={handleVoteTrigger}
                     onOpenComment={() => {
                       setCurrentVote('maybe');
                       setCommentPanelOpen(true);
-                    }} 
+                    }}
                     addToast={addToast}
                   />
                 </motion.div>
@@ -1706,16 +1706,16 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
 
             {/* Tinder Curation Control Dock */}
             <div className="playbook-tinder-dock">
-              <button 
-                className="tinder-btn dislike" 
+              <button
+                className="tinder-btn dislike"
                 onClick={() => handleVoteTrigger('dislike')}
                 title="Não Gostei (Esquerda / A)"
               >
                 <X size={20} />
               </button>
-              
-              <button 
-                className="tinder-btn maybe" 
+
+              <button
+                className="tinder-btn maybe"
                 onClick={() => {
                   setCurrentVote('maybe');
                   setCommentPanelOpen(true);
@@ -1725,16 +1725,16 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
                 <Lightbulb size={20} />
               </button>
 
-              <button 
-                className="tinder-btn like" 
+              <button
+                className="tinder-btn like"
                 onClick={() => handleVoteTrigger('like')}
                 title="Gostei (Direita / D)"
               >
                 <ThumbsUp size={20} />
               </button>
 
-              <button 
-                className="tinder-btn comment" 
+              <button
+                className="tinder-btn comment"
                 onClick={() => {
                   setCurrentVote('maybe');
                   setCommentPanelOpen(true);
@@ -1756,10 +1756,10 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
           <div className="sidebar-widget curador-widget">
             <div className="curador-header-cover"></div>
             <div className="curador-badge-avatar" style={{ padding: 0, overflow: 'hidden' }}>
-              <img 
-                src={USER_AVATARS[user]} 
-                alt={user} 
-                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
+              <img
+                src={USER_AVATARS[user]}
+                alt={user}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
                 onError={(e) => {
                   e.target.onerror = null;
                   e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user)}&background=0a66c2&color=fff&bold=true`;
@@ -1818,7 +1818,7 @@ function VoteView({ user, ideas, votes, updateState, addToast, onBackToSelect })
                 Deseja justificar ou classificar?
               </h4>
               <p className="desc">Aperte um atalho rápido ou descreva o direcionamento para o redator.</p>
-              
+
               <div className="comment-tags-grid">
                 {QUICK_COMMENTS.map(tag => (
                   <button
@@ -1874,10 +1874,10 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
       <div className="li-post-header">
         <div className="li-post-author-row">
           {idea.authorAvatar ? (
-            <img 
-              className="li-post-avatar-img" 
-              src={idea.authorAvatar} 
-              alt={idea.sourceAuthor} 
+            <img
+              className="li-post-avatar-img"
+              src={idea.authorAvatar}
+              alt={idea.sourceAuthor}
               onError={(e) => {
                 e.target.onerror = null;
                 e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(idea.sourceAuthor || 'Autor')}&background=0a66c2&color=fff&bold=true`;
@@ -1888,7 +1888,7 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
           )}
           <div className="li-post-author-meta">
             <span className="li-post-author-name">
-              {idea.sourceAuthor || 'Autor LinkedIn'} 
+              {idea.sourceAuthor || 'Autor LinkedIn'}
               <span className="li-premium-badge">in</span>
               <span className="li-post-connection-degree">• 2nd</span>
             </span>
@@ -1902,10 +1902,10 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
         </div>
         <div className="li-post-header-actions">
           {idea.linkedinUrl && (
-            <a 
-              href={idea.linkedinUrl} 
-              target="_blank" 
-              rel="noopener noreferrer" 
+            <a
+              href={idea.linkedinUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               className="li-post-connect-btn"
               style={{
                 display: 'inline-flex',
@@ -1942,10 +1942,10 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
       {/* Edge to Edge Image inside card */}
       {idea.imageUrl && !imageError && (
         <div className="li-post-image-wrap">
-          <img 
-            className="li-post-image" 
-            src={idea.imageUrl} 
-            alt="Imagem de referência do LinkedIn" 
+          <img
+            className="li-post-image"
+            src={idea.imageUrl}
+            alt="Imagem de referência do LinkedIn"
             onError={() => setImageError(true)}
             onClick={() => setLightboxOpen(true)}
             style={{ cursor: 'pointer', transition: 'transform 0.2s ease' }}
@@ -1958,7 +1958,7 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
       {/* Immersive Glassmorphic Lightbox Modal */}
       <AnimatePresence>
         {lightboxOpen && (
-          <motion.div 
+          <motion.div
             className="playbook-lightbox-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1981,7 +1981,7 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
             }}
           >
             {/* Close Button */}
-            <button 
+            <button
               type="button"
               className="playbook-lightbox-close"
               onClick={(e) => { e.stopPropagation(); setLightboxOpen(false); }}
@@ -2009,8 +2009,8 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
             </button>
 
             {/* Immersive Image Frame */}
-            <motion.img 
-              src={idea.imageUrl} 
+            <motion.img
+              src={idea.imageUrl}
               alt="Imagem de referência ampliada"
               initial={{ scale: 0.95, y: 15 }}
               animate={{ scale: 1, y: 0 }}
@@ -2054,10 +2054,10 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
           {comments.map(c => (
             <div key={c.id} className="li-comment-item">
               <div className="li-comment-avatar" style={{ padding: 0, overflow: 'hidden' }}>
-                <img 
-                  src={USER_AVATARS[c.voterName] || USER_AVATARS.Felipe} 
-                  alt={c.voterName} 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
+                <img
+                  src={USER_AVATARS[c.voterName] || USER_AVATARS.Felipe}
+                  alt={c.voterName}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
                   onError={(e) => {
                     e.target.onerror = null;
                     e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.voterName)}&background=0a66c2&color=fff&bold=true`;
@@ -2090,17 +2090,17 @@ function LinkedInCard({ idea, comments = [], onVote, onOpenComment, addToast }) 
           <RepostIcon size={16} />
           <span>Compartilhar</span>
         </button>
-        <button 
-          className="li-post-action-btn" 
-          onClick={(e) => { 
-            e.stopPropagation(); 
+        <button
+          className="li-post-action-btn"
+          onClick={(e) => {
+            e.stopPropagation();
             if (idea.linkedinUrl) {
               navigator.clipboard.writeText(idea.linkedinUrl);
               addToast("Link copiado para a área de transferência!", "success");
             } else {
               addToast("Link do LinkedIn indisponível para cópia.", "error");
             }
-          }} 
+          }}
           title="Copiar link do post"
         >
           <SendIcon size={16} />
@@ -2143,15 +2143,15 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
     const rejeitadas = ideas.filter(i => i.computedStatus === 'rejeitado').length;
     const divergentes = ideas.filter(i => i.computedStatus === 'divergente').length;
     const pendentes = ideas.filter(i => i.computedStatus === 'pendente' || i.computedStatus === 'aguardando outro voto').length;
-    
+
     // Calculated KPI indices
     const totalVotos = votes.length;
     const aprovacaoRate = total > 0 ? Math.round((aprovados / total) * 100) : 0;
-    
+
     // Decisions efficiency: fraction of items with a concrete non-pending status (approved, rejected, production, published)
     const comDecisao = ideas.filter(i => ['aprovado', 'rejeitado', 'em_producao', 'publicada'].includes(i.computedStatus)).length;
     const decisaoRate = total > 0 ? Math.round((comDecisao / total) * 100) : 0;
-    
+
     // Pending items count across both curators
     const pendingVictorCount = ideas.filter(i => i.computedStatus !== 'arquivada' && i.computedStatus !== 'publicada' && !votes.some(v => v.ideaId === i.id && v.voterName === 'Victor')).length;
     const pendingFernandoCount = ideas.filter(i => i.computedStatus !== 'arquivada' && i.computedStatus !== 'publicada' && !votes.some(v => v.ideaId === i.id && v.voterName === 'Fernando')).length;
@@ -2251,8 +2251,8 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
       };
     });
     addToast(
-      finalDecision === 'aprovado' 
-        ? "Pauta conciliada e aprovada com sucesso!" 
+      finalDecision === 'aprovado'
+        ? "Pauta conciliada e aprovada com sucesso!"
         : "Pauta conciliada e arquivada com sucesso!",
       "success"
     );
@@ -2282,7 +2282,7 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
         <div className="li-company-profile-row">
           <img
             className="li-company-avatar"
-            src={playbookLogo}
+            src="/logo.png?v=2"
             alt="Playbook Lab Logo"
             style={{ borderRadius: '12px', border: '3px solid #ffffff', objectFit: 'cover', background: '#ffffff' }}
           />
@@ -2297,9 +2297,9 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
             <p className="li-company-details">Serviços de consultoria empresarial • São Paulo, SP • 43 funcionários</p>
           </div>
           <div className="li-company-actions" style={{ gap: '10px' }}>
-            <button 
-              type="button" 
-              className="li-btn-primary" 
+            <button
+              type="button"
+              className="li-btn-primary"
               onClick={() => onNavigateToIdeas && onNavigateToIdeas('todos')}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 20px', borderRadius: '100px' }}
             >
@@ -2307,10 +2307,10 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
             </button>
           </div>
         </div>
-        
+
         {/* Flat horizontal navigation tabs */}
         <div className="li-admin-tabs">
-          <button 
+          <button
             type="button"
             className={activeTab === 'curation' ? 'li-admin-tab active' : 'li-admin-tab'}
             onClick={() => setActiveTab('curation')}
@@ -2318,7 +2318,7 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
           >
             <Zap size={14} /> Curation Hub
           </button>
-          <button 
+          <button
             type="button"
             className={activeTab === 'analytics' ? 'li-admin-tab active' : 'li-admin-tab'}
             onClick={() => setActiveTab('analytics')}
@@ -2326,7 +2326,7 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
           >
             <BarChart3 size={14} /> Métricas & Analytics
           </button>
-          <button 
+          <button
             type="button"
             className={activeTab === 'activity' ? 'li-admin-tab active' : 'li-admin-tab'}
             onClick={() => setActiveTab('activity')}
@@ -2373,14 +2373,14 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
 
       {/* 3-Column LinkedIn Feed Style Layout */}
       <div className="li-three-columns">
-        
+
         {/* Left Column: Metrics and Stats widget */}
         <aside className="li-column-left">
           <div className="li-sidebar-widget shadow-li" style={{ borderRadius: '12px' }}>
             <h3 style={{ fontSize: '13px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.04em' }}>Painel do Criador</h3>
             <p className="desc" style={{ fontSize: '11px', color: '#94a3b8' }}>Desempenho editorial das referências</p>
             <hr className="divider" />
-            
+
             <div className="li-metric-row">
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FileText size={13} /> Mapeadas</span>
               <strong>{stats.total}</strong>
@@ -2435,10 +2435,10 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                         <div className="li-feed-post-header">
                           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                             {item.authorAvatar ? (
-                              <img 
-                                className="li-feed-post-avatar-img" 
-                                src={item.authorAvatar} 
-                                alt={item.sourceAuthor} 
+                              <img
+                                className="li-feed-post-avatar-img"
+                                src={item.authorAvatar}
+                                alt={item.sourceAuthor}
                                 onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sourceAuthor || 'Autor')}&background=0a66c2&color=fff&bold=true`; }}
                               />
                             ) : (
@@ -2479,14 +2479,14 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                             {item.category} • {item.contentType}
                           </span>
                           <div className="li-action-btn-group">
-                            <button 
+                            <button
                               type="button"
                               className="li-feed-pill-btn primary"
                               onClick={() => onScheduleIdea && onScheduleIdea(item)}
                             >
                               <Calendar size={12} /> Agendar
                             </button>
-                            <button 
+                            <button
                               type="button"
                               className="li-feed-pill-btn secondary"
                               onClick={() => onNavigateToIdeas && onNavigateToIdeas('todos')}
@@ -2519,17 +2519,17 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                     {divergentIdeas.map(item => {
                       const victorVote = votes.find(v => v.ideaId === item.id && v.voterName === 'Victor');
                       const fernandoVote = votes.find(v => v.ideaId === item.id && v.voterName === 'Fernando');
-                      
+
                       return (
                         <div key={item.id} className="li-feed-post-card" style={{ border: '1px solid #fca5a5' }}>
                           {/* Post Header */}
                           <div className="li-feed-post-header">
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                               {item.authorAvatar ? (
-                                <img 
-                                  className="li-feed-post-avatar-img" 
-                                  src={item.authorAvatar} 
-                                  alt={item.sourceAuthor} 
+                                <img
+                                  className="li-feed-post-avatar-img"
+                                  src={item.authorAvatar}
+                                  alt={item.sourceAuthor}
                                   onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sourceAuthor || 'Autor')}&background=0a66c2&color=fff&bold=true`; }}
                                 />
                               ) : (
@@ -2567,12 +2567,12 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                           {/* Curator Comments nested exactly like native LinkedIn Comments */}
                           <div className="li-feed-comments-section">
                             <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(0,0,0,0.6)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>Discussão da Curadoria</span>
-                            
+
                             {/* Victor's Comment Bubble */}
                             <div className="li-feed-comment-item">
-                              <img 
-                                src={USER_AVATARS.Victor} 
-                                alt="Victor" 
+                              <img
+                                src={USER_AVATARS.Victor}
+                                alt="Victor"
                                 className="li-feed-comment-avatar"
                                 onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Victor&background=057642&color=fff"; }}
                               />
@@ -2587,9 +2587,9 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
 
                             {/* Fernando's Comment Bubble */}
                             <div className="li-feed-comment-item">
-                              <img 
-                                src={USER_AVATARS.Fernando} 
-                                alt="Fernando" 
+                              <img
+                                src={USER_AVATARS.Fernando}
+                                alt="Fernando"
                                 className="li-feed-comment-avatar"
                                 onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff"; }}
                               />
@@ -2609,15 +2609,15 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                               {item.category} • {item.contentType}
                             </span>
                             <div className="li-action-btn-group">
-                              <button 
-                                type="button" 
+                              <button
+                                type="button"
                                 className="li-feed-pill-btn success"
                                 onClick={() => handleConciliation(item.id, 'aprovado')}
                               >
                                 <Check size={12} /> Aprovar Pauta
                               </button>
-                              <button 
-                                type="button" 
+                              <button
+                                type="button"
                                 className="li-feed-pill-btn danger"
                                 onClick={() => handleConciliation(item.id, 'rejeitado')}
                               >
@@ -2652,17 +2652,17 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                     {evaluatingIdeas.map(item => {
                       const victorVote = votes.find(v => v.ideaId === item.id && v.voterName === 'Victor');
                       const fernandoVote = votes.find(v => v.ideaId === item.id && v.voterName === 'Fernando');
-                      
+
                       return (
                         <div key={item.id} className="li-feed-post-card">
                           {/* Post Header */}
                           <div className="li-feed-post-header">
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                               {item.authorAvatar ? (
-                                <img 
-                                  className="li-feed-post-avatar-img" 
-                                  src={item.authorAvatar} 
-                                  alt={item.sourceAuthor} 
+                                <img
+                                  className="li-feed-post-avatar-img"
+                                  src={item.authorAvatar}
+                                  alt={item.sourceAuthor}
                                   onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sourceAuthor || 'Autor')}&background=0a66c2&color=fff&bold=true`; }}
                                 />
                               ) : (
@@ -2700,12 +2700,12 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                           {/* Curators evaluation comments section */}
                           <div className="li-feed-comments-section">
                             <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(0,0,0,0.6)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '4px' }}>Observações e Votos</span>
-                            
+
                             {/* Victor status comment */}
                             <div className="li-feed-comment-item">
-                              <img 
-                                src={USER_AVATARS.Victor} 
-                                alt="Victor" 
+                              <img
+                                src={USER_AVATARS.Victor}
+                                alt="Victor"
                                 className="li-feed-comment-avatar"
                                 onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Victor&background=057642&color=fff"; }}
                               />
@@ -2724,9 +2724,9 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
 
                             {/* Fernando status comment */}
                             <div className="li-feed-comment-item">
-                              <img 
-                                src={USER_AVATARS.Fernando} 
-                                alt="Fernando" 
+                              <img
+                                src={USER_AVATARS.Fernando}
+                                alt="Fernando"
                                 className="li-feed-comment-avatar"
                                 onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff"; }}
                               />
@@ -2753,15 +2753,15 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                               {renderScoreColumn(getScore(item, votes), getSuggestedDecision(item.computedStatus, getScore(item, votes)))}
                             </div>
                             <div className="li-action-btn-group">
-                              <button 
-                                type="button" 
+                              <button
+                                type="button"
                                 className="li-feed-pill-btn primary"
                                 onClick={() => handleManualAction(item.id, 'aprovado')}
                               >
                                 Forçar Aprovação
                               </button>
-                              <button 
-                                type="button" 
+                              <button
+                                type="button"
                                 className="li-feed-pill-btn secondary"
                                 onClick={() => handleManualAction(item.id, 'arquivada')}
                               >
@@ -2796,9 +2796,9 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                           <strong style={{ color: '#0a66c2' }}>{item.score} pontos</strong>
                         </div>
                         <div className="li-chart-bar-outer" style={{ height: '8px', background: '#f1f5f9' }}>
-                          <div 
-                            className="li-chart-bar-inner" 
-                            style={{ 
+                          <div
+                            className="li-chart-bar-inner"
+                            style={{
                               width: `${item.percentage}%`,
                               background: 'linear-gradient(to right, #0a66c2, #3b82f6)',
                               boxShadow: '0 1px 3px rgba(10, 102, 194, 0.3)'
@@ -2813,7 +2813,7 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
 
               {/* Right Column: Breakdown metrics */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                
+
                 {/* Priority distribution */}
                 <div className="metrics-secondary-card shadow-li" style={{ borderRadius: '12px' }}>
                   <h3>Distribuição de Prioridades</h3>
@@ -2880,20 +2880,20 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                   {votes.slice(0, 10).map(v => {
                     const idea = ideas.find(i => i.id === v.ideaId);
                     const ideaTitle = idea?.title || 'Pauta Mapeada';
-                    
+
                     return (
                       <div key={v.id} className="activity-timeline-item">
                         <div className="activity-timeline-node"></div>
                         <div className="timeline-item-inner">
                           <div className="timeline-avatar-wrap">
-                            <img 
-                              src={USER_AVATARS[v.voterName] || USER_AVATARS.Felipe} 
-                              alt={v.voterName} 
+                            <img
+                              src={USER_AVATARS[v.voterName] || USER_AVATARS.Felipe}
+                              alt={v.voterName}
                               className="timeline-avatar-img"
                               onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(v.voterName)}&background=0a66c2&color=fff`; }}
                             />
                           </div>
-                          
+
                           <div className="timeline-content-wrap">
                             <div className="timeline-content-top">
                               <span className="timeline-user-info">
@@ -2903,10 +2903,10 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                                 {voteLabel(v.vote)}
                               </span>
                             </div>
-                            
+
                             <span className="timeline-time-ago">{new Date(v.createdAt).toLocaleString('pt-BR')}</span>
                             <p className="timeline-target-title">Pauta: "{ideaTitle}"</p>
-                            
+
                             {v.comment && (
                               <div className="timeline-comment-box">
                                 "{v.comment}"
@@ -2922,16 +2922,16 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
             </div>
           )}
         </main>
- 
+
         {/* Right Column: Pending voters / Curation boxes */}
         <aside className="li-column-right">
           <div className="li-sidebar-widget shadow-li" style={{ borderRadius: '12px' }}>
             <h3 style={{ fontSize: '13px', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.04em' }}>Pendências</h3>
             <p className="desc" style={{ fontSize: '11px', color: '#94a3b8' }}>Ações pendentes na caixa de entrada</p>
             <hr className="divider" />
-             
+
             <div className="li-pending-voters-list" style={{ gap: '10px' }}>
-              <button 
+              <button
                 type="button"
                 className="li-pending-voter-card victor"
                 onClick={() => onNavigateToIdeas && onNavigateToIdeas('victor_pending')}
@@ -2939,10 +2939,10 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
               >
                 <div className="voter-info">
                   <div className="avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <img 
-                      src={USER_AVATARS.Victor} 
-                      alt="Victor" 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
+                    <img
+                      src={USER_AVATARS.Victor}
+                      alt="Victor"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
                       onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=Victor&background=057642&color=fff&bold=true`; }}
                     />
                   </div>
@@ -2955,8 +2955,8 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                   {pendingVictor}
                 </strong>
               </button>
- 
-              <button 
+
+              <button
                 type="button"
                 className="li-pending-voter-card fernando"
                 onClick={() => onNavigateToIdeas && onNavigateToIdeas('fernando_pending')}
@@ -2964,10 +2964,10 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
               >
                 <div className="voter-info">
                   <div className="avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <img 
-                      src={USER_AVATARS.Fernando} 
-                      alt="Fernando" 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} 
+                    <img
+                      src={USER_AVATARS.Fernando}
+                      alt="Fernando"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
                       onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff&bold=true`; }}
                     />
                   </div>
@@ -3229,7 +3229,7 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
 
     } catch (err) {
       console.error('LinkedIn scrape failed:', err);
-      
+
       // Fallback final: extrair dados básicos da URL
       const parsed = parseLinkedInUrl(targetUrl);
       if (parsed && (parsed.title || parsed.author)) {
@@ -3424,19 +3424,19 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--linkedin-dark-gray)' }}>Link Original do Post (LinkedIn) *</span>
             {form.linkedinUrl && (
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={handleAutofill}
                 disabled={isImporting}
-                style={{ 
-                  fontSize: '11px', 
-                  color: '#ffffff', 
-                  fontWeight: 700, 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
-                  gap: '4px', 
-                  padding: '5px 14px', 
-                  borderRadius: '100px', 
+                style={{
+                  fontSize: '11px',
+                  color: '#ffffff',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '5px 14px',
+                  borderRadius: '100px',
                   background: isImporting ? '#8bb7e0' : '#0a66c2',
                   border: 'none',
                   cursor: isImporting ? 'wait' : 'pointer',
@@ -3448,40 +3448,40 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
               </button>
             )}
           </div>
-          <input 
-            value={form.linkedinUrl} 
-            onChange={e => update('linkedinUrl', e.target.value)} 
-            placeholder="https://www.linkedin.com/posts/nome-autor_slug-do-post..." 
+          <input
+            value={form.linkedinUrl}
+            onChange={e => update('linkedinUrl', e.target.value)}
+            placeholder="https://www.linkedin.com/posts/nome-autor_slug-do-post..."
             required
           />
         </div>
 
         <label>
           Título Interno / Tema Principal *
-          <input 
-            value={form.title} 
-            onChange={e => update('title', e.target.value)} 
+          <input
+            value={form.title}
+            onChange={e => update('title', e.target.value)}
             placeholder="Ex: Engenheiro de Dados Pleno - Seguros"
-            required 
+            required
           />
         </label>
 
         <div className="form-grid-2">
           <label>
             Nome do Autor do Post
-            <input 
-              value={form.sourceAuthor} 
-              onChange={e => update('sourceAuthor', e.target.value)} 
-              placeholder="Ex: Raphaela Sylvestre Oliveira" 
+            <input
+              value={form.sourceAuthor}
+              onChange={e => update('sourceAuthor', e.target.value)}
+              placeholder="Ex: Raphaela Sylvestre Oliveira"
             />
           </label>
 
           <label>
             Cargo / Headline do Autor
-            <input 
-              value={form.authorHeadline} 
-              onChange={e => update('authorHeadline', e.target.value)} 
-              placeholder="Ex: Tech Recruiter Pleno" 
+            <input
+              value={form.authorHeadline}
+              onChange={e => update('authorHeadline', e.target.value)}
+              placeholder="Ex: Tech Recruiter Pleno"
             />
           </label>
         </div>
@@ -3489,10 +3489,10 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
         <div className="form-grid-2">
           <label>
             URL da Foto do Autor (Avatar)
-            <input 
-              value={form.authorAvatar} 
-              onChange={e => update('authorAvatar', e.target.value)} 
-              placeholder="https://exemplo.com/foto.jpg" 
+            <input
+              value={form.authorAvatar}
+              onChange={e => update('authorAvatar', e.target.value)}
+              placeholder="https://exemplo.com/foto.jpg"
             />
             <span style={{ fontSize: '11.5px', color: 'var(--linkedin-blue)', fontWeight: 600, marginTop: '4px', display: 'block', lineHeight: 1.3 }}>
               💡 <strong>Dica da Foto Real:</strong> Clique com o botão direito na foto do autor no LinkedIn, selecione <strong>"Copiar endereço da imagem"</strong> e cole neste campo!
@@ -3501,20 +3501,20 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
 
           <label>
             URL de Imagem / Print Anexo ao Post
-            <input 
-              value={form.imageUrl} 
-              onChange={e => update('imageUrl', e.target.value)} 
-              placeholder="https://..." 
+            <input
+              value={form.imageUrl}
+              onChange={e => update('imageUrl', e.target.value)}
+              placeholder="https://..."
             />
           </label>
         </div>
 
         <label>
           Texto Completo do Post {form.summary ? '✅' : '(Cole o texto do LinkedIn)'}
-          <textarea 
-            value={form.summary} 
-            onChange={e => update('summary', e.target.value)} 
-            placeholder="Cole aqui o texto completo do post do LinkedIn preservando emojis, quebras de linha e caracteres especiais para que Victor e Fernando leiam o post inteiro de forma idêntica..." 
+          <textarea
+            value={form.summary}
+            onChange={e => update('summary', e.target.value)}
+            placeholder="Cole aqui o texto completo do post do LinkedIn preservando emojis, quebras de linha e caracteres especiais para que Victor e Fernando leiam o post inteiro de forma idêntica..."
             style={{ minHeight: '160px', borderColor: form.summary ? '#10b981' : undefined }}
           />
           {!form.summary && (
@@ -3526,10 +3526,10 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
 
         <label>
           Ângulo Playbook (Como isso vira conteúdo da Playbook Lab?)
-          <textarea 
-            value={form.playbookAngle} 
-            onChange={e => update('playbookAngle', e.target.value)} 
-            placeholder="Ex: Destacar que a tecnologia e automação eliminam gargalos técnicos..." 
+          <textarea
+            value={form.playbookAngle}
+            onChange={e => update('playbookAngle', e.target.value)}
+            placeholder="Ex: Destacar que a tecnologia e automação eliminam gargalos técnicos..."
           />
         </label>
 
@@ -3561,21 +3561,21 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
 
           <label>
             Curtidas (Social)
-            <input 
+            <input
               type="number"
-              value={form.mockLikes || ''} 
-              onChange={e => update('mockLikes', parseInt(e.target.value) || 0)} 
-              placeholder="Ex: 105" 
+              value={form.mockLikes || ''}
+              onChange={e => update('mockLikes', parseInt(e.target.value) || 0)}
+              placeholder="Ex: 105"
             />
           </label>
         </div>
 
         <label>
           Notas Internas (Privado para o time)
-          <textarea 
-            value={form.internalNotes} 
-            onChange={e => update('internalNotes', e.target.value)} 
-            placeholder="Prazos, sugestões adicionais ou observações rápidas..." 
+          <textarea
+            value={form.internalNotes}
+            onChange={e => update('internalNotes', e.target.value)}
+            placeholder="Prazos, sugestões adicionais ou observações rápidas..."
           />
         </label>
 
@@ -3593,17 +3593,17 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
 }
 
 // ==================== ADMIN: IDEAS LISTING VIEW ====================
-function IdeasListView({ 
-  ideas, 
-  votes = [], 
-  updateState, 
-  query, 
-  setQuery, 
-  addToast, 
-  curatorFilter, 
-  setCuratorFilter, 
-  activeFilter, 
-  setActiveFilter, 
+function IdeasListView({
+  ideas,
+  votes = [],
+  updateState,
+  query,
+  setQuery,
+  addToast,
+  curatorFilter,
+  setCuratorFilter,
+  activeFilter,
+  setActiveFilter,
   currentUser,
   onScheduleIdea,
   onOpenStudio
@@ -3622,7 +3622,7 @@ function IdeasListView({
     updateState(prev => {
       const existingVoteIndex = prev.votes.findIndex(v => v.ideaId === ideaId && v.voterName === currentUser);
       let nextVotes = [...prev.votes];
-      
+
       if (existingVoteIndex > -1) {
         nextVotes[existingVoteIndex] = {
           ...nextVotes[existingVoteIndex],
@@ -3639,7 +3639,7 @@ function IdeasListView({
           createdAt: new Date().toISOString()
         });
       }
-      
+
       return {
         ...prev,
         votes: nextVotes
@@ -3654,15 +3654,15 @@ function IdeasListView({
       addToast('Apenas curadores (Victor/Fernando) podem comentar!', 'error');
       return;
     }
-    
-    const finalComment = withComment 
-      ? (selectedQuickComment ? `[${selectedQuickComment}] ${customComment}`.trim() : customComment.trim()) 
+
+    const finalComment = withComment
+      ? (selectedQuickComment ? `[${selectedQuickComment}] ${customComment}`.trim() : customComment.trim())
       : '';
 
     updateState(prev => {
       const existingVoteIndex = prev.votes.findIndex(v => v.ideaId === commentingIdea.id && v.voterName === currentUser);
       let nextVotes = [...prev.votes];
-      
+
       if (existingVoteIndex > -1) {
         nextVotes[existingVoteIndex] = {
           ...nextVotes[existingVoteIndex],
@@ -3679,7 +3679,7 @@ function IdeasListView({
           createdAt: new Date().toISOString()
         });
       }
-      
+
       return {
         ...prev,
         votes: nextVotes
@@ -3760,10 +3760,10 @@ function IdeasListView({
     return ideas.filter(i => i.computedStatus === status).length;
   };
 
-  const curatorType = curatorFilter.startsWith('victor_') 
-    ? 'victor' 
-    : curatorFilter.startsWith('fernando_') 
-      ? 'fernando' 
+  const curatorType = curatorFilter.startsWith('victor_')
+    ? 'victor'
+    : curatorFilter.startsWith('fernando_')
+      ? 'fernando'
       : 'todos';
 
   const handleCuratorTypeChange = (type) => {
@@ -3784,15 +3784,15 @@ function IdeasListView({
         </div>
 
         <div className="view-mode-toggle-container" style={{ display: 'flex', gap: '4px', background: '#eef3f8', padding: '4px', borderRadius: '100px', border: '1px solid rgba(0, 0, 0, 0.08)' }}>
-          <button 
-            type="button" 
+          <button
+            type="button"
             className={viewMode === 'feed' ? 'li-toggle-btn active' : 'li-toggle-btn'}
             onClick={() => setViewMode('feed')}
-            style={{ 
-              padding: '6px 16px', 
-              borderRadius: '100px', 
-              fontSize: '12.5px', 
-              fontWeight: 600, 
+            style={{
+              padding: '6px 16px',
+              borderRadius: '100px',
+              fontSize: '12.5px',
+              fontWeight: 600,
               color: viewMode === 'feed' ? '#ffffff' : '#5c6f84',
               background: viewMode === 'feed' ? '#0a66c2' : 'transparent',
               border: 'none',
@@ -3802,15 +3802,15 @@ function IdeasListView({
           >
             Visualização em Feed
           </button>
-          <button 
-            type="button" 
+          <button
+            type="button"
             className={viewMode === 'table' ? 'li-toggle-btn active' : 'li-toggle-btn'}
             onClick={() => setViewMode('table')}
-            style={{ 
-              padding: '6px 16px', 
-              borderRadius: '100px', 
-              fontSize: '12.5px', 
-              fontWeight: 600, 
+            style={{
+              padding: '6px 16px',
+              borderRadius: '100px',
+              fontSize: '12.5px',
+              fontWeight: 600,
               color: viewMode === 'table' ? '#ffffff' : '#5c6f84',
               background: viewMode === 'table' ? '#0a66c2' : 'transparent',
               border: 'none',
@@ -3827,30 +3827,30 @@ function IdeasListView({
         <div className="search-box-row">
           <div className="search-input-wrapper">
             <Search size={18} />
-            <input 
-              value={query} 
-              onChange={e => setQuery(e.target.value)} 
-              placeholder="Buscar por tema, categoria, autor..." 
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Buscar por tema, categoria, autor..."
             />
           </div>
-          
+
           <div className="curator-filter-segmented-container">
             <div className="li-tabs-container">
-              <button 
+              <button
                 type="button"
                 className={curatorType === 'todos' ? 'li-tab active' : 'li-tab'}
                 onClick={() => handleCuratorTypeChange('todos')}
               >
                 Todos os Curadores
               </button>
-              <button 
+              <button
                 type="button"
                 className={curatorType === 'victor' ? 'li-tab active' : 'li-tab'}
                 onClick={() => handleCuratorTypeChange('victor')}
               >
                 Victor
               </button>
-              <button 
+              <button
                 type="button"
                 className={curatorType === 'fernando' ? 'li-tab active' : 'li-tab'}
                 onClick={() => handleCuratorTypeChange('fernando')}
@@ -3935,26 +3935,26 @@ function IdeasListView({
           ) : (
             filteredIdeas.map(idea => {
               const ideaComments = votes.filter(v => v.ideaId === idea.id && v.comment);
-              
+
               return (
                 <div key={idea.id} className="li-feed-item-wrapper" style={{ display: 'flex', flexDirection: 'column', width: '100%', background: '#ffffff', borderRadius: '8px', border: '1px solid #e0e0e0', overflow: 'visible', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', position: 'relative' }}>
-                  
+
                   {/* Curation Info Ribbon Above Card */}
                   <div className="li-feed-curator-status" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f3f6f8', padding: '12px 20px', borderBottom: '1px solid #e0e0e0', fontSize: '13px', fontWeight: 600, borderTopLeftRadius: '7px', borderTopRightRadius: '7px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span className={`status-pill ${idea.computedStatus.replace(' outro voto', '')}`}>
-                        {idea.computedStatus === 'em_producao' ? 'Em Produção' : 
-                         idea.computedStatus === 'publicada' ? 'Publicada' : 
-                         idea.computedStatus === 'arquivada' ? 'Arquivada' : idea.computedStatus}
+                        {idea.computedStatus === 'em_producao' ? 'Em Produção' :
+                          idea.computedStatus === 'publicada' ? 'Publicada' :
+                            idea.computedStatus === 'arquivada' ? 'Arquivada' : idea.computedStatus}
                       </span>
-                      <StatusDropdown 
-                        idea={idea} 
-                        onChange={value => handleUpdateManualStatus(idea.id, value)} 
-                        currentUser={currentUser} 
-                        isSmall={true} 
+                      <StatusDropdown
+                        idea={idea}
+                        onChange={value => handleUpdateManualStatus(idea.id, value)}
+                        currentUser={currentUser}
+                        isSmall={true}
                       />
                     </div>
-                    
+
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       {currentUser === 'Felipe' && (
                         <button
@@ -3984,13 +3984,13 @@ function IdeasListView({
                       <span style={{ fontSize: '12px', color: 'var(--linkedin-mid-gray)' }}>{idea.suggestedDecision}</span>
                     </div>
                   </div>
- 
+
                   {/* High Fidelity LinkedInCard */}
-                  <LinkedInCard 
-                    idea={idea} 
+                  <LinkedInCard
+                    idea={idea}
                     comments={ideaComments}
-                    onVote={(voteType) => handleDirectVote(idea.id, voteType)} 
-                    onOpenComment={() => setCommentingIdea(idea)} 
+                    onVote={(voteType) => handleDirectVote(idea.id, voteType)}
+                    onOpenComment={() => setCommentingIdea(idea)}
                     addToast={addToast}
                   />
 
@@ -4036,12 +4036,12 @@ function IdeasListView({
                 filteredIdeas.map(idea => {
                   const ideaComments = votes.filter(v => v.ideaId === idea.id && v.comment);
                   const scoreClass = idea.score >= 1.5 ? 'high' : idea.score > 0 ? 'medium' : 'low';
-                  
+
                   return (
                     <tr key={idea.id}>
                       <td style={{ verticalAlign: 'middle', textAlign: 'center' }}>
                         {idea.imageUrl ? (
-                          <div 
+                          <div
                             style={{
                               width: '64px',
                               height: '42px',
@@ -4064,7 +4064,7 @@ function IdeasListView({
                             <img src={idea.imageUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           </div>
                         ) : (
-                          <div 
+                          <div
                             style={{
                               width: '64px',
                               height: '42px',
@@ -4087,14 +4087,14 @@ function IdeasListView({
                           </div>
                         )}
                       </td>
-                      <td 
+                      <td
                         className="idea-table-title clickable"
                         onClick={() => onOpenStudio(idea)}
                         title="Clique para abrir no Estúdio de Criação"
                       >
                         <strong>{idea.title}</strong>
                         <span>Enviado em: {new Date(idea.createdAt).toLocaleDateString('pt-BR')}</span>
-                        
+
                         {ideaComments.length > 0 && (
                           <div className="table-idea-comments">
                             {ideaComments.map(c => (
@@ -4116,10 +4116,10 @@ function IdeasListView({
                       </td>
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <StatusDropdown 
-                            idea={idea} 
-                            onChange={value => handleUpdateManualStatus(idea.id, value)} 
-                            currentUser={currentUser} 
+                          <StatusDropdown
+                            idea={idea}
+                            onChange={value => handleUpdateManualStatus(idea.id, value)}
+                            currentUser={currentUser}
                           />
                         </div>
                       </td>
@@ -4130,9 +4130,9 @@ function IdeasListView({
                           </a>
                           {currentUser === 'Felipe' && (
                             <>
-                              <button 
-                                className="action-icon-btn" 
-                                onClick={() => onScheduleIdea && onScheduleIdea(idea)} 
+                              <button
+                                className="action-icon-btn"
+                                onClick={() => onScheduleIdea && onScheduleIdea(idea)}
                                 title={idea.scheduledAt ? `Agendado para ${new Date(idea.scheduledAt).toLocaleDateString('pt-BR')} (${idea.scheduledAssignee})` : "Agendar publicação"}
                                 style={idea.scheduledAt ? { color: 'var(--linkedin-blue)', borderColor: 'var(--linkedin-blue)', background: 'var(--linkedin-blue-light)' } : {}}
                               >
@@ -4167,7 +4167,7 @@ function IdeasListView({
                 Justificar curadoria feed: {commentingIdea.title}
               </h4>
               <p className="desc">Aperte um atalho rápido ou descreva o direcionamento para o redator.</p>
-              
+
               <div className="comment-tags-grid">
                 {QUICK_COMMENTS.map(tag => (
                   <button
@@ -4230,11 +4230,11 @@ function DataExportView({ state, ideas, addToast }) {
       i.contentType,
       i.manualStatus || 'auto'
     ]);
-    
+
     const csvContent = [header, ...rows]
       .map(row => row.map(cell => `"${String(cell || '').replaceAll('"', '""')}"`).join(','))
       .join('\n');
-    
+
     downloadCsv('ideias.csv', csvContent);
   }
 
@@ -4345,7 +4345,7 @@ function SchedulerModal({ idea: initialIdea, preselectedDate, unscheduledIdeas =
   const [selectedIdeaId, setSelectedIdeaId] = useState(initialIdea ? initialIdea.id : (unscheduledIdeas[0]?.id || ''));
   const [date, setDate] = useState(preselectedDate || (initialIdea?.scheduledAt || ''));
   const [assignee, setAssignee] = useState(initialIdea?.scheduledAssignee || 'Victor');
-  
+
   const activeIdea = useMemo(() => {
     if (initialIdea) return initialIdea;
     return unscheduledIdeas.find(i => i.id === selectedIdeaId);
@@ -4371,9 +4371,9 @@ function SchedulerModal({ idea: initialIdea, preselectedDate, unscheduledIdeas =
 
     updateState(prev => ({
       ...prev,
-      ideas: prev.ideas.map(i => i.id === activeIdea.id ? { 
-        ...i, 
-        scheduledAt: date, 
+      ideas: prev.ideas.map(i => i.id === activeIdea.id ? {
+        ...i,
+        scheduledAt: date,
         scheduledAssignee: assignee,
         playbookAngle: playbookAngle,
         // Automatic decision promotion to em_producao when scheduled
@@ -4388,13 +4388,13 @@ function SchedulerModal({ idea: initialIdea, preselectedDate, unscheduledIdeas =
   const handleUnschedule = () => {
     if (!activeIdea) return;
     if (!confirm('Deseja remover o agendamento desta pauta?')) return;
-    
+
     updateState(prev => ({
       ...prev,
-      ideas: prev.ideas.map(i => i.id === activeIdea.id ? { 
-        ...i, 
-        scheduledAt: null, 
-        scheduledAssignee: null 
+      ideas: prev.ideas.map(i => i.id === activeIdea.id ? {
+        ...i,
+        scheduledAt: null,
+        scheduledAssignee: null
       } : i)
     }));
 
@@ -4418,7 +4418,7 @@ function SchedulerModal({ idea: initialIdea, preselectedDate, unscheduledIdeas =
           ) : (
             <label className="scheduler-form-label">
               Selecione a Referência / Post *
-              <select 
+              <select
                 className="scheduler-form-select"
                 value={selectedIdeaId}
                 onChange={e => setSelectedIdeaId(e.target.value)}
@@ -4435,20 +4435,20 @@ function SchedulerModal({ idea: initialIdea, preselectedDate, unscheduledIdeas =
               </select>
             </label>
           )}
-          
+
           <label className="scheduler-form-label">
             Data de Publicação *
-            <input 
-              type="date" 
-              className="scheduler-form-input" 
-              value={date} 
-              onChange={e => setDate(e.target.value)} 
+            <input
+              type="date"
+              className="scheduler-form-input"
+              value={date}
+              onChange={e => setDate(e.target.value)}
             />
           </label>
 
           <label className="scheduler-form-label">
             Responsável pela Publicação *
-            <select 
+            <select
               className="scheduler-form-select"
               value={assignee}
               onChange={e => setAssignee(e.target.value)}
@@ -4518,7 +4518,7 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
   const handleAiGenerateImage = () => {
     setIsGenerating(true);
     addToast('🤖 Inteligência Artificial analisando a pauta...', 'success');
-    
+
     setTimeout(() => {
       const selectedImage = categoryImages[idea.category] || categoryImages['Outro'];
       setImageUrl(selectedImage);
@@ -4530,12 +4530,12 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     if (file.size > 8 * 1024 * 1024) {
       addToast('⚠️ A imagem deve ter no máximo 8MB.', 'error');
       return;
     }
-    
+
     const reader = new FileReader();
     reader.onload = () => {
       setImageUrl(reader.result);
@@ -4572,13 +4572,13 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
 
   const handleUnschedule = () => {
     if (!confirm('Deseja remover esta pauta do Calendário Editorial?')) return;
-    
+
     updateState(prev => ({
       ...prev,
-      ideas: prev.ideas.map(i => i.id === idea.id ? { 
-        ...i, 
-        scheduledAt: null, 
-        scheduledAssignee: null 
+      ideas: prev.ideas.map(i => i.id === idea.id ? {
+        ...i,
+        scheduledAt: null,
+        scheduledAssignee: null
       } : i)
     }));
 
@@ -4600,23 +4600,23 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
           </h3>
           <X className="close-btn" size={18} style={{ cursor: 'pointer' }} onClick={onClose} />
         </div>
-        
+
         <div className="pub-studio-body">
           <div className="pub-studio-layout">
-            
+
             {/* Left Column: Reference inspiration */}
             <div className="pub-studio-col">
               <span className="pub-studio-col-title">
-                <FileText size={15} style={{ color: '#0a66c2' }} /> 
+                <FileText size={15} style={{ color: '#0a66c2' }} />
                 1. Referência & Inspiração (Original)
               </span>
-              
+
               <div className="pub-studio-reference-wrap">
-                <LinkedInCard 
-                  idea={idea} 
+                <LinkedInCard
+                  idea={idea}
                   comments={originalIdeaComments}
-                  onVote={() => {}} 
-                  onOpenComment={() => {}} 
+                  onVote={() => { }}
+                  onOpenComment={() => { }}
                   addToast={addToast}
                 />
               </div>
@@ -4698,7 +4698,7 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
                       <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
                         Imagem Final do Post
                       </label>
-                      
+
                       <div className="pub-studio-image-preview-box">
                         {imageUrl ? (
                           <img src={imageUrl} alt="Final Preview" className="pub-studio-image-preview-img" />
@@ -4731,7 +4731,7 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
                           style={{ display: 'none' }}
                           onChange={handleImageUpload}
                         />
-                        
+
                         <input
                           type="text"
                           className="pub-studio-input-url"
@@ -4750,10 +4750,10 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
                       <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
                         Copy Pronta para LinkedIn
                       </label>
-                      
+
                       {copyText ? (
                         <div className="pub-studio-copy-box">
-                          <button 
+                          <button
                             className="pub-studio-copy-badge"
                             style={{ cursor: 'pointer', border: 'none', background: 'var(--linkedin-blue-light)' }}
                             onClick={handleCopyToClipboard}
@@ -4773,7 +4773,7 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
                       <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>
                         Imagem Pronta para LinkedIn
                       </label>
-                      
+
                       <div className="pub-studio-image-preview-box" style={{ height: '200px' }}>
                         {imageUrl ? (
                           <img src={imageUrl} alt="Final View" className="pub-studio-image-preview-img" />
@@ -4786,10 +4786,10 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
 
                       {imageUrl && (
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <a 
-                            href={imageUrl} 
-                            target="_blank" 
-                            rel="noreferrer" 
+                          <a
+                            href={imageUrl}
+                            target="_blank"
+                            rel="noreferrer"
                             className="pub-studio-btn success"
                             style={{ textDecoration: 'none', textAlign: 'center' }}
                           >
@@ -4832,7 +4832,7 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
 
                     {/* High Fidelity Live Card Preview */}
                     <div className="pub-studio-preview-card-wrap" style={{ transform: 'scale(0.96)', transformOrigin: 'top center' }}>
-                      <LinkedInCard 
+                      <LinkedInCard
                         idea={{
                           ...idea,
                           sourceAuthor: previewPersona,
@@ -4843,8 +4843,8 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
                           linkedinUrl: ''
                         }}
                         comments={[]}
-                        onVote={() => {}}
-                        onOpenComment={() => {}}
+                        onVote={() => { }}
+                        onOpenComment={() => { }}
                         addToast={addToast}
                       />
                     </div>
@@ -4857,14 +4857,14 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
                 {isFelipe ? (
                   <>
                     {idea.scheduledAt && (
-                      <button 
-                        type="button" 
-                        className="pub-studio-btn danger" 
-                        onClick={handleUnschedule} 
-                        style={{ 
-                          flex: 1, 
-                          background: '#fef2f2', 
-                          color: '#ef4444', 
+                      <button
+                        type="button"
+                        className="pub-studio-btn danger"
+                        onClick={handleUnschedule}
+                        style={{
+                          flex: 1,
+                          background: '#fef2f2',
+                          color: '#ef4444',
                           border: '1px solid #fca5a5',
                           borderRadius: '100px',
                           padding: '10px',
@@ -4937,7 +4937,7 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
     const prevMonthTotalDays = new Date(year, month, 0).getDate();
 
     const result = [];
-    
+
     // Prev month filler
     for (let i = dayOfWeekIdx - 1; i >= 0; i--) {
       result.push({
@@ -4975,16 +4975,16 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
   }, [ideas, year, month]);
 
   const unscheduledIdeas = useMemo(() => {
-    return ideas.filter(i => 
-      !i.scheduledAt && 
+    return ideas.filter(i =>
+      !i.scheduledAt &&
       (i.computedStatus === 'aprovado' || i.computedStatus === 'em_producao' || i.computedStatus === 'avaliar')
     );
   }, [ideas]);
 
   const isToday = (date) => {
     const today = new Date();
-    return date.getDate() === today.getDate() && 
-      date.getMonth() === today.getMonth() && 
+    return date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
       date.getFullYear() === today.getFullYear();
   };
 
@@ -5032,8 +5032,8 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
               const cellPosts = ideas.filter(i => i.scheduledAt === dateStr);
 
               return (
-                <div 
-                  key={idx} 
+                <div
+                  key={idx}
                   className={`calendar-day-cell ${cell.isCurrentMonth ? '' : 'other-month'} ${isToday(cell.date) ? 'today' : ''}`}
                   onClick={() => {
                     if (currentUser === 'Felipe') {
@@ -5049,11 +5049,11 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                   title={currentUser === 'Felipe' ? "Clique para programar uma pauta neste dia" : ""}
                 >
                   <span className="day-number">{cell.date.getDate()}</span>
-                  
+
                   <div className="calendar-cell-posts-container">
                     {cellPosts.map(post => (
-                      <div 
-                        key={post.id} 
+                      <div
+                        key={post.id}
                         className={`calendar-scheduled-card assignee-${post.scheduledAssignee?.toLowerCase() || 'victor'}`}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -5062,10 +5062,10 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                         title={`Responsável: ${post.scheduledAssignee} | Clique para gerenciar`}
                       >
                         <span className="title-text">{post.title}</span>
-                        <img 
-                          src={USER_AVATARS[post.scheduledAssignee] || USER_AVATARS.Felipe} 
-                          alt={post.scheduledAssignee} 
-                          className="assignee-avatar" 
+                        <img
+                          src={USER_AVATARS[post.scheduledAssignee] || USER_AVATARS.Felipe}
+                          alt={post.scheduledAssignee}
+                          className="assignee-avatar"
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(post.scheduledAssignee)}&background=0a66c2&color=fff&bold=true`;
@@ -5086,7 +5086,7 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
             <div className="calendar-sidebar-card">
               <h3>Aguardando Agendamento</h3>
               <p className="desc">Pautas aprovadas prontas para programar no LinkedIn.</p>
-              
+
               <div className="calendar-sidebar-list">
                 {unscheduledIdeas.length === 0 ? (
                   <div className="calendar-empty-state">
@@ -5103,8 +5103,8 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                           <span>Score: {idea.score}</span>
                         </div>
                       </div>
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         className="calendar-sidebar-action-btn"
                         onClick={() => onScheduleIdea(idea)}
                       >
@@ -5128,8 +5128,8 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                 </div>
               ) : (
                 scheduledPosts.map(post => (
-                  <div 
-                    key={post.id} 
+                  <div
+                    key={post.id}
                     className="calendar-sidebar-item"
                     style={{ cursor: 'pointer' }}
                     onClick={() => onOpenStudio(post)}
@@ -5143,8 +5143,8 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                       </div>
                     </div>
                     {currentUser === 'Felipe' && (
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         className="calendar-sidebar-action-btn"
                         style={{ border: 'none', background: 'transparent', padding: '4px', display: 'flex', color: '#64748b' }}
                         onClick={() => onScheduleIdea(post)}

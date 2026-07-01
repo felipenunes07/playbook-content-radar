@@ -4,6 +4,10 @@ import {
   buildCreatorComparison,
   buildMonthlyTrend,
   aggregateYoutubeMetrics,
+  buildExecutiveSummary,
+  buildCalendarHeatmap,
+  buildMovingAverageTrend,
+  buildWeeklyCadence,
   filterContent,
   filterYoutube,
   groupPerformance,
@@ -74,8 +78,8 @@ describe('aggregateContentMetrics', () => {
 describe('trend and rankings', () => {
   it('groups chronologically by month without mixing creators', () => {
     expect(buildMonthlyTrend(posts)).toEqual([
-      { period: '2026-01', label: 'jan. 26', posts: 2, likes: 150, comments: 30, shares: 7, engagement: 187, score: 268 },
-      { period: '2026-02', label: 'fev. 26', posts: 1, likes: 20, comments: 2, shares: 1, engagement: 23, score: 30 },
+      { period: '2026-01', label: 'Jan 26', posts: 2, likes: 150, comments: 30, shares: 7, engagement: 187, score: 268 },
+      { period: '2026-02', label: 'Fev 26', posts: 1, likes: 20, comments: 2, shares: 1, engagement: 23, score: 30 },
     ]);
   });
 
@@ -89,4 +93,59 @@ describe('trend and rankings', () => {
     expect(groupPerformance(posts, 'theme')[0]).toEqual({ key: 'IA', posts: 2, engagement: 135, comments: 12, score: 168, averageScore: 84 });
     expect(groupPerformance(posts, 'cta_keyword').map((row) => row.key)).toEqual(['MAPS', 'Sem CTA', 'MCP']);
   });
+  it('builds weekly cadence with Victor, Fernando and total series', () => {
+    expect(buildWeeklyCadence(posts).map((week) => ({
+      week: week.week,
+      Victor: week.Victor,
+      Fernando: week.Fernando,
+      Total: week.Total,
+    }))).toEqual([
+      { week: '2026-W02', Victor: 1, Fernando: 0, Total: 1 },
+      { week: '2026-W04', Victor: 0, Fernando: 1, Total: 1 },
+      { week: '2026-W06', Victor: 1, Fernando: 0, Total: 1 },
+    ]);
+  });
+
+  it('calculates four-week moving average cadence by creator', () => {
+    expect(buildMovingAverageTrend(posts, 4).map((week) => ({
+      week: week.week,
+      Victor: week.Victor,
+      Fernando: week.Fernando,
+      Total: week.Total,
+    }))).toEqual([
+      { week: '2026-W02', Victor: 1, Fernando: 0, Total: 1 },
+      { week: '2026-W04', Victor: 0.5, Fernando: 0.5, Total: 1 },
+      { week: '2026-W06', Victor: 0.67, Fernando: 0.33, Total: 1 },
+    ]);
+  });
+
+  it('builds a calendar heatmap with daily post counts and month labels', () => {
+    const heatmap = buildCalendarHeatmap(posts);
+
+    expect(heatmap.weeks).toHaveLength(5);
+    expect(heatmap.days.filter((day) => day.count > 0).map((day) => ({
+      date: day.date,
+      count: day.count,
+      level: day.level,
+      label: day.label,
+    }))).toEqual([
+      { date: '2026-01-10', count: 1, level: 4, label: '10 Jan 2026 · 1 post' },
+      { date: '2026-01-20', count: 1, level: 4, label: '20 Jan 2026 · 1 post' },
+      { date: '2026-02-05', count: 1, level: 4, label: '5 Fev 2026 · 1 post' },
+    ]);
+    expect(heatmap.months.map((month) => month.label)).toEqual(['Jan', 'Fev']);
+  });
+
+  it('summarizes executive KPIs for the last 30 days and best CTA', () => {
+    expect(buildExecutiveSummary(posts, { now: '2026-02-10T00:00:00Z' })).toMatchObject({
+      postsLast30Days: 2,
+      averagePostsPerWeek: 0.81,
+      totalEngagement: 210,
+      totalComments: 32,
+      bestCta: 'MAPS',
+      daysSinceLastPost: 4,
+      cadenceTrend: 'up',
+    });
+  });
 });
+

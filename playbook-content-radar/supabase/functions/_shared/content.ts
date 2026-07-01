@@ -15,10 +15,18 @@ export function chunk<T>(items: T[], size: number): T[][] {
   return result;
 }
 
+function firstValue(item: Record<string, any>, keys: string[]) {
+  for (const key of keys) {
+    const value = item[key];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return null;
+}
+
 function detectFormat(post: Record<string, unknown>) {
   if (post.repostId) return 'repost';
-  if (post.postVideo) return 'video';
-  const images = Array.isArray(post.postImages) ? post.postImages : [];
+  if (post.postVideo || post.video || post.videoUrl) return 'video';
+  const images = Array.isArray(post.postImages) ? post.postImages : (Array.isArray(post.images) ? post.images : []);
   if (images.length > 1) return 'carousel';
   if (images.length === 1) return 'image';
   return 'text';
@@ -40,34 +48,63 @@ function cta(content: unknown) {
 }
 
 function media(post: Record<string, any>, format: string) {
-  if (format === 'video') return { media_type: 'video', media_url: typeof post.postVideo === 'string' ? post.postVideo : post.postVideo?.url || post.postVideo?.videoUrl || null };
-  const first = Array.isArray(post.postImages) ? post.postImages[0] : null;
+  if (format === 'video') {
+    const video = post.postVideo || post.video || post.videoUrl;
+    return { media_type: 'video', media_url: typeof video === 'string' ? video : video?.url || video?.videoUrl || null };
+  }
+  const images = Array.isArray(post.postImages) ? post.postImages : (Array.isArray(post.images) ? post.images : []);
+  const first = images[0];
   if (first) return { media_type: format === 'carousel' ? 'carousel' : 'image', media_url: typeof first === 'string' ? first : first.url || null };
   return { media_type: format === 'repost' ? 'repost' : 'text', media_url: null };
 }
 
 export function normalizeApifyPost(item: Record<string, any>, metricDate = new Date().toISOString().slice(0, 10)) {
-  const externalId = String(item.id || item.entityId || '').trim() || String(item.linkedinUrl || '').match(/activity-(\d{8,})/)?.[1];
+  const postUrl = firstValue(item, ['linkedinUrl', 'shareLinkedinUrl', 'url', 'postUrl', 'link']);
+  const externalId = String(firstValue(item, ['id', 'entityId', 'postId', 'urn', 'activityUrn']) || '').trim()
+    || String(postUrl || '').match(/activity[-:](\d{8,})/)?.[1]
+    || String(postUrl || '').trim();
   if (!externalId) throw new Error('Item do Apify sem identidade');
+
   const format = detectFormat(item);
-  const likes = integer(item.engagement?.likes);
-  const comments = integer(item.engagement?.comments);
-  const shares = integer(item.engagement?.shares);
+  const content = String(firstValue(item, ['content', 'text', 'postText', 'commentary', 'body']) || '');
+  const likes = integer(firstValue(item, ['likeCount', 'likes', 'likesCount']) ?? item.engagement?.likes ?? item.stats?.likes);
+  const comments = integer(firstValue(item, ['commentCount', 'comments', 'commentsCount']) ?? item.engagement?.comments ?? item.stats?.comments);
+  const shares = integer(firstValue(item, ['shareCount', 'repostCount', 'shares', 'reposts']) ?? item.engagement?.shares ?? item.stats?.shares);
   const reactions = Array.isArray(item.engagement?.reactions)
     ? item.engagement.reactions.reduce((sum: number, reaction: any) => sum + integer(reaction?.count), 0)
-    : likes;
+    : integer(firstValue(item, ['reactionCount', 'reactionsCount', 'reactions']) ?? likes);
+  const published = item.postedAt?.date || firstValue(item, ['postedDate', 'publishedAt', 'date', 'createdAt', 'timestamp']);
+
   return {
     post: {
-      platform: 'linkedin', external_post_id: externalId, entity_id: String(item.entityId || externalId), share_urn: item.shareUrn || null,
-      post_url: item.linkedinUrl || item.shareLinkedinUrl || null, author_name: item.author?.name || null,
-      author_identifier: item.author?.publicIdentifier || null, published_at: item.postedAt?.date || null,
-      content: item.content || '', hook: hook(item.content), format, cta_keyword: cta(item.content),
-      is_repost: Boolean(item.repostId), repost_id: item.repostId ? String(item.repostId) : null,
-      ...media(item, format), classification_status: 'pending', raw: item,
+      platform: 'linkedin',
+      external_post_id: externalId,
+      entity_id: String(item.entityId || externalId),
+      share_urn: item.shareUrn || null,
+      post_url: postUrl ? String(postUrl) : null,
+      author_name: item.author?.name || firstValue(item, ['authorName', 'actorName']) as string | null,
+      author_identifier: item.author?.publicIdentifier || firstValue(item, ['authorPublicIdentifier', 'authorUrl', 'actorUrl']) as string | null,
+      published_at: published ? String(published) : null,
+      content,
+      hook: hook(content),
+      format,
+      cta_keyword: cta(content),
+      is_repost: Boolean(item.repostId),
+      repost_id: item.repostId ? String(item.repostId) : null,
+      ...media(item, format),
+      classification_status: 'pending',
+      raw: item,
     },
     metric: {
-      metric_date: metricDate, likes, comments, shares, reactions_total: reactions,
-      views: item.views == null ? null : integer(item.views), source: 'apify_daily', metric_type: 'daily_collect', raw: item.engagement || {},
+      metric_date: metricDate,
+      likes,
+      comments,
+      shares,
+      reactions_total: reactions,
+      views: firstValue(item, ['views', 'viewCount']) == null ? null : integer(firstValue(item, ['views', 'viewCount'])),
+      source: 'apify_linkedin',
+      metric_type: 'daily_collect',
+      raw: item.engagement || item.stats || item,
     },
   };
 }
@@ -97,12 +134,50 @@ export function normalizeYouTubeVideo(item: Record<string, any>, metricDate = ne
   };
 }
 
+function youtubeVideoId(item: Record<string, any>) {
+  const direct = firstValue(item, ['id', 'videoId', 'video_id', 'ytId']);
+  if (direct) return String(direct).trim();
+  const url = String(firstValue(item, ['url', 'videoUrl', 'link']) || '');
+  const watch = url.match(/[?&]v=([^&]+)/)?.[1];
+  const short = url.match(/youtu\.be\/([^?&/]+)/)?.[1];
+  const shorts = url.match(/youtube\.com\/shorts\/([^?&/]+)/)?.[1];
+  return String(watch || short || shorts || '').trim();
+}
+
+export function normalizeApifyYouTubeVideo(item: Record<string, any>, metricDate = new Date().toISOString().slice(0, 10)) {
+  const id = youtubeVideoId(item);
+  if (!id) throw new Error('Vídeo do YouTube sem id');
+  const url = String(firstValue(item, ['url', 'videoUrl', 'link']) || `https://www.youtube.com/watch?v=${id}`);
+  const published = firstValue(item, ['date', 'publishedAt', 'published_at', 'uploadDate', 'publishedTime']);
+  return {
+    video: {
+      video_id: id,
+      video_url: url,
+      title: String(firstValue(item, ['title', 'name']) || ''),
+      description: String(firstValue(item, ['description', 'text', 'about']) || ''),
+      published_at: published ? String(published) : null,
+      thumbnail_url: firstValue(item, ['thumbnailUrl', 'thumbnail', 'thumbnail_url']) as string | null,
+      duration: firstValue(item, ['duration', 'lengthText']) as string | null,
+      classification_status: 'pending',
+      raw: item,
+    },
+    metric: {
+      metric_date: metricDate,
+      views: integer(firstValue(item, ['viewCount', 'views', 'view_count'])),
+      likes: integer(firstValue(item, ['likes', 'likeCount', 'like_count'])),
+      comments: integer(firstValue(item, ['commentsCount', 'commentCount', 'comments', 'comment_count'])),
+      source: 'apify_youtube',
+      raw: item,
+    },
+  };
+}
+
 export function parseApifyInput(template: string | undefined, accountUrl: string) {
   const source = template || '{"profileUrls":["{{accountUrl}}"],"maxPosts":200}';
   try {
     return JSON.parse(source.replaceAll('{{accountUrl}}', accountUrl));
   } catch {
-    throw new Error('APIFY_LINKEDIN_INPUT_JSON não contém JSON válido');
+    throw new Error('APIFY input JSON não contém JSON válido');
   }
 }
 

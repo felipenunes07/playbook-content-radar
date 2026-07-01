@@ -1,21 +1,2190 @@
 {
-  "generated_at": "2026-07-01T05:16:40.305Z",
-  "collected_at": "2026-05-12",
-  "source": "historical_json",
+  "generated_at": "2026-07-01T10:19:23.978Z",
+  "collected_at": "2026-07-01",
+  "source": "historical_json+apify",
   "summary": {
     "Fernando Tedesco": {
-      "sourceCount": 105,
-      "normalizedCount": 105,
+      "sourceCount": 115,
+      "normalizedCount": 115,
       "skippedCount": 0
     },
     "Victor Baggio": {
-      "sourceCount": 117,
-      "normalizedCount": 117,
+      "sourceCount": 125,
+      "normalizedCount": 125,
       "skippedCount": 0
     }
   },
-  "duplicate_count": 0,
+  "duplicate_count": 12,
   "records": [
+    {
+      "platform": "linkedin",
+      "external_post_id": "7475182143250337792",
+      "entity_id": "7475182143250337792",
+      "post_url": "https://www.linkedin.com/posts/fernando-tedesco_depois-de-2-ciclos-de-quimioterapia-eu-perdi-activity-7475182143250337792-yL79",
+      "author_name": "Fernando Tedesco",
+      "author_identifier": "fernando-tedesco",
+      "published_at": "2026-06-23T13:45:05.119Z",
+      "content": "Depois de 2 ciclos de quimioterapia eu perdi meu cabelo. \nMas o que me marcou não foi isso.\n\nNo domingo, fui ver minha avó, como toda semana.\nEla já sabia da doença, mas na última visita eu ainda tinha cabelo. \n\nDessa vez, careca, foi diferente. \n\nEla me olhou com pena. \n\nOlhar transparente e indisfarçável.\n\nEu tava bem (melhor que na semana anterior).\nFalei isso pra ela.\nNão importou. \n\nAconteceu a mesma coisa quando voltei pra academia. \n\nDepois, em outros lugares.\n\nEu dizia uma coisa. As pessoas ouviam outra.\nCareca = sofrendo. E ponto.\n\nNão importa o que você diz. Importa o que o outro entende.\n\nPor isso, pra quem fala “Seja você mesmo”, sem dizer os poréns, \neu digo: bullshit.\n\nVale pra doença. Vale pra reunião com cliente. Vale pro seu time.\n\nVocê pode estar certo e mesmo assim não ser ouvido.\nA pergunta nunca foi \"o que eu quero dizer?\".\n\nÉ \"o que o outro vai ouvir?\".",
+      "hook": "Depois de 2 ciclos de quimioterapia eu perdi meu cabelo.",
+      "format": "post",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 850,
+      "comments": 57,
+      "shares": 0,
+      "reactions_total": 850,
+      "engagement_total": 907,
+      "engagement_score": 1021,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Fernando Tedesco",
+      "account_url": "https://www.linkedin.com/in/fernando-tedesco/",
+      "raw": {
+        "type": "post",
+        "id": "7475182143250337792",
+        "linkedinUrl": "https://www.linkedin.com/posts/fernando-tedesco_depois-de-2-ciclos-de-quimioterapia-eu-perdi-activity-7475182143250337792-yL79",
+        "content": "Depois de 2 ciclos de quimioterapia eu perdi meu cabelo. \nMas o que me marcou não foi isso.\n\nNo domingo, fui ver minha avó, como toda semana.\nEla já sabia da doença, mas na última visita eu ainda tinha cabelo. \n\nDessa vez, careca, foi diferente. \n\nEla me olhou com pena. \n\nOlhar transparente e indisfarçável.\n\nEu tava bem (melhor que na semana anterior).\nFalei isso pra ela.\nNão importou. \n\nAconteceu a mesma coisa quando voltei pra academia. \n\nDepois, em outros lugares.\n\nEu dizia uma coisa. As pessoas ouviam outra.\nCareca = sofrendo. E ponto.\n\nNão importa o que você diz. Importa o que o outro entende.\n\nPor isso, pra quem fala “Seja você mesmo”, sem dizer os poréns, \neu digo: bullshit.\n\nVale pra doença. Vale pra reunião com cliente. Vale pro seu time.\n\nVocê pode estar certo e mesmo assim não ser ouvido.\nA pergunta nunca foi \"o que eu quero dizer?\".\n\nÉ \"o que o outro vai ouvir?\".",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "universalName": null,
+          "publicIdentifier": "fernando-tedesco",
+          "type": "profile",
+          "name": "Fernando Tedesco",
+          "linkedinUrl": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "info": "Scalable growth with AI Systems 🎯 | Playbook Lab - for AI inside sales",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1691368512757?e=1784764800&v=beta&t=wELY_z_ITY4Cb9KAHLdkxrkRAhGLKVFbAhNvL0Om8UI",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "289331096"
+        },
+        "postedAt": {
+          "timestamp": 1782222305119,
+          "date": "2026-06-23T13:45:05.119Z",
+          "postedAgoShort": "1w",
+          "postedAgoText": "1 week ago • Edited • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4E22AQHBLPmWwKWWKA/feedshare-shrink_1280/B4EZ70hFcVK4AM-/0/1782218774818?e=1784764800&v=beta&t=tTkyQsv8rlBXlUO0lTlrtl8pYf_RvqG83EXE5ybApN0",
+            "width": 1280,
+            "height": 2274
+          }
+        ],
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": false,
+          "hideSendAction": false,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/fernando-tedesco_depois-de-2-ciclos-de-quimioterapia-eu-perdi-activity-7475182143250337792-yL79?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7475182143250337792",
+        "shareUrn": "urn:li:share:7475167339739639809",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7475167339739639809",
+        "engagement": {
+          "id": "7475182143250337792",
+          "likes": 850,
+          "comments": 57,
+          "shares": 0,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 616
+            },
+            {
+              "type": "APPRECIATION",
+              "count": 163
+            },
+            {
+              "type": "PRAISE",
+              "count": 46
+            },
+            {
+              "type": "EMPATHY",
+              "count": 18
+            },
+            {
+              "type": "INTEREST",
+              "count": 7
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/fernando-tedesco/",
+          "sortBy": "date",
+          "page": 1,
+          "postedLimit": "month"
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7475178124121452545",
+      "entity_id": "7475178124121452545",
+      "post_url": "https://www.linkedin.com/posts/victorzbaggio_criei-um-mcp-que-conecta-o-claude-a-tudo-activity-7475174637459472384-Er0l",
+      "author_name": "Victor Baggio",
+      "author_identifier": "victorzbaggio",
+      "published_at": "2026-06-23T13:29:06.884Z",
+      "content": "Criei um MCP que conecta o Claude a TUDO no LinkedIn (29 ações).\nPerfeito pra quem cria conteúdo, prospecta, vende ou recruta.\n\nComenta \"MCP\" que te mando o tutorial de instalação completo.\n\n\nO Claude sozinho já ajuda a escrever posts, encontrar leads e prospectar\nMas sem acesso real ao LinkedIn ele fica limitado\n\nPor isso eu criei um MCP para o LinkedIn usando a API da Unipile\nSão 29 ações listadas que, juntas, dão superpoderes ao Claude\n\nO que dá pra fazer agora, só pedindo pro Claude:\n\n✅ Gera listas de leads (ou candidatos) por cargo, setor, região e porte\n✅ Encontra os decisores dentro de qualquer empresa\n✅ Enriquece leads com posts recentes, trajetória e ganchos de abordagem\n✅ Coleta quem curtiu ou comentou um post (seu ou do concorrente)\n✅ Escreve post no meu estilo, com base no que já engaja\n✅ Manda convite de conexão personalizado\n✅ Dispara DM e reativa contato antigo\n\nPra instalar esse MCP é super fácil. Basta um prompt.\n\nE pra quem não é técnico, montei um guia de instalação super simples.\n\nPra receber o passo a passo completo, de graça:\n\n1️⃣ Comenta \"MCP\" aqui embaixo\n2️⃣ Garante estar conectado comigo",
+      "hook": "Criei um MCP que conecta o Claude a TUDO no LinkedIn (29 ações).",
+      "format": "post",
+      "cta_keyword": "MCP",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 583,
+      "comments": 3200,
+      "shares": 5,
+      "reactions_total": 583,
+      "engagement_total": 3788,
+      "engagement_score": 10203,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Fernando Tedesco",
+      "account_url": "https://www.linkedin.com/in/fernando-tedesco/",
+      "raw": {
+        "type": "post",
+        "id": "7475178124121452545",
+        "linkedinUrl": "https://www.linkedin.com/posts/victorzbaggio_criei-um-mcp-que-conecta-o-claude-a-tudo-activity-7475174637459472384-Er0l",
+        "content": "Criei um MCP que conecta o Claude a TUDO no LinkedIn (29 ações).\nPerfeito pra quem cria conteúdo, prospecta, vende ou recruta.\n\nComenta \"MCP\" que te mando o tutorial de instalação completo.\n\n\nO Claude sozinho já ajuda a escrever posts, encontrar leads e prospectar\nMas sem acesso real ao LinkedIn ele fica limitado\n\nPor isso eu criei um MCP para o LinkedIn usando a API da Unipile\nSão 29 ações listadas que, juntas, dão superpoderes ao Claude\n\nO que dá pra fazer agora, só pedindo pro Claude:\n\n✅ Gera listas de leads (ou candidatos) por cargo, setor, região e porte\n✅ Encontra os decisores dentro de qualquer empresa\n✅ Enriquece leads com posts recentes, trajetória e ganchos de abordagem\n✅ Coleta quem curtiu ou comentou um post (seu ou do concorrente)\n✅ Escreve post no meu estilo, com base no que já engaja\n✅ Manda convite de conexão personalizado\n✅ Dispara DM e reativa contato antigo\n\nPra instalar esse MCP é super fácil. Basta um prompt.\n\nE pra quem não é técnico, montei um guia de instalação super simples.\n\nPra receber o passo a passo completo, de graça:\n\n1️⃣ Comenta \"MCP\" aqui embaixo\n2️⃣ Garante estar conectado comigo",
+        "contentAttributes": [
+          {
+            "start": 373,
+            "length": 7,
+            "type": "COMPANY_NAME",
+            "hyperlink": null,
+            "textLink": null,
+            "company": {
+              "id": "106589179",
+              "name": "Unipile",
+              "linkedinUrl": "https://www.linkedin.com/company/unipile-app/"
+            }
+          }
+        ],
+        "author": {
+          "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "universalName": null,
+          "publicIdentifier": "victorzbaggio",
+          "type": "profile",
+          "name": "Victor Baggio",
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "info": "🤖 Automações com IA para Escalar Vendas | Sócio na Playbook Lab",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "489715572"
+        },
+        "postedAt": {
+          "timestamp": 1782221346884,
+          "date": "2026-06-23T13:29:06.884Z",
+          "postedAgoShort": "1w",
+          "postedAgoText": "1 week ago • Edited • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4E22AQFFrKSb1jeYlg/feedshare-image-high-res/B4EZ70nuRhKMAc-/0/1782220514831?e=1784764800&v=beta&t=kotrn4S9MmWiwjHHFtfUfXV7PiT_jndRlUSs-pRuMf4",
+            "width": 1672,
+            "height": 941
+          }
+        ],
+        "repostedBy": {
+          "name": "Fernando Tedesco",
+          "publicIdentifier": "fernando-tedesco",
+          "universalName": null,
+          "linkedinUrl": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s"
+        },
+        "repostedAt": {
+          "timestamp": 1782221346884,
+          "date": "2026-06-23T13:29:06.884Z"
+        },
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": false,
+          "hideSendAction": false,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/victorzbaggio_criei-um-mcp-que-conecta-o-claude-a-tudo-activity-7475174637459472384-Er0l?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "image": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1691368512757?e=1784764800&v=beta&t=wELY_z_ITY4Cb9KAHLdkxrkRAhGLKVFbAhNvL0Om8UI",
+            "width": 800,
+            "height": 800
+          },
+          "linkedinUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7475178124121452545?updateEntityUrn=urn%3Ali%3Afsd_update%3A%28urn%3Ali%3Aactivity%3A7475178124121452545%2CMEMBER_SHARES%2CDEBUG_REASON%2CDEFAULT%2Cfalse%29&originTrackingId=ttAZfjalWufSzSIW2sUA%2BA%3D%3D",
+          "imageLink": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "text": "Fernando Tedesco reposted this"
+        },
+        "entityId": "7475178124121452545",
+        "shareUrn": "urn:li:share:7475174636381626369",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7475174636381626369",
+        "engagement": {
+          "id": "7475174637459472384",
+          "likes": 583,
+          "comments": 3200,
+          "shares": 5,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 534
+            },
+            {
+              "type": "PRAISE",
+              "count": 28
+            },
+            {
+              "type": "INTEREST",
+              "count": 13
+            },
+            {
+              "type": "EMPATHY",
+              "count": 6
+            },
+            {
+              "type": "APPRECIATION",
+              "count": 2
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/fernando-tedesco/",
+          "sortBy": "date",
+          "page": 1,
+          "postedLimit": "month"
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7475174637459472384",
+      "entity_id": "7475174637459472384",
+      "post_url": "https://www.linkedin.com/posts/victorzbaggio_criei-um-mcp-que-conecta-o-claude-a-tudo-activity-7475174637459472384-Er0l",
+      "author_name": "Victor Baggio",
+      "author_identifier": "victorzbaggio",
+      "published_at": "2026-06-23T13:15:15.599Z",
+      "content": "Criei um MCP que conecta o Claude a TUDO no LinkedIn (29 ações).\nPerfeito pra quem cria conteúdo, prospecta, vende ou recruta.\n\nComenta \"MCP\" que te mando o tutorial de instalação completo.\n\n\nO Claude sozinho já ajuda a escrever posts, encontrar leads e prospectar\nMas sem acesso real ao LinkedIn ele fica limitado\n\nPor isso eu criei um MCP para o LinkedIn usando a API da Unipile\nSão 29 ações listadas que, juntas, dão superpoderes ao Claude\n\nO que dá pra fazer agora, só pedindo pro Claude:\n\n✅ Gera listas de leads (ou candidatos) por cargo, setor, região e porte\n✅ Encontra os decisores dentro de qualquer empresa\n✅ Enriquece leads com posts recentes, trajetória e ganchos de abordagem\n✅ Coleta quem curtiu ou comentou um post (seu ou do concorrente)\n✅ Escreve post no meu estilo, com base no que já engaja\n✅ Manda convite de conexão personalizado\n✅ Dispara DM e reativa contato antigo\n\nPra instalar esse MCP é super fácil. Basta um prompt.\n\nE pra quem não é técnico, montei um guia de instalação super simples.\n\nPra receber o passo a passo completo, de graça:\n\n1️⃣ Comenta \"MCP\" aqui embaixo\n2️⃣ Garante estar conectado comigo",
+      "hook": "Criei um MCP que conecta o Claude a TUDO no LinkedIn (29 ações).",
+      "format": "post",
+      "cta_keyword": "MCP",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 583,
+      "comments": 3200,
+      "shares": 5,
+      "reactions_total": 583,
+      "engagement_total": 3788,
+      "engagement_score": 10203,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Victor Baggio",
+      "account_url": "https://www.linkedin.com/in/victorzbaggio/",
+      "raw": {
+        "type": "post",
+        "id": "7475174637459472384",
+        "linkedinUrl": "https://www.linkedin.com/posts/victorzbaggio_criei-um-mcp-que-conecta-o-claude-a-tudo-activity-7475174637459472384-Er0l",
+        "content": "Criei um MCP que conecta o Claude a TUDO no LinkedIn (29 ações).\nPerfeito pra quem cria conteúdo, prospecta, vende ou recruta.\n\nComenta \"MCP\" que te mando o tutorial de instalação completo.\n\n\nO Claude sozinho já ajuda a escrever posts, encontrar leads e prospectar\nMas sem acesso real ao LinkedIn ele fica limitado\n\nPor isso eu criei um MCP para o LinkedIn usando a API da Unipile\nSão 29 ações listadas que, juntas, dão superpoderes ao Claude\n\nO que dá pra fazer agora, só pedindo pro Claude:\n\n✅ Gera listas de leads (ou candidatos) por cargo, setor, região e porte\n✅ Encontra os decisores dentro de qualquer empresa\n✅ Enriquece leads com posts recentes, trajetória e ganchos de abordagem\n✅ Coleta quem curtiu ou comentou um post (seu ou do concorrente)\n✅ Escreve post no meu estilo, com base no que já engaja\n✅ Manda convite de conexão personalizado\n✅ Dispara DM e reativa contato antigo\n\nPra instalar esse MCP é super fácil. Basta um prompt.\n\nE pra quem não é técnico, montei um guia de instalação super simples.\n\nPra receber o passo a passo completo, de graça:\n\n1️⃣ Comenta \"MCP\" aqui embaixo\n2️⃣ Garante estar conectado comigo",
+        "contentAttributes": [
+          {
+            "start": 373,
+            "length": 7,
+            "type": "COMPANY_NAME",
+            "hyperlink": null,
+            "textLink": null,
+            "company": {
+              "id": "106589179",
+              "name": "Unipile",
+              "linkedinUrl": "https://www.linkedin.com/company/unipile-app/"
+            }
+          }
+        ],
+        "author": {
+          "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "universalName": null,
+          "publicIdentifier": "victorzbaggio",
+          "type": "profile",
+          "name": "Victor Baggio",
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "info": "🤖 Automações com IA para Escalar Vendas | Sócio na Playbook Lab",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "489715572"
+        },
+        "postedAt": {
+          "timestamp": 1782220515599,
+          "date": "2026-06-23T13:15:15.599Z",
+          "postedAgoShort": "1w",
+          "postedAgoText": "1 week ago • Edited • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4E22AQFFrKSb1jeYlg/feedshare-image-high-res/B4EZ70nuRhKMAc-/0/1782220514831?e=1784764800&v=beta&t=kotrn4S9MmWiwjHHFtfUfXV7PiT_jndRlUSs-pRuMf4",
+            "width": 1672,
+            "height": 941
+          }
+        ],
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": false,
+          "hideSendAction": false,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/victorzbaggio_criei-um-mcp-que-conecta-o-claude-a-tudo-activity-7475174637459472384-Er0l?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7475174637459472384",
+        "shareUrn": "urn:li:share:7475174636381626369",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7475174636381626369",
+        "engagement": {
+          "id": "7475174637459472384",
+          "likes": 583,
+          "comments": 3200,
+          "shares": 5,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 534
+            },
+            {
+              "type": "PRAISE",
+              "count": 28
+            },
+            {
+              "type": "INTEREST",
+              "count": 13
+            },
+            {
+              "type": "EMPATHY",
+              "count": 6
+            },
+            {
+              "type": "APPRECIATION",
+              "count": 2
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/victorzbaggio/",
+          "sortBy": "date",
+          "page": 1,
+          "postedLimit": "month"
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7473428633685188608",
+      "entity_id": "7473428633685188608",
+      "post_url": "https://www.linkedin.com/posts/victorzbaggio_vaga-nova-por-aqui-estamos-procurando-um-activity-7473064432252887041-FyXI",
+      "author_name": "Victor Baggio",
+      "author_identifier": "victorzbaggio",
+      "published_at": "2026-06-18T17:37:15.860Z",
+      "content": "Vaga nova por aqui!\nEstamos procurando um AI Builder para somar ao nosso time técnico. \n\nA vaga é pra DEVs (formados ou cursando) que estão usando IA pra tudo. \nSe tiver experiência com N8N também, melhor ainda. \n\nOportunidade pra trabalhar em projetos reais, bem próximo ao cliente e gerando impacto através das entregas. \n\nA descrição completa da vaga e o forms pra se inscrever estão no primeiro comentário ⬇️\n\nSe você conhece algum dev que manja muito de AI coding e automações, marca ele aqui 👍",
+      "hook": "Vaga nova por aqui!",
+      "format": "post",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 100,
+      "comments": 29,
+      "shares": 2,
+      "reactions_total": 100,
+      "engagement_total": 131,
+      "engagement_score": 195,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Fernando Tedesco",
+      "account_url": "https://www.linkedin.com/in/fernando-tedesco/",
+      "raw": {
+        "type": "post",
+        "id": "7473428633685188608",
+        "linkedinUrl": "https://www.linkedin.com/posts/victorzbaggio_vaga-nova-por-aqui-estamos-procurando-um-activity-7473064432252887041-FyXI",
+        "content": "Vaga nova por aqui!\nEstamos procurando um AI Builder para somar ao nosso time técnico. \n\nA vaga é pra DEVs (formados ou cursando) que estão usando IA pra tudo. \nSe tiver experiência com N8N também, melhor ainda. \n\nOportunidade pra trabalhar em projetos reais, bem próximo ao cliente e gerando impacto através das entregas. \n\nA descrição completa da vaga e o forms pra se inscrever estão no primeiro comentário ⬇️\n\nSe você conhece algum dev que manja muito de AI coding e automações, marca ele aqui 👍",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "universalName": null,
+          "publicIdentifier": "victorzbaggio",
+          "type": "profile",
+          "name": "Victor Baggio",
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "info": "🤖 Automações com IA para Escalar Vendas | Sócio na Playbook Lab",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "489715572"
+        },
+        "postedAt": {
+          "timestamp": 1781804235860,
+          "date": "2026-06-18T17:37:15.860Z",
+          "postedAgoShort": "1w",
+          "postedAgoText": "1 week ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4E22AQGjSlrXG7ucaw/feedshare-image-high-res/B4EZ7TllXgKAAU-/0/1781666305983?e=1784764800&v=beta&t=ly-eC2xO0_WFQpCMPRUtYoPpgqgPsXBylzTiCNPBBlc",
+            "width": 1704,
+            "height": 1536
+          }
+        ],
+        "repostedBy": {
+          "name": "Fernando Tedesco",
+          "publicIdentifier": "fernando-tedesco",
+          "universalName": null,
+          "linkedinUrl": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s"
+        },
+        "repostedAt": {
+          "timestamp": 1781804235860,
+          "date": "2026-06-18T17:37:15.860Z"
+        },
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": false,
+          "hideSendAction": false,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/victorzbaggio_vaga-nova-por-aqui-estamos-procurando-um-activity-7473064432252887041-FyXI?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "image": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1691368512757?e=1784764800&v=beta&t=wELY_z_ITY4Cb9KAHLdkxrkRAhGLKVFbAhNvL0Om8UI",
+            "width": 800,
+            "height": 800
+          },
+          "linkedinUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7473428633685188608?updateEntityUrn=urn%3Ali%3Afsd_update%3A%28urn%3Ali%3Aactivity%3A7473428633685188608%2CMEMBER_SHARES%2CDEBUG_REASON%2CDEFAULT%2Cfalse%29&originTrackingId=bdTb0Fc9shr3l7LXPao%2Fhw%3D%3D",
+          "imageLink": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "text": "Fernando Tedesco reposted this"
+        },
+        "entityId": "7473428633685188608",
+        "shareUrn": "urn:li:share:7472850117369434112",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7472850117369434112",
+        "engagement": {
+          "id": "7473064432252887041",
+          "likes": 100,
+          "comments": 29,
+          "shares": 2,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 90
+            },
+            {
+              "type": "EMPATHY",
+              "count": 4
+            },
+            {
+              "type": "APPRECIATION",
+              "count": 3
+            },
+            {
+              "type": "PRAISE",
+              "count": 2
+            },
+            {
+              "type": "INTEREST",
+              "count": 1
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/fernando-tedesco/",
+          "sortBy": "date",
+          "page": 1,
+          "postedLimit": "month"
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7473064432252887041",
+      "entity_id": "7473064432252887041",
+      "post_url": "https://www.linkedin.com/posts/victorzbaggio_vaga-nova-por-aqui-estamos-procurando-um-activity-7473064432252887041-FyXI",
+      "author_name": "Victor Baggio",
+      "author_identifier": "victorzbaggio",
+      "published_at": "2026-06-17T17:30:03.472Z",
+      "content": "Vaga nova por aqui!\nEstamos procurando um AI Builder para somar ao nosso time técnico. \n\nA vaga é pra DEVs (formados ou cursando) que estão usando IA pra tudo. \nSe tiver experiência com N8N também, melhor ainda. \n\nOportunidade pra trabalhar em projetos reais, bem próximo ao cliente e gerando impacto através das entregas. \n\nA descrição completa da vaga e o forms pra se inscrever estão no primeiro comentário ⬇️\n\nSe você conhece algum dev que manja muito de AI coding e automações, marca ele aqui 👍",
+      "hook": "Vaga nova por aqui!",
+      "format": "post",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 100,
+      "comments": 29,
+      "shares": 2,
+      "reactions_total": 100,
+      "engagement_total": 131,
+      "engagement_score": 195,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Victor Baggio",
+      "account_url": "https://www.linkedin.com/in/victorzbaggio/",
+      "raw": {
+        "type": "post",
+        "id": "7473064432252887041",
+        "linkedinUrl": "https://www.linkedin.com/posts/victorzbaggio_vaga-nova-por-aqui-estamos-procurando-um-activity-7473064432252887041-FyXI",
+        "content": "Vaga nova por aqui!\nEstamos procurando um AI Builder para somar ao nosso time técnico. \n\nA vaga é pra DEVs (formados ou cursando) que estão usando IA pra tudo. \nSe tiver experiência com N8N também, melhor ainda. \n\nOportunidade pra trabalhar em projetos reais, bem próximo ao cliente e gerando impacto através das entregas. \n\nA descrição completa da vaga e o forms pra se inscrever estão no primeiro comentário ⬇️\n\nSe você conhece algum dev que manja muito de AI coding e automações, marca ele aqui 👍",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "universalName": null,
+          "publicIdentifier": "victorzbaggio",
+          "type": "profile",
+          "name": "Victor Baggio",
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "info": "🤖 Automações com IA para Escalar Vendas | Sócio na Playbook Lab",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "489715572"
+        },
+        "postedAt": {
+          "timestamp": 1781717403472,
+          "date": "2026-06-17T17:30:03.472Z",
+          "postedAgoShort": "1w",
+          "postedAgoText": "1 week ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4E22AQGjSlrXG7ucaw/feedshare-image-high-res/B4EZ7TllXgKAAU-/0/1781666305983?e=1784764800&v=beta&t=ly-eC2xO0_WFQpCMPRUtYoPpgqgPsXBylzTiCNPBBlc",
+            "width": 1704,
+            "height": 1536
+          }
+        ],
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": false,
+          "hideSendAction": false,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/victorzbaggio_vaga-nova-por-aqui-estamos-procurando-um-activity-7473064432252887041-FyXI?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7473064432252887041",
+        "shareUrn": "urn:li:share:7472850117369434112",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7472850117369434112",
+        "engagement": {
+          "id": "7473064432252887041",
+          "likes": 100,
+          "comments": 29,
+          "shares": 2,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 90
+            },
+            {
+              "type": "EMPATHY",
+              "count": 4
+            },
+            {
+              "type": "APPRECIATION",
+              "count": 3
+            },
+            {
+              "type": "PRAISE",
+              "count": 2
+            },
+            {
+              "type": "INTEREST",
+              "count": 1
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/victorzbaggio/",
+          "sortBy": "date",
+          "page": 1,
+          "postedLimit": "month"
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7473007871543152640",
+      "entity_id": "7473007871543152640",
+      "post_url": "https://www.linkedin.com/posts/fernando-tedesco_montei-um-pack-do-claude-e-feito-pra-voc%C3%AA-activity-7473007871543152640-GqOy",
+      "author_name": "Fernando Tedesco",
+      "author_identifier": "fernando-tedesco",
+      "published_at": "2026-06-17T13:45:18.348Z",
+      "content": "Montei um PACK do Claude e feito pra você que usa HUBSPOT como CRM. \r\n(feito pra tirar tudo de melhor da ferramenta)\r\n\r\nVou te dar ele de graça.\r\n\r\nHubspot é um puta CRM. Mas é complexo. \r\n\r\nIsso machuca os dois lados,\r\nvendedor não usa e o gestor não enxerga.\r\n\r\nToda vez que converso com quem usa é a mesma coisa:\r\n”Não aproveitamos o potencial máximo e pagamos caro.”\r\n\r\nFiz esse pacote para plugar o Hubspot com o Claude e deixar tudo mais fácil.\r\n\r\nO pacote entrega automações que:\r\n→ Auditam properties duplicadas e sem uso (acabou o report furado)\r\n→ Acham negócio parado e dado sujo, e corrigem em lote\r\n→ Geram report semanal pra diretoria em segundos\r\n→ Enriquecem leads com dado útil, sem custo extra\r\n→ Transformam calls e e-mails em tasks\r\n→ Montam painéis de BI personalizados\r\n\r\nAjuda o gestor e quem está na operação.\r\n\r\nO melhor: mesmo nos planos menores, você ganha funções de plano caro.\r\n\r\nÉ instalar em 5 min e começar a usar.\r\n\r\nQuer receber?\r\n1️⃣ Comenta \"HUBSPOT\"\r\n2️⃣ Conecta comigo pra eu te mandar na DM!",
+      "hook": "Montei um PACK do Claude e feito pra você que usa HUBSPOT como CRM.",
+      "format": "post",
+      "cta_keyword": "HUBSPOT",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 82,
+      "comments": 301,
+      "shares": 2,
+      "reactions_total": 82,
+      "engagement_total": 385,
+      "engagement_score": 993,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Fernando Tedesco",
+      "account_url": "https://www.linkedin.com/in/fernando-tedesco/",
+      "raw": {
+        "type": "post",
+        "id": "7473007871543152640",
+        "linkedinUrl": "https://www.linkedin.com/posts/fernando-tedesco_montei-um-pack-do-claude-e-feito-pra-voc%C3%AA-activity-7473007871543152640-GqOy",
+        "content": "Montei um PACK do Claude e feito pra você que usa HUBSPOT como CRM. \r\n(feito pra tirar tudo de melhor da ferramenta)\r\n\r\nVou te dar ele de graça.\r\n\r\nHubspot é um puta CRM. Mas é complexo. \r\n\r\nIsso machuca os dois lados,\r\nvendedor não usa e o gestor não enxerga.\r\n\r\nToda vez que converso com quem usa é a mesma coisa:\r\n”Não aproveitamos o potencial máximo e pagamos caro.”\r\n\r\nFiz esse pacote para plugar o Hubspot com o Claude e deixar tudo mais fácil.\r\n\r\nO pacote entrega automações que:\r\n→ Auditam properties duplicadas e sem uso (acabou o report furado)\r\n→ Acham negócio parado e dado sujo, e corrigem em lote\r\n→ Geram report semanal pra diretoria em segundos\r\n→ Enriquecem leads com dado útil, sem custo extra\r\n→ Transformam calls e e-mails em tasks\r\n→ Montam painéis de BI personalizados\r\n\r\nAjuda o gestor e quem está na operação.\r\n\r\nO melhor: mesmo nos planos menores, você ganha funções de plano caro.\r\n\r\nÉ instalar em 5 min e começar a usar.\r\n\r\nQuer receber?\r\n1️⃣ Comenta \"HUBSPOT\"\r\n2️⃣ Conecta comigo pra eu te mandar na DM!",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "universalName": null,
+          "publicIdentifier": "fernando-tedesco",
+          "type": "profile",
+          "name": "Fernando Tedesco",
+          "linkedinUrl": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "info": "Scalable growth with AI Systems 🎯 | Playbook Lab - for AI inside sales",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1691368512757?e=1784764800&v=beta&t=wELY_z_ITY4Cb9KAHLdkxrkRAhGLKVFbAhNvL0Om8UI",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "289331096"
+        },
+        "postedAt": {
+          "timestamp": 1781703918348,
+          "date": "2026-06-17T13:45:18.348Z",
+          "postedAgoShort": "1w",
+          "postedAgoText": "1 week ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4D22AQGVgBl97MVtdQ/feedshare-shrink_800/B4DZ7V1ChsI8Ac-/0/1781703916624?e=1784764800&v=beta&t=UEKm8_X1aLMBf_kgOl2OcgaLRpjPfySqF6PalvE0XCY",
+            "width": 720,
+            "height": 720
+          }
+        ],
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": false,
+          "hideSendAction": false,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/fernando-tedesco_montei-um-pack-do-claude-e-feito-pra-voc%C3%AA-activity-7473007871543152640-GqOy?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7473007871543152640",
+        "shareUrn": "urn:li:share:7473007870159097856",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7473007870159097856",
+        "engagement": {
+          "id": "7473007871543152640",
+          "likes": 82,
+          "comments": 301,
+          "shares": 2,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 76
+            },
+            {
+              "type": "PRAISE",
+              "count": 4
+            },
+            {
+              "type": "EMPATHY",
+              "count": 2
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/fernando-tedesco/",
+          "sortBy": "date",
+          "page": 1,
+          "postedLimit": "month"
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7473000375562776577",
+      "entity_id": "7473000375562776577",
+      "post_url": "https://www.linkedin.com/posts/victorzbaggio_com-o-claude-cowork-literalmente-qualquer-activity-7473000375562776577-NEvp",
+      "author_name": "Victor Baggio",
+      "author_identifier": "victorzbaggio",
+      "published_at": "2026-06-17T13:15:31.167Z",
+      "content": "Com o Claude Cowork literalmente QUALQUER profissional consegue automatizar seu fluxo de trabalho. \r\nMesmo assim, quase ninguém usa do jeito certo…\r\n\r\nTô usando o Cowork há pelo menos 3 meses e não entendo nada de código.\r\n\r\nMesmo assim, automatizei boa parte das minhas rotinas no comercial sem grande esforço.\r\n\r\nEnquanto a maioria dos times de venda gastam tempo com tarefas que não geram valor,\r\neu liberei espaço na agenda para mais reuniões e mais conteúdo.\r\n\r\nSeparei as 5 skills para o Cowork que automatizaram os 5 principais processos do meu comercial.\r\nE vou compartilhar de graça.\r\n\r\nElas resolvem processos como:\r\n\r\n↳ Geração de leads no LinkedIn\r\n↳ Personalização de mensagens\r\n↳ Preparação para reuniões\r\n↳ Mapeamento de decisores\r\n↳ Revisão de pipeline no CRM\r\n\r\nPRA QUEM É:\r\nQualquer profissional de vendas, desde a operação até a liderança, que queira aumentar produtividade e resultados.\r\n\r\nO QUE VOCÊ RECEBE:\r\n✅ Tutorial sobre Claude Cowork (29 min)\r\n✅ 5 skills para instalar imediatamente\r\n\r\nPara receber na DM basta:\r\n\r\n1. Comentar \"COWORK\"\r\n2. Garantir que está CONECTADO comigo.",
+      "hook": "Com o Claude Cowork literalmente QUALQUER profissional consegue automatizar seu fluxo de trabalho.",
+      "format": "post",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 172,
+      "comments": 774,
+      "shares": 0,
+      "reactions_total": 172,
+      "engagement_total": 946,
+      "engagement_score": 2494,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Victor Baggio",
+      "account_url": "https://www.linkedin.com/in/victorzbaggio/",
+      "raw": {
+        "type": "post",
+        "id": "7473000375562776577",
+        "linkedinUrl": "https://www.linkedin.com/posts/victorzbaggio_com-o-claude-cowork-literalmente-qualquer-activity-7473000375562776577-NEvp",
+        "content": "Com o Claude Cowork literalmente QUALQUER profissional consegue automatizar seu fluxo de trabalho. \r\nMesmo assim, quase ninguém usa do jeito certo…\r\n\r\nTô usando o Cowork há pelo menos 3 meses e não entendo nada de código.\r\n\r\nMesmo assim, automatizei boa parte das minhas rotinas no comercial sem grande esforço.\r\n\r\nEnquanto a maioria dos times de venda gastam tempo com tarefas que não geram valor,\r\neu liberei espaço na agenda para mais reuniões e mais conteúdo.\r\n\r\nSeparei as 5 skills para o Cowork que automatizaram os 5 principais processos do meu comercial.\r\nE vou compartilhar de graça.\r\n\r\nElas resolvem processos como:\r\n\r\n↳ Geração de leads no LinkedIn\r\n↳ Personalização de mensagens\r\n↳ Preparação para reuniões\r\n↳ Mapeamento de decisores\r\n↳ Revisão de pipeline no CRM\r\n\r\nPRA QUEM É:\r\nQualquer profissional de vendas, desde a operação até a liderança, que queira aumentar produtividade e resultados.\r\n\r\nO QUE VOCÊ RECEBE:\r\n✅ Tutorial sobre Claude Cowork (29 min)\r\n✅ 5 skills para instalar imediatamente\r\n\r\nPara receber na DM basta:\r\n\r\n1. Comentar \"COWORK\"\r\n2. Garantir que está CONECTADO comigo.",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "universalName": null,
+          "publicIdentifier": "victorzbaggio",
+          "type": "profile",
+          "name": "Victor Baggio",
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "info": "🤖 Automações com IA para Escalar Vendas | Sócio na Playbook Lab",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "489715572"
+        },
+        "postedAt": {
+          "timestamp": 1781702131167,
+          "date": "2026-06-17T13:15:31.167Z",
+          "postedAgoShort": "1w",
+          "postedAgoText": "1 week ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4E22AQExiYYJHN5jeQ/feedshare-shrink_1280/B4EZ7VuNhIJEAY-/0/1781702129656?e=1784764800&v=beta&t=vsYFJ48DZsJ1M5QxJemIHN-aYrosHdm4Bg8dB-V87MQ",
+            "width": 854,
+            "height": 640
+          }
+        ],
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": false,
+          "hideSendAction": false,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/victorzbaggio_com-o-claude-cowork-literalmente-qualquer-activity-7473000375562776577-NEvp?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7473000375562776577",
+        "shareUrn": "urn:li:share:7473000374409392128",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7473000374409392128",
+        "engagement": {
+          "id": "7473000375562776577",
+          "likes": 172,
+          "comments": 774,
+          "shares": 0,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 156
+            },
+            {
+              "type": "INTEREST",
+              "count": 9
+            },
+            {
+              "type": "PRAISE",
+              "count": 4
+            },
+            {
+              "type": "EMPATHY",
+              "count": 2
+            },
+            {
+              "type": "APPRECIATION",
+              "count": 1
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/victorzbaggio/",
+          "sortBy": "date",
+          "page": 1,
+          "postedLimit": "month"
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7471207304390991873",
+      "entity_id": "7471207304390991873",
+      "post_url": "https://www.linkedin.com/posts/fernando-tedesco_se-voc%C3%AA-usa-rd-station-crm-e-ainda-n%C3%A3o-conectou-activity-7471207304390991873-myz_",
+      "author_name": "Fernando Tedesco",
+      "author_identifier": "fernando-tedesco",
+      "published_at": "2026-06-12T14:30:29.686Z",
+      "content": "Se você usa RD Station CRM e ainda não conectou ao Claude, você tá atrasado.\r\nVou te mostrar como fazer isso em 15 minutos e turbinar o CRM.\r\n\r\nConectar o CRM ao Claude é a forma mais rápida de aumentar produtividade em vendas.\r\n\r\nFiz um pacote com 5 skills + 2 live artifacts que:\r\n\r\nLê informações\r\nAtualiza campos\r\nAudita a própria higiene em minutos\r\nGera report executivo\r\nPreenche campos automaticamente a partir de calls\r\nEnriquece novos leads\r\n\r\nA real é que nem sei mais usar CRM que nem antes. \r\n\r\nE o mais legal é esse pacote conectado te ajuda independente do teu cargo.\r\n\r\nServe para SDRs enriquecerem leads\r\nPara BDRs abordarem de forma personalizada\r\nPara Vendedores atualizare dados depois de calls\r\nPara Gestores que precisam cuidar da opperação\r\n\r\nFiz um material direto ao ponto. Em menos de 15 min, você:\r\n↳ Aprende a conectar o RD CRM ao Claude em 2 min\r\n↳ Tem orientações para instalar o pacote e começa a usar (plug and play)\r\n↳ Mais conteúdo aprofundado para personalizar.\r\n\r\nPra receber o material:\r\n1️⃣ Comenta \"RD Station\"\r\n2️⃣ Conecta comigo pra eu te mandar na DM!",
+      "hook": "Se você usa RD Station CRM e ainda não conectou ao Claude, você tá atrasado.",
+      "format": "post",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 174,
+      "comments": 278,
+      "shares": 3,
+      "reactions_total": 174,
+      "engagement_total": 455,
+      "engagement_score": 1020,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Fernando Tedesco",
+      "account_url": "https://www.linkedin.com/in/fernando-tedesco/",
+      "raw": {
+        "type": "post",
+        "id": "7471207304390991873",
+        "linkedinUrl": "https://www.linkedin.com/posts/fernando-tedesco_se-voc%C3%AA-usa-rd-station-crm-e-ainda-n%C3%A3o-conectou-activity-7471207304390991873-myz_",
+        "content": "Se você usa RD Station CRM e ainda não conectou ao Claude, você tá atrasado.\r\nVou te mostrar como fazer isso em 15 minutos e turbinar o CRM.\r\n\r\nConectar o CRM ao Claude é a forma mais rápida de aumentar produtividade em vendas.\r\n\r\nFiz um pacote com 5 skills + 2 live artifacts que:\r\n\r\nLê informações\r\nAtualiza campos\r\nAudita a própria higiene em minutos\r\nGera report executivo\r\nPreenche campos automaticamente a partir de calls\r\nEnriquece novos leads\r\n\r\nA real é que nem sei mais usar CRM que nem antes. \r\n\r\nE o mais legal é esse pacote conectado te ajuda independente do teu cargo.\r\n\r\nServe para SDRs enriquecerem leads\r\nPara BDRs abordarem de forma personalizada\r\nPara Vendedores atualizare dados depois de calls\r\nPara Gestores que precisam cuidar da opperação\r\n\r\nFiz um material direto ao ponto. Em menos de 15 min, você:\r\n↳ Aprende a conectar o RD CRM ao Claude em 2 min\r\n↳ Tem orientações para instalar o pacote e começa a usar (plug and play)\r\n↳ Mais conteúdo aprofundado para personalizar.\r\n\r\nPra receber o material:\r\n1️⃣ Comenta \"RD Station\"\r\n2️⃣ Conecta comigo pra eu te mandar na DM!",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "universalName": null,
+          "publicIdentifier": "fernando-tedesco",
+          "type": "profile",
+          "name": "Fernando Tedesco",
+          "linkedinUrl": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "info": "Scalable growth with AI Systems 🎯 | Playbook Lab - for AI inside sales",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1691368512757?e=1784764800&v=beta&t=wELY_z_ITY4Cb9KAHLdkxrkRAhGLKVFbAhNvL0Om8UI",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "289331096"
+        },
+        "postedAt": {
+          "timestamp": 1781274629686,
+          "date": "2026-06-12T14:30:29.686Z",
+          "postedAgoShort": "2w",
+          "postedAgoText": "2 weeks ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4D22AQEof3XJJPsGIQ/feedshare-image-high-res/B4DZ68PcNGGwAU-/0/1781274626633?e=1784764800&v=beta&t=pQbJq-jHiZZPWrb4x8bSlUShprEe2MMR47rU_DgJb7Y",
+            "width": 720,
+            "height": 720
+          }
+        ],
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": false,
+          "hideSendAction": false,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/fernando-tedesco_se-voc%C3%AA-usa-rd-station-crm-e-ainda-n%C3%A3o-conectou-activity-7471207304390991873-myz_?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7471207304390991873",
+        "shareUrn": "urn:li:share:7471207302944063489",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7471207302944063489",
+        "engagement": {
+          "id": "7471207304390991873",
+          "likes": 174,
+          "comments": 278,
+          "shares": 3,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 143
+            },
+            {
+              "type": "PRAISE",
+              "count": 18
+            },
+            {
+              "type": "INTEREST",
+              "count": 9
+            },
+            {
+              "type": "EMPATHY",
+              "count": 4
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/fernando-tedesco/",
+          "sortBy": "date",
+          "page": 1,
+          "postedLimit": "month"
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7470480528257945605",
+      "entity_id": "7470480528257945605",
+      "post_url": "https://www.linkedin.com/posts/fernando-tedesco_7-anos-de-uso-2-anos-automatizando-o-pipedrive-activity-7470478708122746881-_paR",
+      "author_name": "Fernando Tedesco",
+      "author_identifier": "fernando-tedesco",
+      "published_at": "2026-06-10T14:22:32.753Z",
+      "content": "7 anos de uso + 2 anos automatizando o Pipedrive.\r\nJuntei e fiz um pacote do Claude que dá anabolizantes pro CRM…\r\n\r\ne vou te entregar de GRAÇA.\r\n\r\nÉ conectar e começar a usar, imediato. \r\n\r\nNo pacote (plugin) temos:\r\n5 Skills = automações prontas pra rodar\r\n2 Live artifacts = Dashs interativos pra maximizar insights.\r\nTudo orientado passo a passo. \r\n\r\nAs ferramentas ajudam a:\r\n→ Auditar a própria higiene em minutos\r\n→ Calcular forecast comercial sem planilha\r\n→ Gerar report executivo pra diretoria no automático\r\n→ Preencher deals a partir de calls e e-mails\r\n→ Enriquecer leads e contas antes da abordagem\r\n\r\nCRM em ordem, operação com informação rica, e gestão com observabilidade.\r\n\r\nQuer o pacote?\r\n\r\nComente \"PIPE\" aqui em baixo que te mando na dm.\r\nps. não se esquece de conectar comigo!",
+      "hook": "7 anos de uso + 2 anos automatizando o Pipedrive.",
+      "format": "post",
+      "cta_keyword": "PIPE",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 95,
+      "comments": 405,
+      "shares": 3,
+      "reactions_total": 95,
+      "engagement_total": 503,
+      "engagement_score": 1322,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Victor Baggio",
+      "account_url": "https://www.linkedin.com/in/victorzbaggio/",
+      "raw": {
+        "type": "post",
+        "id": "7470480528257945605",
+        "linkedinUrl": "https://www.linkedin.com/posts/fernando-tedesco_7-anos-de-uso-2-anos-automatizando-o-pipedrive-activity-7470478708122746881-_paR",
+        "content": "7 anos de uso + 2 anos automatizando o Pipedrive.\r\nJuntei e fiz um pacote do Claude que dá anabolizantes pro CRM…\r\n\r\ne vou te entregar de GRAÇA.\r\n\r\nÉ conectar e começar a usar, imediato. \r\n\r\nNo pacote (plugin) temos:\r\n5 Skills = automações prontas pra rodar\r\n2 Live artifacts = Dashs interativos pra maximizar insights.\r\nTudo orientado passo a passo. \r\n\r\nAs ferramentas ajudam a:\r\n→ Auditar a própria higiene em minutos\r\n→ Calcular forecast comercial sem planilha\r\n→ Gerar report executivo pra diretoria no automático\r\n→ Preencher deals a partir de calls e e-mails\r\n→ Enriquecer leads e contas antes da abordagem\r\n\r\nCRM em ordem, operação com informação rica, e gestão com observabilidade.\r\n\r\nQuer o pacote?\r\n\r\nComente \"PIPE\" aqui em baixo que te mando na dm.\r\nps. não se esquece de conectar comigo!",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "universalName": null,
+          "publicIdentifier": "fernando-tedesco",
+          "type": "profile",
+          "name": "Fernando Tedesco",
+          "linkedinUrl": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "info": "Scalable growth with AI Systems 🎯 | Playbook Lab - for AI inside sales",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1691368512757?e=1784764800&v=beta&t=wELY_z_ITY4Cb9KAHLdkxrkRAhGLKVFbAhNvL0Om8UI",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "289331096"
+        },
+        "postedAt": {
+          "timestamp": 1781101352753,
+          "date": "2026-06-10T14:22:32.753Z",
+          "postedAgoShort": "2w",
+          "postedAgoText": "2 weeks ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D5622AQGyOR8_W_7tJA/feedshare-shrink_800/B56Z6x4yuJI8Ac-/0/1781100917450?e=1784764800&v=beta&t=vsfzT8_QitWXyqHid_3AgfQPZzpCxMPTvvSeXAQ5ZJs",
+            "width": 576,
+            "height": 576
+          }
+        ],
+        "repostedBy": {
+          "name": "Victor Baggio",
+          "publicIdentifier": "victorzbaggio",
+          "universalName": null,
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4"
+        },
+        "repostedAt": {
+          "timestamp": 1781101352753,
+          "date": "2026-06-10T14:22:32.753Z"
+        },
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": false,
+          "hideSendAction": false,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/fernando-tedesco_7-anos-de-uso-2-anos-automatizando-o-pipedrive-activity-7470478708122746881-_paR?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "image": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "linkedinUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7470480528257945605?updateEntityUrn=urn%3Ali%3Afsd_update%3A%28urn%3Ali%3Aactivity%3A7470480528257945605%2CMEMBER_SHARES%2CDEBUG_REASON%2CDEFAULT%2Cfalse%29&originTrackingId=HzluvlT4GD%2FpxDUST0JnLQ%3D%3D",
+          "imageLink": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "text": "Victor Baggio reposted this"
+        },
+        "entityId": "7470480528257945605",
+        "shareUrn": "urn:li:share:7470478706931720193",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7470478706931720193",
+        "engagement": {
+          "id": "7470478708122746881",
+          "likes": 95,
+          "comments": 405,
+          "shares": 3,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 87
+            },
+            {
+              "type": "PRAISE",
+              "count": 5
+            },
+            {
+              "type": "INTEREST",
+              "count": 2
+            },
+            {
+              "type": "EMPATHY",
+              "count": 1
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/victorzbaggio/",
+          "sortBy": "date",
+          "page": 1,
+          "postedLimit": "month"
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7470478708122746881",
+      "entity_id": "7470478708122746881",
+      "post_url": "https://www.linkedin.com/posts/fernando-tedesco_7-anos-de-uso-2-anos-automatizando-o-pipedrive-activity-7470478708122746881-_paR",
+      "author_name": "Fernando Tedesco",
+      "author_identifier": "fernando-tedesco",
+      "published_at": "2026-06-10T14:15:18.799Z",
+      "content": "7 anos de uso + 2 anos automatizando o Pipedrive.\r\nJuntei e fiz um pacote do Claude que dá anabolizantes pro CRM…\r\n\r\ne vou te entregar de GRAÇA.\r\n\r\nÉ conectar e começar a usar, imediato. \r\n\r\nNo pacote (plugin) temos:\r\n5 Skills = automações prontas pra rodar\r\n2 Live artifacts = Dashs interativos pra maximizar insights.\r\nTudo orientado passo a passo. \r\n\r\nAs ferramentas ajudam a:\r\n→ Auditar a própria higiene em minutos\r\n→ Calcular forecast comercial sem planilha\r\n→ Gerar report executivo pra diretoria no automático\r\n→ Preencher deals a partir de calls e e-mails\r\n→ Enriquecer leads e contas antes da abordagem\r\n\r\nCRM em ordem, operação com informação rica, e gestão com observabilidade.\r\n\r\nQuer o pacote?\r\n\r\nComente \"PIPE\" aqui em baixo que te mando na dm.\r\nps. não se esquece de conectar comigo!",
+      "hook": "7 anos de uso + 2 anos automatizando o Pipedrive.",
+      "format": "post",
+      "cta_keyword": "PIPE",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 95,
+      "comments": 405,
+      "shares": 3,
+      "reactions_total": 95,
+      "engagement_total": 503,
+      "engagement_score": 1322,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Fernando Tedesco",
+      "account_url": "https://www.linkedin.com/in/fernando-tedesco/",
+      "raw": {
+        "type": "post",
+        "id": "7470478708122746881",
+        "linkedinUrl": "https://www.linkedin.com/posts/fernando-tedesco_7-anos-de-uso-2-anos-automatizando-o-pipedrive-activity-7470478708122746881-_paR",
+        "content": "7 anos de uso + 2 anos automatizando o Pipedrive.\r\nJuntei e fiz um pacote do Claude que dá anabolizantes pro CRM…\r\n\r\ne vou te entregar de GRAÇA.\r\n\r\nÉ conectar e começar a usar, imediato. \r\n\r\nNo pacote (plugin) temos:\r\n5 Skills = automações prontas pra rodar\r\n2 Live artifacts = Dashs interativos pra maximizar insights.\r\nTudo orientado passo a passo. \r\n\r\nAs ferramentas ajudam a:\r\n→ Auditar a própria higiene em minutos\r\n→ Calcular forecast comercial sem planilha\r\n→ Gerar report executivo pra diretoria no automático\r\n→ Preencher deals a partir de calls e e-mails\r\n→ Enriquecer leads e contas antes da abordagem\r\n\r\nCRM em ordem, operação com informação rica, e gestão com observabilidade.\r\n\r\nQuer o pacote?\r\n\r\nComente \"PIPE\" aqui em baixo que te mando na dm.\r\nps. não se esquece de conectar comigo!",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "universalName": null,
+          "publicIdentifier": "fernando-tedesco",
+          "type": "profile",
+          "name": "Fernando Tedesco",
+          "linkedinUrl": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "info": "Scalable growth with AI Systems 🎯 | Playbook Lab - for AI inside sales",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1691368512757?e=1784764800&v=beta&t=wELY_z_ITY4Cb9KAHLdkxrkRAhGLKVFbAhNvL0Om8UI",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "289331096"
+        },
+        "postedAt": {
+          "timestamp": 1781100918799,
+          "date": "2026-06-10T14:15:18.799Z",
+          "postedAgoShort": "2w",
+          "postedAgoText": "2 weeks ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D5622AQGyOR8_W_7tJA/feedshare-shrink_800/B56Z6x4yuJI8Ac-/0/1781100917450?e=1784764800&v=beta&t=vsfzT8_QitWXyqHid_3AgfQPZzpCxMPTvvSeXAQ5ZJs",
+            "width": 576,
+            "height": 576
+          }
+        ],
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": false,
+          "hideSendAction": false,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/fernando-tedesco_7-anos-de-uso-2-anos-automatizando-o-pipedrive-activity-7470478708122746881-_paR?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7470478708122746881",
+        "shareUrn": "urn:li:share:7470478706931720193",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7470478706931720193",
+        "engagement": {
+          "id": "7470478708122746881",
+          "likes": 95,
+          "comments": 405,
+          "shares": 3,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 87
+            },
+            {
+              "type": "PRAISE",
+              "count": 5
+            },
+            {
+              "type": "INTEREST",
+              "count": 2
+            },
+            {
+              "type": "EMPATHY",
+              "count": 1
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/fernando-tedesco/",
+          "sortBy": "date",
+          "page": 1,
+          "postedLimit": "month"
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7467283587982176256",
+      "entity_id": "7467283587982176256",
+      "post_url": "https://www.linkedin.com/posts/victorzbaggio_fiz-30-anos-no-s%C3%A1bado-decidi-compartilhar-activity-7467277599308849152-jF8z",
+      "author_name": "Victor Baggio",
+      "author_identifier": "victorzbaggio",
+      "published_at": "2026-06-01T18:39:02.795Z",
+      "content": "Fiz 30 anos no sábado. Decidi compartilhar 30 dos meus melhores conteúdos e materiais. Tudo num só lugar, tudo de graça. \r\nComente \"30\" para receber.\r\n\r\nÉ, cheguei nos 30 galera. \r\n\r\nO fim de semana foi para comemorar com a família e descansar.\r\n\r\nMas a segunda-feira é pra trabalhar muito e entregar esse PRESENTASSO pra todos vocês!\r\n\r\nNos últimos 12 meses produzi muito conteúdo sobre Automação e AI pra vendas. \r\nDecidi reunir os melhores em um único lugar. De graça.\r\n\r\nNesse material você vai encontrar:\r\n\r\n↳ Automações no N8N\r\n↳ Skills para o Claude\r\n↳ Sistemas na RelevanceAI\r\n↳ Templates prontos pra uso\r\n↳ Lives gravadas\r\n↳ Aulas e Tutoriais\r\n\r\nTudo que precisa para automações de prospecção, CRM, qualificação e atendimento.\r\n\r\nPARA RECEBER:\r\nComente \"30\".\r\nGaranta que está conectado comigo.\r\n\r\n\r\nPs: Se você quiser ter acesso imediato a todos os conteúdos futuros, entra na Comunidade Playbook Lab\r\n(vou deixar o link nos comentários)",
+      "hook": "Fiz 30 anos no sábado. Decidi compartilhar 30 dos meus melhores conteúdos e materiais. Tudo num só lugar, tudo de graça.",
+      "format": "post",
+      "cta_keyword": "30",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 129,
+      "comments": 469,
+      "shares": 2,
+      "reactions_total": 129,
+      "engagement_total": 600,
+      "engagement_score": 1544,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Fernando Tedesco",
+      "account_url": "https://www.linkedin.com/in/fernando-tedesco/",
+      "raw": {
+        "type": "post",
+        "id": "7467283587982176256",
+        "linkedinUrl": "https://www.linkedin.com/posts/victorzbaggio_fiz-30-anos-no-s%C3%A1bado-decidi-compartilhar-activity-7467277599308849152-jF8z",
+        "content": "Fiz 30 anos no sábado. Decidi compartilhar 30 dos meus melhores conteúdos e materiais. Tudo num só lugar, tudo de graça. \r\nComente \"30\" para receber.\r\n\r\nÉ, cheguei nos 30 galera. \r\n\r\nO fim de semana foi para comemorar com a família e descansar.\r\n\r\nMas a segunda-feira é pra trabalhar muito e entregar esse PRESENTASSO pra todos vocês!\r\n\r\nNos últimos 12 meses produzi muito conteúdo sobre Automação e AI pra vendas. \r\nDecidi reunir os melhores em um único lugar. De graça.\r\n\r\nNesse material você vai encontrar:\r\n\r\n↳ Automações no N8N\r\n↳ Skills para o Claude\r\n↳ Sistemas na RelevanceAI\r\n↳ Templates prontos pra uso\r\n↳ Lives gravadas\r\n↳ Aulas e Tutoriais\r\n\r\nTudo que precisa para automações de prospecção, CRM, qualificação e atendimento.\r\n\r\nPARA RECEBER:\r\nComente \"30\".\r\nGaranta que está conectado comigo.\r\n\r\n\r\nPs: Se você quiser ter acesso imediato a todos os conteúdos futuros, entra na Comunidade Playbook Lab\r\n(vou deixar o link nos comentários)",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "universalName": null,
+          "publicIdentifier": "victorzbaggio",
+          "type": "profile",
+          "name": "Victor Baggio",
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "info": "🤖 Automações com IA para Escalar Vendas | Sócio na Playbook Lab",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "489715572"
+        },
+        "postedAt": {
+          "timestamp": 1780339142795,
+          "date": "2026-06-01T18:39:02.795Z",
+          "postedAgoShort": "4w",
+          "postedAgoText": "0 months ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4E22AQE7QBruNbX0JA/feedshare-shrink_1280/B4EZ6EZZAAHoAM-/0/1780337713683?e=1784764800&v=beta&t=62bXRkHY__-NOdp-fRF8mGVjUzfDo7a64a-SbkXZYPU",
+            "width": 1072,
+            "height": 640
+          }
+        ],
+        "repostedBy": {
+          "name": "Fernando Tedesco",
+          "publicIdentifier": "fernando-tedesco",
+          "universalName": null,
+          "linkedinUrl": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s"
+        },
+        "repostedAt": {
+          "timestamp": 1780339142795,
+          "date": "2026-06-01T18:39:02.795Z"
+        },
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": false,
+          "hideSendAction": false,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/victorzbaggio_fiz-30-anos-no-s%C3%A1bado-decidi-compartilhar-activity-7467277599308849152-jF8z?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "image": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1691368512757?e=1784764800&v=beta&t=wELY_z_ITY4Cb9KAHLdkxrkRAhGLKVFbAhNvL0Om8UI",
+            "width": 800,
+            "height": 800
+          },
+          "linkedinUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7467283587982176256?updateEntityUrn=urn%3Ali%3Afsd_update%3A%28urn%3Ali%3Aactivity%3A7467283587982176256%2CMEMBER_SHARES%2CDEBUG_REASON%2CDEFAULT%2Cfalse%29&originTrackingId=XGNlAITScQmo5gjJxo%2F3RQ%3D%3D",
+          "imageLink": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "text": "Fernando Tedesco reposted this"
+        },
+        "entityId": "7467283587982176256",
+        "shareUrn": "urn:li:share:7467277597891014656",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7467277597891014656",
+        "engagement": {
+          "id": "7467277599308849152",
+          "likes": 129,
+          "comments": 469,
+          "shares": 2,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 113
+            },
+            {
+              "type": "PRAISE",
+              "count": 11
+            },
+            {
+              "type": "EMPATHY",
+              "count": 3
+            },
+            {
+              "type": "INTEREST",
+              "count": 2
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/fernando-tedesco/",
+          "sortBy": "date",
+          "page": 1,
+          "postedLimit": "month"
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7467277599308849152",
+      "entity_id": "7467277599308849152",
+      "post_url": "https://www.linkedin.com/posts/victorzbaggio_fiz-30-anos-no-s%C3%A1bado-decidi-compartilhar-activity-7467277599308849152-jF8z",
+      "author_name": "Victor Baggio",
+      "author_identifier": "victorzbaggio",
+      "published_at": "2026-06-01T18:15:14.984Z",
+      "content": "Fiz 30 anos no sábado. Decidi compartilhar 30 dos meus melhores conteúdos e materiais. Tudo num só lugar, tudo de graça. \r\nComente \"30\" para receber.\r\n\r\nÉ, cheguei nos 30 galera. \r\n\r\nO fim de semana foi para comemorar com a família e descansar.\r\n\r\nMas a segunda-feira é pra trabalhar muito e entregar esse PRESENTASSO pra todos vocês!\r\n\r\nNos últimos 12 meses produzi muito conteúdo sobre Automação e AI pra vendas. \r\nDecidi reunir os melhores em um único lugar. De graça.\r\n\r\nNesse material você vai encontrar:\r\n\r\n↳ Automações no N8N\r\n↳ Skills para o Claude\r\n↳ Sistemas na RelevanceAI\r\n↳ Templates prontos pra uso\r\n↳ Lives gravadas\r\n↳ Aulas e Tutoriais\r\n\r\nTudo que precisa para automações de prospecção, CRM, qualificação e atendimento.\r\n\r\nPARA RECEBER:\r\nComente \"30\".\r\nGaranta que está conectado comigo.\r\n\r\n\r\nPs: Se você quiser ter acesso imediato a todos os conteúdos futuros, entra na Comunidade Playbook Lab\r\n(vou deixar o link nos comentários)",
+      "hook": "Fiz 30 anos no sábado. Decidi compartilhar 30 dos meus melhores conteúdos e materiais. Tudo num só lugar, tudo de graça.",
+      "format": "post",
+      "cta_keyword": "30",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 129,
+      "comments": 469,
+      "shares": 2,
+      "reactions_total": 129,
+      "engagement_total": 600,
+      "engagement_score": 1544,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Victor Baggio",
+      "account_url": "https://www.linkedin.com/in/victorzbaggio/",
+      "raw": {
+        "type": "post",
+        "id": "7467277599308849152",
+        "linkedinUrl": "https://www.linkedin.com/posts/victorzbaggio_fiz-30-anos-no-s%C3%A1bado-decidi-compartilhar-activity-7467277599308849152-jF8z",
+        "content": "Fiz 30 anos no sábado. Decidi compartilhar 30 dos meus melhores conteúdos e materiais. Tudo num só lugar, tudo de graça. \r\nComente \"30\" para receber.\r\n\r\nÉ, cheguei nos 30 galera. \r\n\r\nO fim de semana foi para comemorar com a família e descansar.\r\n\r\nMas a segunda-feira é pra trabalhar muito e entregar esse PRESENTASSO pra todos vocês!\r\n\r\nNos últimos 12 meses produzi muito conteúdo sobre Automação e AI pra vendas. \r\nDecidi reunir os melhores em um único lugar. De graça.\r\n\r\nNesse material você vai encontrar:\r\n\r\n↳ Automações no N8N\r\n↳ Skills para o Claude\r\n↳ Sistemas na RelevanceAI\r\n↳ Templates prontos pra uso\r\n↳ Lives gravadas\r\n↳ Aulas e Tutoriais\r\n\r\nTudo que precisa para automações de prospecção, CRM, qualificação e atendimento.\r\n\r\nPARA RECEBER:\r\nComente \"30\".\r\nGaranta que está conectado comigo.\r\n\r\n\r\nPs: Se você quiser ter acesso imediato a todos os conteúdos futuros, entra na Comunidade Playbook Lab\r\n(vou deixar o link nos comentários)",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "universalName": null,
+          "publicIdentifier": "victorzbaggio",
+          "type": "profile",
+          "name": "Victor Baggio",
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "info": "🤖 Automações com IA para Escalar Vendas | Sócio na Playbook Lab",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "489715572"
+        },
+        "postedAt": {
+          "timestamp": 1780337714984,
+          "date": "2026-06-01T18:15:14.984Z",
+          "postedAgoShort": "4w",
+          "postedAgoText": "0 months ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4E22AQE7QBruNbX0JA/feedshare-shrink_1280/B4EZ6EZZAAHoAM-/0/1780337713683?e=1784764800&v=beta&t=62bXRkHY__-NOdp-fRF8mGVjUzfDo7a64a-SbkXZYPU",
+            "width": 1072,
+            "height": 640
+          }
+        ],
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": false,
+          "hideSendAction": false,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/victorzbaggio_fiz-30-anos-no-s%C3%A1bado-decidi-compartilhar-activity-7467277599308849152-jF8z?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7467277599308849152",
+        "shareUrn": "urn:li:share:7467277597891014656",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7467277597891014656",
+        "engagement": {
+          "id": "7467277599308849152",
+          "likes": 129,
+          "comments": 469,
+          "shares": 2,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 113
+            },
+            {
+              "type": "PRAISE",
+              "count": 11
+            },
+            {
+              "type": "EMPATHY",
+              "count": 3
+            },
+            {
+              "type": "INTEREST",
+              "count": 2
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/victorzbaggio/",
+          "sortBy": "date",
+          "page": 1,
+          "postedLimit": "month"
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7465781264814596096",
+      "entity_id": "7465781264814596096",
+      "post_url": "https://www.linkedin.com/posts/victorzbaggio_j%C3%A1-entreguei-mais-de-300-projetos-de-automa%C3%A7%C3%A3o-activity-7465752503859466240-Qezh",
+      "author_name": "Victor Baggio",
+      "author_identifier": "victorzbaggio",
+      "published_at": "2026-05-28T15:09:21.040Z",
+      "content": "Já entreguei mais de 300 projetos de Automação e IA pra vendas.\nAqui estão os 5 que as empresas mais precisam (e pagam para ter).\n\nOs gurus prometem automação que vende sozinha 24/7.\nFalam que dá pra substituir seu time de vendas INTEIRO por Agentes de IA...\n\nA Playbook já implementou IA no comercial de empresas enormes, e eu te falo:\nOs gurus mentem! \n\nAs automações mirabolantes e com promessas exageradas geralmente não são o que os negócios precisam. \n\nAqui está o que realmente funciona em 2026:\n\n✅ Speed to Lead\nLead converteu no formulário > agente pesquisa, qualifica e manda a primeira mensagem personalizada em segundos.\nO vendedor entra depois, mas o lead já foi atendido e o CRM enriquecido.\n\n✅ Sequências de Follow-up\nA automação faz o que a maioria dos vendedores esquece. \nFollow-ups inteligentes, no canal certo, com contexto real sobre o lead.\n\n✅ Reativação de Base\nToda empresa tem um estoque de leads perdidos parado no CRM.\nQuase nenhuma trabalha esse estoque.\nEssa automação faz isso de forma recorrente e personalizada.\n\n✅ Copilotos para o Time de Vendas\nIA que ajuda o vendedor a pesquisar leads, contornar objeções e escrever mensagens.\nNão substitui o vendedor. Potencializa.\n\n✅ Análise e Relatórios Automatizados\nDados do CRM → análise com IA → relatório prontos.\nSem gastar horas toda semana montando planilha ou PPT.\n\nGravei um vídeo comentando em detalhes sobre cada uma dessas soluções.\n\nSe quiser conferir, o link está no primeiro comentário 👇",
+      "hook": "Já entreguei mais de 300 projetos de Automação e IA pra vendas.",
+      "format": "post",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 118,
+      "comments": 18,
+      "shares": 4,
+      "reactions_total": 118,
+      "engagement_total": 140,
+      "engagement_score": 188,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Fernando Tedesco",
+      "account_url": "https://www.linkedin.com/in/fernando-tedesco/",
+      "raw": {
+        "type": "post",
+        "id": "7465781264814596096",
+        "linkedinUrl": "https://www.linkedin.com/posts/victorzbaggio_j%C3%A1-entreguei-mais-de-300-projetos-de-automa%C3%A7%C3%A3o-activity-7465752503859466240-Qezh",
+        "content": "Já entreguei mais de 300 projetos de Automação e IA pra vendas.\nAqui estão os 5 que as empresas mais precisam (e pagam para ter).\n\nOs gurus prometem automação que vende sozinha 24/7.\nFalam que dá pra substituir seu time de vendas INTEIRO por Agentes de IA...\n\nA Playbook já implementou IA no comercial de empresas enormes, e eu te falo:\nOs gurus mentem! \n\nAs automações mirabolantes e com promessas exageradas geralmente não são o que os negócios precisam. \n\nAqui está o que realmente funciona em 2026:\n\n✅ Speed to Lead\nLead converteu no formulário > agente pesquisa, qualifica e manda a primeira mensagem personalizada em segundos.\nO vendedor entra depois, mas o lead já foi atendido e o CRM enriquecido.\n\n✅ Sequências de Follow-up\nA automação faz o que a maioria dos vendedores esquece. \nFollow-ups inteligentes, no canal certo, com contexto real sobre o lead.\n\n✅ Reativação de Base\nToda empresa tem um estoque de leads perdidos parado no CRM.\nQuase nenhuma trabalha esse estoque.\nEssa automação faz isso de forma recorrente e personalizada.\n\n✅ Copilotos para o Time de Vendas\nIA que ajuda o vendedor a pesquisar leads, contornar objeções e escrever mensagens.\nNão substitui o vendedor. Potencializa.\n\n✅ Análise e Relatórios Automatizados\nDados do CRM → análise com IA → relatório prontos.\nSem gastar horas toda semana montando planilha ou PPT.\n\nGravei um vídeo comentando em detalhes sobre cada uma dessas soluções.\n\nSe quiser conferir, o link está no primeiro comentário 👇",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "universalName": null,
+          "publicIdentifier": "victorzbaggio",
+          "type": "profile",
+          "name": "Victor Baggio",
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "info": "🤖 Automações com IA para Escalar Vendas | Sócio na Playbook Lab",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "489715572"
+        },
+        "postedAt": {
+          "timestamp": 1779980961040,
+          "date": "2026-05-28T15:09:21.040Z",
+          "postedAgoShort": "1mo",
+          "postedAgoText": "1 month ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4E22AQEZFSgjmM3YLQ/feedshare-image-high-res/B4EZ5s6HfWG0AU-/0/1779943641610?e=1784764800&v=beta&t=2lgrnTt1GBNe_q1cHRKeBCJoPK8fZvkoSLT7VY--QuY",
+            "width": 1138,
+            "height": 640
+          }
+        ],
+        "repostedBy": {
+          "name": "Fernando Tedesco",
+          "publicIdentifier": "fernando-tedesco",
+          "universalName": null,
+          "linkedinUrl": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s"
+        },
+        "repostedAt": {
+          "timestamp": 1779980961040,
+          "date": "2026-05-28T15:09:21.040Z"
+        },
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": true,
+          "hideSendAction": true,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/victorzbaggio_j%C3%A1-entreguei-mais-de-300-projetos-de-automa%C3%A7%C3%A3o-activity-7465752503859466240-Qezh?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "image": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1691368512757?e=1784764800&v=beta&t=wELY_z_ITY4Cb9KAHLdkxrkRAhGLKVFbAhNvL0Om8UI",
+            "width": 800,
+            "height": 800
+          },
+          "linkedinUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7465781264814596096?updateEntityUrn=urn%3Ali%3Afsd_update%3A%28urn%3Ali%3Aactivity%3A7465781264814596096%2CMEMBER_SHARES%2CDEBUG_REASON%2CDEFAULT%2Cfalse%29&originTrackingId=CGoCVNWfrqYSE0hbzYOrVw%3D%3D",
+          "imageLink": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "text": "Fernando Tedesco reposted this"
+        },
+        "entityId": "7465781264814596096",
+        "shareUrn": "urn:li:share:7465624739911409664",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7465624739911409664",
+        "engagement": {
+          "id": "7465752503859466240",
+          "likes": 118,
+          "comments": 18,
+          "shares": 4,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 107
+            },
+            {
+              "type": "PRAISE",
+              "count": 7
+            },
+            {
+              "type": "EMPATHY",
+              "count": 2
+            },
+            {
+              "type": "APPRECIATION",
+              "count": 1
+            },
+            {
+              "type": "INTEREST",
+              "count": 1
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/fernando-tedesco/",
+          "sortBy": "date",
+          "page": 1
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7465752503859466240",
+      "entity_id": "7465752503859466240",
+      "post_url": "https://www.linkedin.com/posts/victorzbaggio_j%C3%A1-entreguei-mais-de-300-projetos-de-automa%C3%A7%C3%A3o-activity-7465752503859466240-Qezh",
+      "author_name": "Victor Baggio",
+      "author_identifier": "victorzbaggio",
+      "published_at": "2026-05-28T13:15:03.894Z",
+      "content": "Já entreguei mais de 300 projetos de Automação e IA pra vendas.\nAqui estão os 5 que as empresas mais precisam (e pagam para ter).\n\nOs gurus prometem automação que vende sozinha 24/7.\nFalam que dá pra substituir seu time de vendas INTEIRO por Agentes de IA...\n\nA Playbook já implementou IA no comercial de empresas enormes, e eu te falo:\nOs gurus mentem! \n\nAs automações mirabolantes e com promessas exageradas geralmente não são o que os negócios precisam. \n\nAqui está o que realmente funciona em 2026:\n\n✅ Speed to Lead\nLead converteu no formulário > agente pesquisa, qualifica e manda a primeira mensagem personalizada em segundos.\nO vendedor entra depois, mas o lead já foi atendido e o CRM enriquecido.\n\n✅ Sequências de Follow-up\nA automação faz o que a maioria dos vendedores esquece. \nFollow-ups inteligentes, no canal certo, com contexto real sobre o lead.\n\n✅ Reativação de Base\nToda empresa tem um estoque de leads perdidos parado no CRM.\nQuase nenhuma trabalha esse estoque.\nEssa automação faz isso de forma recorrente e personalizada.\n\n✅ Copilotos para o Time de Vendas\nIA que ajuda o vendedor a pesquisar leads, contornar objeções e escrever mensagens.\nNão substitui o vendedor. Potencializa.\n\n✅ Análise e Relatórios Automatizados\nDados do CRM → análise com IA → relatório prontos.\nSem gastar horas toda semana montando planilha ou PPT.\n\nGravei um vídeo comentando em detalhes sobre cada uma dessas soluções.\n\nSe quiser conferir, o link está no primeiro comentário 👇",
+      "hook": "Já entreguei mais de 300 projetos de Automação e IA pra vendas.",
+      "format": "post",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 118,
+      "comments": 18,
+      "shares": 4,
+      "reactions_total": 118,
+      "engagement_total": 140,
+      "engagement_score": 188,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Victor Baggio",
+      "account_url": "https://www.linkedin.com/in/victorzbaggio/",
+      "raw": {
+        "type": "post",
+        "id": "7465752503859466240",
+        "linkedinUrl": "https://www.linkedin.com/posts/victorzbaggio_j%C3%A1-entreguei-mais-de-300-projetos-de-automa%C3%A7%C3%A3o-activity-7465752503859466240-Qezh",
+        "content": "Já entreguei mais de 300 projetos de Automação e IA pra vendas.\nAqui estão os 5 que as empresas mais precisam (e pagam para ter).\n\nOs gurus prometem automação que vende sozinha 24/7.\nFalam que dá pra substituir seu time de vendas INTEIRO por Agentes de IA...\n\nA Playbook já implementou IA no comercial de empresas enormes, e eu te falo:\nOs gurus mentem! \n\nAs automações mirabolantes e com promessas exageradas geralmente não são o que os negócios precisam. \n\nAqui está o que realmente funciona em 2026:\n\n✅ Speed to Lead\nLead converteu no formulário > agente pesquisa, qualifica e manda a primeira mensagem personalizada em segundos.\nO vendedor entra depois, mas o lead já foi atendido e o CRM enriquecido.\n\n✅ Sequências de Follow-up\nA automação faz o que a maioria dos vendedores esquece. \nFollow-ups inteligentes, no canal certo, com contexto real sobre o lead.\n\n✅ Reativação de Base\nToda empresa tem um estoque de leads perdidos parado no CRM.\nQuase nenhuma trabalha esse estoque.\nEssa automação faz isso de forma recorrente e personalizada.\n\n✅ Copilotos para o Time de Vendas\nIA que ajuda o vendedor a pesquisar leads, contornar objeções e escrever mensagens.\nNão substitui o vendedor. Potencializa.\n\n✅ Análise e Relatórios Automatizados\nDados do CRM → análise com IA → relatório prontos.\nSem gastar horas toda semana montando planilha ou PPT.\n\nGravei um vídeo comentando em detalhes sobre cada uma dessas soluções.\n\nSe quiser conferir, o link está no primeiro comentário 👇",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "universalName": null,
+          "publicIdentifier": "victorzbaggio",
+          "type": "profile",
+          "name": "Victor Baggio",
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "info": "🤖 Automações com IA para Escalar Vendas | Sócio na Playbook Lab",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "489715572"
+        },
+        "postedAt": {
+          "timestamp": 1779974103894,
+          "date": "2026-05-28T13:15:03.894Z",
+          "postedAgoShort": "1mo",
+          "postedAgoText": "1 month ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4E22AQEZFSgjmM3YLQ/feedshare-image-high-res/B4EZ5s6HfWG0AU-/0/1779943641610?e=1784764800&v=beta&t=2lgrnTt1GBNe_q1cHRKeBCJoPK8fZvkoSLT7VY--QuY",
+            "width": 1138,
+            "height": 640
+          }
+        ],
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": true,
+          "hideSendAction": true,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/victorzbaggio_j%C3%A1-entreguei-mais-de-300-projetos-de-automa%C3%A7%C3%A3o-activity-7465752503859466240-Qezh?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7465752503859466240",
+        "shareUrn": "urn:li:share:7465624739911409664",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7465624739911409664",
+        "engagement": {
+          "id": "7465752503859466240",
+          "likes": 118,
+          "comments": 18,
+          "shares": 4,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 107
+            },
+            {
+              "type": "PRAISE",
+              "count": 7
+            },
+            {
+              "type": "EMPATHY",
+              "count": 2
+            },
+            {
+              "type": "APPRECIATION",
+              "count": 1
+            },
+            {
+              "type": "INTEREST",
+              "count": 1
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/victorzbaggio/",
+          "sortBy": "date",
+          "page": 1
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7465442954036535296",
+      "entity_id": "7465442954036535296",
+      "post_url": "https://www.linkedin.com/posts/fernando-tedesco_fazer-forecast-de-vendas-sempre-foi-uma-m-activity-7465442954036535296-KzOY",
+      "author_name": "Fernando Tedesco",
+      "author_identifier": "fernando-tedesco",
+      "published_at": "2026-05-27T16:45:01.465Z",
+      "content": "Fazer forecast de vendas sempre foi uma m*rda\n(até o Claude resolver)\n\nCRM não dá conta. Power BI dá, mas come um tempo de TI que ninguém tem.\n\nSobrava exportar planilha na sexta à noite e rezar pra fórmula bater.\n\nPor isso muita gente simplesmente não faz.\n\nA função Live Artifacts do Claude resolveu isso pra mim.\n\nEm minutos eu monto um dash com:\n\n→ dados ao vivo do CRM\n→ cenários otimista, realista e pessimista\n→ deals mais relevantes em destaque\n→ simulação de leads novos entrando no funil\n\nEmpacotei o método inteiro em três coisas:\n\n→ Um ~vídeo~ mostrando o dashboard e mostrando como fazer\n→ Uma ~skill~ que monta o forecast pra você\n→ Um ~PDF~ com o passo a passo completo\n\nMaterial completo comentários ⤵️  \nVem comigo.\n\nPlaybook Lab",
+      "hook": "Fazer forecast de vendas sempre foi uma m*rda",
+      "format": "post",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 111,
+      "comments": 12,
+      "shares": 3,
+      "reactions_total": 111,
+      "engagement_total": 126,
+      "engagement_score": 159,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Fernando Tedesco",
+      "account_url": "https://www.linkedin.com/in/fernando-tedesco/",
+      "raw": {
+        "type": "post",
+        "id": "7465442954036535296",
+        "linkedinUrl": "https://www.linkedin.com/posts/fernando-tedesco_fazer-forecast-de-vendas-sempre-foi-uma-m-activity-7465442954036535296-KzOY",
+        "content": "Fazer forecast de vendas sempre foi uma m*rda\n(até o Claude resolver)\n\nCRM não dá conta. Power BI dá, mas come um tempo de TI que ninguém tem.\n\nSobrava exportar planilha na sexta à noite e rezar pra fórmula bater.\n\nPor isso muita gente simplesmente não faz.\n\nA função Live Artifacts do Claude resolveu isso pra mim.\n\nEm minutos eu monto um dash com:\n\n→ dados ao vivo do CRM\n→ cenários otimista, realista e pessimista\n→ deals mais relevantes em destaque\n→ simulação de leads novos entrando no funil\n\nEmpacotei o método inteiro em três coisas:\n\n→ Um ~vídeo~ mostrando o dashboard e mostrando como fazer\n→ Uma ~skill~ que monta o forecast pra você\n→ Um ~PDF~ com o passo a passo completo\n\nMaterial completo comentários ⤵️  \nVem comigo.\n\nPlaybook Lab",
+        "contentAttributes": [
+          {
+            "start": 734,
+            "length": 12,
+            "type": "COMPANY_NAME",
+            "hyperlink": null,
+            "textLink": null,
+            "company": {
+              "id": "86433176",
+              "name": "Playbook Lab",
+              "linkedinUrl": "https://www.linkedin.com/company/playbooklab/"
+            }
+          }
+        ],
+        "author": {
+          "id": "ACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "universalName": null,
+          "publicIdentifier": "fernando-tedesco",
+          "type": "profile",
+          "name": "Fernando Tedesco",
+          "linkedinUrl": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "info": "Scalable growth with AI Systems 🎯 | Playbook Lab - for AI inside sales",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1691368512757?e=1784764800&v=beta&t=wELY_z_ITY4Cb9KAHLdkxrkRAhGLKVFbAhNvL0Om8UI",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "289331096"
+        },
+        "postedAt": {
+          "timestamp": 1779900301465,
+          "date": "2026-05-27T16:45:01.465Z",
+          "postedAgoShort": "1mo",
+          "postedAgoText": "1 month ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [],
+        "postVideo": {
+          "thumbnailUrl": "https://media.licdn.com/dms/image/v2/D4D05AQFCgx_tfOf1dg/videocover-high/B4DZ5qPxAoGYBM-/0/1779898989318?e=1783508400&v=beta&t=9QsX5xJXzlSqDnfslh_Q9D2aT9m6Kv6hjDqBcHk0GiE",
+          "videoUrl": "https://dms.licdn.com/playlist/vid/v2/D4D05AQFCgx_tfOf1dg/mp4-720p-30fp-crf28/B4DZ5qPxAoGYB8-/0/1779899016393?e=1783508400&v=beta&t=zG6VjxME52gEYFUY0GqiLDeVFluK947xnSsSQKWI1NE"
+        },
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": true,
+          "hideSendAction": true,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/fernando-tedesco_fazer-forecast-de-vendas-sempre-foi-uma-m-activity-7465442954036535296-KzOY?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7465442954036535296",
+        "shareUrn": "urn:li:ugcPost:7465437148901675008",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7465437148901675008",
+        "engagement": {
+          "id": "7465437148901675008",
+          "likes": 111,
+          "comments": 12,
+          "shares": 3,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 106
+            },
+            {
+              "type": "PRAISE",
+              "count": 5
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/fernando-tedesco/",
+          "sortBy": "date",
+          "page": 1
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7462495179409825792",
+      "entity_id": "7462495179409825792",
+      "post_url": "https://www.linkedin.com/posts/victorzbaggio_criar-automa%C3%A7%C3%B5es-no-n8n-acabou-de-ficar-10x-activity-7462491036096061440-U7HS",
+      "author_name": "Victor Baggio",
+      "author_identifier": "victorzbaggio",
+      "published_at": "2026-05-19T13:31:37.227Z",
+      "content": "Criar automações no N8N acabou de ficar 10x mais fácil.\r\nAgora o Claude tem um conector oficial para o N8N e você pode criar fluxos a partir do chat.\r\nGravei um tutorial mostrando como fazer. Comenta “N8N” pra receber.\r\n\r\nApesar de ser um ótima ferramenta no-code para criar automações\r\no N8N não é a ferramenta mais intuitiva do mundo. \r\n\r\nA curva de aprendizado é longa e a maioria das pessoas não tem tempo para aprender tudo que a ferramenta oferece.\r\n\r\nMas isso muda hoje! \r\n\r\nRecentemente o N8N atualizou seu MCP oficial. \r\nAgora são 25+ ações disponíveis para a IA operar a ferramenta. \r\n\r\nCriar fluxos, inserir nós, testar, editar, debugar… \r\n\r\nDá pra conectar ao Claude e criar fluxos e automações usando linguagem natural.\r\n\r\nMais fácil que isso, impossível. \r\n\r\nCriei um material completo com:\r\n\r\n👉 Tutorial de 20 minutos mostrando como usar\r\n👉 Duas skills para turbinar o desempenho do Claude no N8N\r\n\r\nPARA RECEBER BASTA:\r\n1️⃣ Comentar “N8N”\r\n2️⃣ Garantir que estamos conectados",
+      "hook": "Criar automações no N8N acabou de ficar 10x mais fácil.",
+      "format": "post",
+      "cta_keyword": "N8N",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 355,
+      "comments": 1172,
+      "shares": 8,
+      "reactions_total": 355,
+      "engagement_total": 1535,
+      "engagement_score": 3903,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Fernando Tedesco",
+      "account_url": "https://www.linkedin.com/in/fernando-tedesco/",
+      "raw": {
+        "type": "post",
+        "id": "7462495179409825792",
+        "linkedinUrl": "https://www.linkedin.com/posts/victorzbaggio_criar-automa%C3%A7%C3%B5es-no-n8n-acabou-de-ficar-10x-activity-7462491036096061440-U7HS",
+        "content": "Criar automações no N8N acabou de ficar 10x mais fácil.\r\nAgora o Claude tem um conector oficial para o N8N e você pode criar fluxos a partir do chat.\r\nGravei um tutorial mostrando como fazer. Comenta “N8N” pra receber.\r\n\r\nApesar de ser um ótima ferramenta no-code para criar automações\r\no N8N não é a ferramenta mais intuitiva do mundo. \r\n\r\nA curva de aprendizado é longa e a maioria das pessoas não tem tempo para aprender tudo que a ferramenta oferece.\r\n\r\nMas isso muda hoje! \r\n\r\nRecentemente o N8N atualizou seu MCP oficial. \r\nAgora são 25+ ações disponíveis para a IA operar a ferramenta. \r\n\r\nCriar fluxos, inserir nós, testar, editar, debugar… \r\n\r\nDá pra conectar ao Claude e criar fluxos e automações usando linguagem natural.\r\n\r\nMais fácil que isso, impossível. \r\n\r\nCriei um material completo com:\r\n\r\n👉 Tutorial de 20 minutos mostrando como usar\r\n👉 Duas skills para turbinar o desempenho do Claude no N8N\r\n\r\nPARA RECEBER BASTA:\r\n1️⃣ Comentar “N8N”\r\n2️⃣ Garantir que estamos conectados",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "universalName": null,
+          "publicIdentifier": "victorzbaggio",
+          "type": "profile",
+          "name": "Victor Baggio",
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "info": "🤖 Automações com IA para Escalar Vendas | Sócio na Playbook Lab",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "489715572"
+        },
+        "postedAt": {
+          "timestamp": 1779197497227,
+          "date": "2026-05-19T13:31:37.227Z",
+          "postedAgoShort": "1mo",
+          "postedAgoText": "1 month ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4E22AQHb6xDsoFlD2Q/feedshare-shrink_1280/B4EZ5AYDdhHcAM-/0/1779196508336?e=1784764800&v=beta&t=tlRWvFGdZbBUxxzzfPAAqbhaQmx_jgfGoX4hTc6sP-g",
+            "width": 1280,
+            "height": 720
+          }
+        ],
+        "repostedBy": {
+          "name": "Fernando Tedesco",
+          "publicIdentifier": "fernando-tedesco",
+          "universalName": null,
+          "linkedinUrl": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s"
+        },
+        "repostedAt": {
+          "timestamp": 1779197497227,
+          "date": "2026-05-19T13:31:37.227Z"
+        },
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": true,
+          "hideSendAction": true,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/victorzbaggio_criar-automa%C3%A7%C3%B5es-no-n8n-acabou-de-ficar-10x-activity-7462491036096061440-U7HS?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "image": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1691368512757?e=1784764800&v=beta&t=wELY_z_ITY4Cb9KAHLdkxrkRAhGLKVFbAhNvL0Om8UI",
+            "width": 800,
+            "height": 800
+          },
+          "linkedinUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7462495179409825792?updateEntityUrn=urn%3Ali%3Afsd_update%3A%28urn%3Ali%3Aactivity%3A7462495179409825792%2CMEMBER_SHARES%2CDEBUG_REASON%2CDEFAULT%2Cfalse%29&originTrackingId=1B%2FBYd1GBECyy%2BmJP3%2B9uw%3D%3D",
+          "imageLink": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "text": "Fernando Tedesco reposted this"
+        },
+        "entityId": "7462495179409825792",
+        "shareUrn": "urn:li:share:7462491034892058625",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7462491034892058625",
+        "engagement": {
+          "id": "7462491036096061440",
+          "likes": 355,
+          "comments": 1172,
+          "shares": 8,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 323
+            },
+            {
+              "type": "INTEREST",
+              "count": 14
+            },
+            {
+              "type": "PRAISE",
+              "count": 10
+            },
+            {
+              "type": "EMPATHY",
+              "count": 8
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/fernando-tedesco/",
+          "sortBy": "date",
+          "page": 1
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7462491036096061440",
+      "entity_id": "7462491036096061440",
+      "post_url": "https://www.linkedin.com/posts/victorzbaggio_criar-automa%C3%A7%C3%B5es-no-n8n-acabou-de-ficar-10x-activity-7462491036096061440-U7HS",
+      "author_name": "Victor Baggio",
+      "author_identifier": "victorzbaggio",
+      "published_at": "2026-05-19T13:15:09.384Z",
+      "content": "Criar automações no N8N acabou de ficar 10x mais fácil.\r\nAgora o Claude tem um conector oficial para o N8N e você pode criar fluxos a partir do chat.\r\nGravei um tutorial mostrando como fazer. Comenta “N8N” pra receber.\r\n\r\nApesar de ser um ótima ferramenta no-code para criar automações\r\no N8N não é a ferramenta mais intuitiva do mundo. \r\n\r\nA curva de aprendizado é longa e a maioria das pessoas não tem tempo para aprender tudo que a ferramenta oferece.\r\n\r\nMas isso muda hoje! \r\n\r\nRecentemente o N8N atualizou seu MCP oficial. \r\nAgora são 25+ ações disponíveis para a IA operar a ferramenta. \r\n\r\nCriar fluxos, inserir nós, testar, editar, debugar… \r\n\r\nDá pra conectar ao Claude e criar fluxos e automações usando linguagem natural.\r\n\r\nMais fácil que isso, impossível. \r\n\r\nCriei um material completo com:\r\n\r\n👉 Tutorial de 20 minutos mostrando como usar\r\n👉 Duas skills para turbinar o desempenho do Claude no N8N\r\n\r\nPARA RECEBER BASTA:\r\n1️⃣ Comentar “N8N”\r\n2️⃣ Garantir que estamos conectados",
+      "hook": "Criar automações no N8N acabou de ficar 10x mais fácil.",
+      "format": "post",
+      "cta_keyword": "N8N",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 355,
+      "comments": 1172,
+      "shares": 8,
+      "reactions_total": 355,
+      "engagement_total": 1535,
+      "engagement_score": 3903,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Victor Baggio",
+      "account_url": "https://www.linkedin.com/in/victorzbaggio/",
+      "raw": {
+        "type": "post",
+        "id": "7462491036096061440",
+        "linkedinUrl": "https://www.linkedin.com/posts/victorzbaggio_criar-automa%C3%A7%C3%B5es-no-n8n-acabou-de-ficar-10x-activity-7462491036096061440-U7HS",
+        "content": "Criar automações no N8N acabou de ficar 10x mais fácil.\r\nAgora o Claude tem um conector oficial para o N8N e você pode criar fluxos a partir do chat.\r\nGravei um tutorial mostrando como fazer. Comenta “N8N” pra receber.\r\n\r\nApesar de ser um ótima ferramenta no-code para criar automações\r\no N8N não é a ferramenta mais intuitiva do mundo. \r\n\r\nA curva de aprendizado é longa e a maioria das pessoas não tem tempo para aprender tudo que a ferramenta oferece.\r\n\r\nMas isso muda hoje! \r\n\r\nRecentemente o N8N atualizou seu MCP oficial. \r\nAgora são 25+ ações disponíveis para a IA operar a ferramenta. \r\n\r\nCriar fluxos, inserir nós, testar, editar, debugar… \r\n\r\nDá pra conectar ao Claude e criar fluxos e automações usando linguagem natural.\r\n\r\nMais fácil que isso, impossível. \r\n\r\nCriei um material completo com:\r\n\r\n👉 Tutorial de 20 minutos mostrando como usar\r\n👉 Duas skills para turbinar o desempenho do Claude no N8N\r\n\r\nPARA RECEBER BASTA:\r\n1️⃣ Comentar “N8N”\r\n2️⃣ Garantir que estamos conectados",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "universalName": null,
+          "publicIdentifier": "victorzbaggio",
+          "type": "profile",
+          "name": "Victor Baggio",
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "info": "🤖 Automações com IA para Escalar Vendas | Sócio na Playbook Lab",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "489715572"
+        },
+        "postedAt": {
+          "timestamp": 1779196509384,
+          "date": "2026-05-19T13:15:09.384Z",
+          "postedAgoShort": "1mo",
+          "postedAgoText": "1 month ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4E22AQHb6xDsoFlD2Q/feedshare-shrink_1280/B4EZ5AYDdhHcAM-/0/1779196508336?e=1784764800&v=beta&t=tlRWvFGdZbBUxxzzfPAAqbhaQmx_jgfGoX4hTc6sP-g",
+            "width": 1280,
+            "height": 720
+          }
+        ],
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": true,
+          "hideSendAction": true,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/victorzbaggio_criar-automa%C3%A7%C3%B5es-no-n8n-acabou-de-ficar-10x-activity-7462491036096061440-U7HS?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7462491036096061440",
+        "shareUrn": "urn:li:share:7462491034892058625",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7462491034892058625",
+        "engagement": {
+          "id": "7462491036096061440",
+          "likes": 355,
+          "comments": 1172,
+          "shares": 8,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 323
+            },
+            {
+              "type": "INTEREST",
+              "count": 14
+            },
+            {
+              "type": "PRAISE",
+              "count": 10
+            },
+            {
+              "type": "EMPATHY",
+              "count": 8
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/victorzbaggio/",
+          "sortBy": "date",
+          "page": 1
+        }
+      }
+    },
     {
       "platform": "linkedin",
       "external_post_id": "7459968225687142400",
@@ -27,7 +2196,7 @@
       "published_at": "2026-05-12T14:10:24.511Z",
       "content": "Salesforce > U$150 bilhões.\nHubspot > U$10 bilhões.\nPipedrive > U$1,5 bilhão\n\n15+ anos de mercado cada um. Centenas de engenheiros.\n\nTodos tentando resolver um problema básico: \nextrair informação útil do seu CRM sem precisar de 50 cliques, 3 filtros e um analista de BI.\n\nAí a Anthropic lança uma funcionalidade. Uma só. \n\nLive Artifacts.\n\nE tudo fica imediatamente obsoleto.\n\nAgora você monta dashs alimentados com dados ao vivo (e bem melhores do que os relatórios do CRM) conversando com o Claude. \n\ndetalhe: em 30 min tá pronto\n\nGravei um vídeo mostrando como usar os Live Artifacts para um problema que 98% dos meus clientes tem:\n\nHigiene de CRM.\n\nVem comigo",
       "hook": "Salesforce > U$150 bilhões.",
-      "format": "video",
+      "format": "post",
       "theme": null,
       "content_pillar": null,
       "cta_keyword": null,
@@ -35,21 +2204,279 @@
       "commercial_intent": null,
       "is_repost": false,
       "repost_id": null,
-      "media_type": "video",
+      "media_type": "post",
       "media_url": "https://dms.licdn.com/playlist/vid/v2/D4D05AQEBT-WDYPXRBQ/mp4-720p-30fp-crf28/B4DZ4chZpIHAB8-/0/1778595018304?e=1779228000&v=beta&t=EB8kMY1e9MK4msm7Y64cOatuRmH_6DopMuyH_QYv0do",
       "classification_status": "pending",
-      "metric_date": "2026-05-12",
-      "likes": 148,
-      "comments": 17,
-      "shares": 6,
-      "reactions_total": 148,
+      "metric_date": "2026-07-01",
+      "likes": 437,
+      "comments": 45,
+      "shares": 9,
+      "reactions_total": 437,
       "views": null,
-      "engagement_total": 171,
-      "engagement_score": 223,
-      "source": "historical_json",
-      "metric_type": "snapshot",
+      "engagement_total": 491,
+      "engagement_score": 608,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
       "owner_name": "Fernando Tedesco",
-      "account_url": "https://www.linkedin.com/in/fernando-tedesco/"
+      "account_url": "https://www.linkedin.com/in/fernando-tedesco/",
+      "raw": {
+        "type": "post",
+        "id": "7459968225687142400",
+        "linkedinUrl": "https://www.linkedin.com/posts/fernando-tedesco_salesforce-u150-bilh%C3%B5es-hubspot-u10-activity-7459968225687142400-Spke",
+        "content": "Salesforce > U$150 bilhões.\nHubspot > U$10 bilhões.\nPipedrive > U$1,5 bilhão\n\n15+ anos de mercado cada um. Centenas de engenheiros.\n\nTodos tentando resolver um problema básico: \nextrair informação útil do seu CRM sem precisar de 50 cliques, 3 filtros e um analista de BI.\n\nAí a Anthropic lança uma funcionalidade. Uma só. \n\nLive Artifacts.\n\nE tudo fica imediatamente obsoleto.\n\nAgora você monta dashs alimentados com dados ao vivo (e bem melhores do que os relatórios do CRM) conversando com o Claude. \n\ndetalhe: em 30 min tá pronto\n\nGravei um vídeo mostrando como usar os Live Artifacts para um problema que 98% dos meus clientes tem:\n\nHigiene de CRM.\n\nVem comigo",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "universalName": null,
+          "publicIdentifier": "fernando-tedesco",
+          "type": "profile",
+          "name": "Fernando Tedesco",
+          "linkedinUrl": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "info": "Scalable growth with AI Systems 🎯 | Playbook Lab - for AI inside sales",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1691368512757?e=1784764800&v=beta&t=wELY_z_ITY4Cb9KAHLdkxrkRAhGLKVFbAhNvL0Om8UI",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "289331096"
+        },
+        "postedAt": {
+          "timestamp": 1778595024511,
+          "date": "2026-05-12T14:10:24.511Z",
+          "postedAgoShort": "1mo",
+          "postedAgoText": "1 month ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [],
+        "postVideo": {
+          "thumbnailUrl": "https://media.licdn.com/dms/image/v2/D4D05AQEBT-WDYPXRBQ/videocover-high/B4DZ4chZpIHABM-/0/1778594989684?e=1783508400&v=beta&t=wfhADqSuAP8Y3FnKt1-6lrczWbKGNUes192qRj-vKZE",
+          "videoUrl": "https://dms.licdn.com/playlist/vid/v2/D4D05AQEBT-WDYPXRBQ/mp4-720p-30fp-crf28/B4DZ4chZpIHAB8-/0/1778595018304?e=1783508400&v=beta&t=8sciKaAflgK1NnhMaxmCRorHQdCcMpk1m28VPOgrJ-o"
+        },
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": true,
+          "hideSendAction": true,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/fernando-tedesco_salesforce-u150-bilh%C3%B5es-hubspot-u10-activity-7459968225687142400-Spke?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7459968225687142400",
+        "shareUrn": "urn:li:ugcPost:7459967730444550146",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:ugcPost:7459967730444550146",
+        "engagement": {
+          "id": "7459967730444550146",
+          "likes": 437,
+          "comments": 45,
+          "shares": 9,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 386
+            },
+            {
+              "type": "INTEREST",
+              "count": 25
+            },
+            {
+              "type": "PRAISE",
+              "count": 18
+            },
+            {
+              "type": "EMPATHY",
+              "count": 5
+            },
+            {
+              "type": "APPRECIATION",
+              "count": 2
+            },
+            {
+              "type": "ENTERTAINMENT",
+              "count": 1
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/fernando-tedesco/",
+          "sortBy": "date",
+          "page": 1
+        }
+      }
+    },
+    {
+      "platform": "linkedin",
+      "external_post_id": "7457518323694641152",
+      "entity_id": "7457518323694641152",
+      "post_url": "https://www.linkedin.com/posts/fernando-tedesco_vaga-analista-de-conte%C3%BAdo-de-ia-100-remoto-activity-7457516755402362881-qQzN",
+      "author_name": "Fernando Tedesco",
+      "author_identifier": "fernando-tedesco",
+      "published_at": "2026-05-05T19:55:22.359Z",
+      "content": "VAGA: Analista de Conteúdo de IA | 100% Remoto\n\nA Playbook Lab está crescendo. \n\nEstou procurando alguém que vai trabalhar em contato direto comigo e com o Victor Baggio. Alguém que respira conteúdo sobre IA e que coloca a mão na massa pra testar.\n\n🎯 Objetivo: acelerar a nossa máquina de produção de conteúdo.\n\nO que você vai encontrar por aqui:\n- Liberdade para mergulhar nas ferramentas mais novas de IA e transformar isso em conteúdo\n- Um time enxuto, hands-on, que não tem medo de pensar grande\n- Bastidores reais de uma operação que está escalando\n\nQuer saber mais sobre a vaga? ⤵️ \nhttps://lnkd.in/dT8mQC83\n\nPlaybook Lab",
+      "hook": "VAGA: Analista de Conteúdo de IA | 100% Remoto",
+      "format": "post",
+      "is_repost": false,
+      "media_type": "post",
+      "classification_status": "pending",
+      "metric_date": "2026-07-01",
+      "likes": 64,
+      "comments": 7,
+      "shares": 4,
+      "reactions_total": 64,
+      "engagement_total": 75,
+      "engagement_score": 101,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
+      "owner_name": "Victor Baggio",
+      "account_url": "https://www.linkedin.com/in/victorzbaggio/",
+      "raw": {
+        "type": "post",
+        "id": "7457518323694641152",
+        "linkedinUrl": "https://www.linkedin.com/posts/fernando-tedesco_vaga-analista-de-conte%C3%BAdo-de-ia-100-remoto-activity-7457516755402362881-qQzN",
+        "content": "VAGA: Analista de Conteúdo de IA | 100% Remoto\n\nA Playbook Lab está crescendo. \n\nEstou procurando alguém que vai trabalhar em contato direto comigo e com o Victor Baggio. Alguém que respira conteúdo sobre IA e que coloca a mão na massa pra testar.\n\n🎯 Objetivo: acelerar a nossa máquina de produção de conteúdo.\n\nO que você vai encontrar por aqui:\n- Liberdade para mergulhar nas ferramentas mais novas de IA e transformar isso em conteúdo\n- Um time enxuto, hands-on, que não tem medo de pensar grande\n- Bastidores reais de uma operação que está escalando\n\nQuer saber mais sobre a vaga? ⤵️ \nhttps://lnkd.in/dT8mQC83\n\nPlaybook Lab",
+        "contentAttributes": [
+          {
+            "start": 156,
+            "length": 13,
+            "type": "PROFILE_MENTION",
+            "hyperlink": null,
+            "textLink": null,
+            "profile": {
+              "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+              "firstName": "Victor",
+              "lastName": "Baggio",
+              "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio",
+              "publicIdentifier": "victorzbaggio"
+            }
+          },
+          {
+            "start": 615,
+            "length": 12,
+            "type": "COMPANY_NAME",
+            "hyperlink": null,
+            "textLink": null,
+            "company": {
+              "id": "86433176",
+              "name": "Playbook Lab",
+              "linkedinUrl": "https://www.linkedin.com/company/playbooklab/"
+            }
+          }
+        ],
+        "author": {
+          "id": "ACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "universalName": null,
+          "publicIdentifier": "fernando-tedesco",
+          "type": "profile",
+          "name": "Fernando Tedesco",
+          "linkedinUrl": "https://www.linkedin.com/in/fernando-tedesco?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAABE-15gB6K-MSbs6fqIYrQddgQf8hhxGb3s",
+          "info": "Scalable growth with AI Systems 🎯 | Playbook Lab - for AI inside sales",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQERsnymqjUlqg/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1691368512757?e=1784764800&v=beta&t=wELY_z_ITY4Cb9KAHLdkxrkRAhGLKVFbAhNvL0Om8UI",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "289331096"
+        },
+        "postedAt": {
+          "timestamp": 1778010922359,
+          "date": "2026-05-05T19:55:22.359Z",
+          "postedAgoShort": "1mo",
+          "postedAgoText": "1 month ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4D22AQF4b4n6lQOzPw/feedshare-shrink_1280/B4DZ35r.F5JgAM-/0/1778010546788?e=1784764800&v=beta&t=mXcz_QmIDFQgMgwgCzEIqo03iR1wTy1Q12YSiPToFJI",
+            "width": 1200,
+            "height": 1200
+          }
+        ],
+        "repostedBy": {
+          "name": "Victor Baggio",
+          "publicIdentifier": "victorzbaggio",
+          "universalName": null,
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4"
+        },
+        "repostedAt": {
+          "timestamp": 1778010922359,
+          "date": "2026-05-05T19:55:22.359Z"
+        },
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": true,
+          "hideSendAction": true,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/fernando-tedesco_vaga-analista-de-conte%C3%BAdo-de-ia-100-remoto-activity-7457516755402362881-qQzN?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "image": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "linkedinUrl": "https://www.linkedin.com/feed/update/urn:li:activity:7457518323694641152?updateEntityUrn=urn%3Ali%3Afsd_update%3A%28urn%3Ali%3Aactivity%3A7457518323694641152%2CMEMBER_SHARES%2CDEBUG_REASON%2CDEFAULT%2Cfalse%29&originTrackingId=R%2Bh1chbwP997vGCOIxSZTg%3D%3D",
+          "imageLink": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "text": "Victor Baggio reposted this"
+        },
+        "entityId": "7457518323694641152",
+        "shareUrn": "urn:li:share:7457516753787678722",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7457516753787678722",
+        "engagement": {
+          "id": "7457516755402362881",
+          "likes": 64,
+          "comments": 7,
+          "shares": 4,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 56
+            },
+            {
+              "type": "EMPATHY",
+              "count": 5
+            },
+            {
+              "type": "APPRECIATION",
+              "count": 2
+            },
+            {
+              "type": "PRAISE",
+              "count": 1
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/victorzbaggio/",
+          "sortBy": "date",
+          "page": 1
+        }
+      }
     },
     {
       "platform": "linkedin",
@@ -132,7 +2559,7 @@
       "published_at": "2026-04-27T18:24:04.345Z",
       "content": "Em meio a vazamentos e falhas de segurança no mercado de vibe coding, uma jogada acertada da Replit.\n\nAcabaram de lançar duas soluções:\n\n→ Security Agent: faz uma revisão completa do seu codebase em menos de 1 hora. \nMapeia a arquitetura, detecta vulnerabilidades como SQL injection e cross-site scripting, e já organiza os fixes para aplicar.\n\n→ Auto-Protect: monitora CVEs novos automaticamente e prepara patches para as dependências do seu projeto antes que você precise se preocupar.\n\nSegurança virou critério básico no vibe coding. \nO Replit entendeu isso — e lançou no momento certo.\n\nE pra fazer ainda mais barulho: estão oferecendo import gratuito pra quem tem apps em outras plataformas.\n\nDá pra migrar tudo pra lá sem pagar plano ou gastar tokens.\n\n\n\n#ReplitPartner\n\nhttps://lnkd.in/dRHKxFd7",
       "hook": "Em meio a vazamentos e falhas de segurança no mercado de vibe coding, uma jogada acertada da Replit.",
-      "format": "repost",
+      "format": "post",
       "theme": null,
       "content_pillar": null,
       "cta_keyword": null,
@@ -140,21 +2567,164 @@
       "commercial_intent": null,
       "is_repost": true,
       "repost_id": "7453491552909238274",
-      "media_type": "repost",
+      "media_type": "post",
       "media_url": null,
       "classification_status": "pending",
-      "metric_date": "2026-05-12",
-      "likes": 11,
+      "metric_date": "2026-07-01",
+      "likes": 12,
       "comments": 0,
       "shares": 0,
-      "reactions_total": 11,
+      "reactions_total": 12,
       "views": null,
-      "engagement_total": 11,
-      "engagement_score": 11,
-      "source": "historical_json",
-      "metric_type": "snapshot",
+      "engagement_total": 12,
+      "engagement_score": 12,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
       "owner_name": "Victor Baggio",
-      "account_url": "https://www.linkedin.com/in/victorzbaggio/"
+      "account_url": "https://www.linkedin.com/in/victorzbaggio/",
+      "raw": {
+        "type": "post",
+        "id": "7454596244313702401",
+        "linkedinUrl": "https://www.linkedin.com/posts/victorzbaggio_replit-build-apps-and-sites-with-ai-activity-7454596244313702401-Mavb",
+        "content": "Em meio a vazamentos e falhas de segurança no mercado de vibe coding, uma jogada acertada da Replit.\n\nAcabaram de lançar duas soluções:\n\n→ Security Agent: faz uma revisão completa do seu codebase em menos de 1 hora. \nMapeia a arquitetura, detecta vulnerabilidades como SQL injection e cross-site scripting, e já organiza os fixes para aplicar.\n\n→ Auto-Protect: monitora CVEs novos automaticamente e prepara patches para as dependências do seu projeto antes que você precise se preocupar.\n\nSegurança virou critério básico no vibe coding. \nO Replit entendeu isso — e lançou no momento certo.\n\nE pra fazer ainda mais barulho: estão oferecendo import gratuito pra quem tem apps em outras plataformas.\n\nDá pra migrar tudo pra lá sem pagar plano ou gastar tokens.\n\n\n\n#ReplitPartner\n\nhttps://lnkd.in/dRHKxFd7",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "universalName": null,
+          "publicIdentifier": "victorzbaggio",
+          "type": "profile",
+          "name": "Victor Baggio",
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "info": "🤖 Automações com IA para Escalar Vendas | Sócio na Playbook Lab",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "489715572"
+        },
+        "postedAt": {
+          "timestamp": 1777314244345,
+          "date": "2026-04-27T18:24:04.345Z",
+          "postedAgoShort": "2mo",
+          "postedAgoText": "2 months ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [],
+        "repostId": "7453491552909238274",
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": true,
+          "hideSendAction": true,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/victorzbaggio_replit-build-apps-and-sites-with-ai-activity-7454596244313702401-Mavb?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7454596244313702401",
+        "shareUrn": "urn:li:share:7454596243403554816",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7454596243403554816",
+        "repost": {
+          "id": "7453491552909238274",
+          "linkedinUrl": "https://www.linkedin.com/posts/repl-it_replit-build-apps-and-sites-with-ai-activity-7453491552909238274-yEU7",
+          "content": "We’ve invested deeply in security at Replit, including our recent launches with Security Agent + Auto-Protect.\n\nIf you want to move your app to Replit, we’re offering free app imports for a limited time.\n\nBring your app over and keep building safely 🔒 \n\nGet started here: replit.com/free-import",
+          "contentAttributes": [],
+          "author": {
+            "id": "18542592",
+            "universalName": "repl-it",
+            "publicIdentifier": null,
+            "type": "company",
+            "name": "Replit",
+            "linkedinUrl": "https://www.linkedin.com/company/repl-it/posts",
+            "info": "186,311 followers",
+            "website": null,
+            "websiteLabel": null,
+            "avatar": {
+              "url": "https://media.licdn.com/dms/image/v2/D560BAQHin_z1IPR-1Q/company-logo_400_400/B56ZzdRbT9I0AY-/0/1773238859431/repl_it_logo?e=1784764800&v=beta&t=B42m9KBLzLMbQxjqLNRddi9j-82H78F2QdwsJFdgeuY",
+              "width": 400,
+              "height": 400
+            },
+            "urn": "18542592"
+          },
+          "postedAt": {
+            "timestamp": 1777050865390,
+            "date": "2026-04-24T17:14:25.390Z",
+            "postedAgoShort": "2mo",
+            "postedAgoText": "2 months ago • Visible to anyone on or off LinkedIn"
+          },
+          "postImages": [],
+          "article": {
+            "title": "Replit – Build apps and sites with AI",
+            "subtitle": "replit.com",
+            "link": "http://replit.com",
+            "linkLabel": "Open article: Replit – Build apps and sites with AI by replit.com",
+            "description": null,
+            "image": {
+              "url": "https://media.licdn.com/dms/image/sync/v2/D5627AQF50Uvd2DRmlw/articleshare-shrink_1280_800/B4DZ6ETRK_KIAY-/0/1780336105601?e=1783508400&v=beta&t=IMqQF9ri_1k4pIU4e6uCWWwK3rSSAhtkAvdCJ-7sTXE",
+              "width": 1200,
+              "height": 650
+            }
+          },
+          "socialContent": {
+            "hideCommentsCount": false,
+            "hideReactionsCount": false,
+            "hideSocialActivityCounts": false,
+            "hideShareAction": true,
+            "hideSendAction": true,
+            "hideRepostsCount": false,
+            "hideViewsCount": false,
+            "trustInterventionBanner": null,
+            "hideReactAction": false,
+            "hideCommentAction": false,
+            "shareUrl": "https://www.linkedin.com/posts/repl-it_replit-build-apps-and-sites-with-ai-activity-7453491552909238274-yEU7?",
+            "showContributionExperience": false,
+            "showSocialDetail": true
+          },
+          "comments": [],
+          "header": {
+            "text": null
+          },
+          "entityId": "7453491552909238274",
+          "shareUrn": "urn:li:share:7453491552145960961",
+          "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7453491552145960961",
+          "engagement": null
+        },
+        "engagement": {
+          "id": "7454596244313702401",
+          "likes": 12,
+          "comments": 0,
+          "shares": 0,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 11
+            },
+            {
+              "type": "INTEREST",
+              "count": 1
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/victorzbaggio/",
+          "sortBy": "date",
+          "page": 1
+        }
+      }
     },
     {
       "platform": "linkedin",
@@ -167,7 +2737,7 @@
       "published_at": "2026-04-27T15:10:13.010Z",
       "content": "HELP! Estou buscando um especialista master em Salesforce para trocar uma ideia sobre Salesforce + N8N para criação de agentes de atendimento. \n\nSe você conhece alguém ou alguma empresa MUITO especialista nisso, comenta aqui! \n\nValeu rede!",
       "hook": "HELP! Estou buscando um especialista master em Salesforce para trocar uma ideia sobre Salesforce + N8N para criação de agentes de atendimento.",
-      "format": "image",
+      "format": "post",
       "theme": null,
       "content_pillar": null,
       "cta_keyword": null,
@@ -175,21 +2745,104 @@
       "commercial_intent": null,
       "is_repost": false,
       "repost_id": null,
-      "media_type": "image",
+      "media_type": "post",
       "media_url": "https://media.licdn.com/dms/image/v2/D4D22AQH0AXmPcWX29g/feedshare-shrink_800/B4DZ3PfaR1HIAg-/0/1777302611786?e=1779926400&v=beta&t=DfQUq3_EguJ3LYiiQ13UyLt6o_3IThY94dz9eEPrkss",
       "classification_status": "pending",
-      "metric_date": "2026-05-12",
-      "likes": 13,
+      "metric_date": "2026-07-01",
+      "likes": 14,
       "comments": 2,
       "shares": 0,
-      "reactions_total": 13,
+      "reactions_total": 14,
       "views": null,
-      "engagement_total": 15,
-      "engagement_score": 19,
-      "source": "historical_json",
-      "metric_type": "snapshot",
+      "engagement_total": 16,
+      "engagement_score": 20,
+      "source": "apify_linkedin",
+      "metric_type": "daily_collect",
       "owner_name": "Victor Baggio",
-      "account_url": "https://www.linkedin.com/in/victorzbaggio/"
+      "account_url": "https://www.linkedin.com/in/victorzbaggio/",
+      "raw": {
+        "type": "post",
+        "id": "7454547458958893056",
+        "linkedinUrl": "https://www.linkedin.com/posts/victorzbaggio_help-estou-buscando-um-especialista-master-activity-7454547458958893056-DxZ1",
+        "content": "HELP! Estou buscando um especialista master em Salesforce para trocar uma ideia sobre Salesforce + N8N para criação de agentes de atendimento. \n\nSe você conhece alguém ou alguma empresa MUITO especialista nisso, comenta aqui! \n\nValeu rede!",
+        "contentAttributes": [],
+        "author": {
+          "id": "ACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "universalName": null,
+          "publicIdentifier": "victorzbaggio",
+          "type": "profile",
+          "name": "Victor Baggio",
+          "linkedinUrl": "https://www.linkedin.com/in/victorzbaggio?miniProfileUrn=urn%3Ali%3Afsd_profile%3AACoAAB0wd3QBlaiZ85t5PUw7PrlPxbgp4GWJKz4",
+          "info": "🤖 Automações com IA para Escalar Vendas | Sócio na Playbook Lab",
+          "website": null,
+          "websiteLabel": null,
+          "avatar": {
+            "url": "https://media.licdn.com/dms/image/v2/D4D03AQHwzd_nAdPnxg/profile-displayphoto-crop_800_800/B4DZxqF2moIUAM-/0/1771306452300?e=1784764800&v=beta&t=8hZDMLz9PbRa6-MZfM-Mi4Q2jE9ICOdkp65voJXZrTo",
+            "width": 800,
+            "height": 800
+          },
+          "urn": "489715572"
+        },
+        "postedAt": {
+          "timestamp": 1777302613010,
+          "date": "2026-04-27T15:10:13.010Z",
+          "postedAgoShort": "2mo",
+          "postedAgoText": "2 months ago • Visible to anyone on or off LinkedIn"
+        },
+        "postImages": [
+          {
+            "url": "https://media.licdn.com/dms/image/v2/D4D22AQH0AXmPcWX29g/feedshare-shrink_800/B4DZ3PfaR1HIAg-/0/1777302611786?e=1784764800&v=beta&t=_7U--dAAJtWdezyVpP4dl8xSdvUuugPJtKL9o2FAGqA",
+            "width": 480,
+            "height": 440
+          }
+        ],
+        "socialContent": {
+          "hideCommentsCount": false,
+          "hideReactionsCount": false,
+          "hideSocialActivityCounts": false,
+          "hideShareAction": true,
+          "hideSendAction": true,
+          "hideRepostsCount": false,
+          "hideViewsCount": false,
+          "trustInterventionBanner": null,
+          "hideReactAction": false,
+          "hideCommentAction": false,
+          "shareUrl": "https://www.linkedin.com/posts/victorzbaggio_help-estou-buscando-um-especialista-master-activity-7454547458958893056-DxZ1?",
+          "showContributionExperience": false,
+          "showSocialDetail": true
+        },
+        "comments": [],
+        "header": {
+          "text": null
+        },
+        "entityId": "7454547458958893056",
+        "shareUrn": "urn:li:share:7454547457792868352",
+        "shareLinkedinUrl": "https://www.linkedin.com/feed/update/urn:li:share:7454547457792868352",
+        "engagement": {
+          "id": "7454547458958893056",
+          "likes": 14,
+          "comments": 2,
+          "shares": 0,
+          "reactions": [
+            {
+              "type": "LIKE",
+              "count": 11
+            },
+            {
+              "type": "APPRECIATION",
+              "count": 3
+            }
+          ]
+        },
+        "reactions": [],
+        "reactionIds": [],
+        "commentIds": [],
+        "query": {
+          "targetUrl": "https://www.linkedin.com/in/victorzbaggio/",
+          "sortBy": "date",
+          "page": 1
+        }
+      }
     },
     {
       "platform": "linkedin",
