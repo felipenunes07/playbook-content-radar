@@ -9,11 +9,14 @@ begin
   if exists (select 1 from cron.job where jobname = 'content-dashboard-linkedin-daily') then
     perform cron.unschedule('content-dashboard-linkedin-daily');
   end if;
+  if exists (select 1 from cron.job where jobname = 'content-dashboard-instagram-daily') then
+    perform cron.unschedule('content-dashboard-instagram-daily');
+  end if;
 end
 $$;
 
--- Supabase Cron evaluates these expressions in UTC. 09:00/09:30 UTC correspond
--- to 06:00/06:30 in America/Sao_Paulo under the current UTC-03 offset.
+-- Supabase Cron evaluates these expressions in UTC. 09:00/09:30/10:00 UTC correspond
+-- to 06:00/06:30/07:00 in America/Sao_Paulo under the current UTC-03 offset.
 select cron.schedule(
   'content-dashboard-youtube-daily',
   '0 9 * * *',
@@ -37,6 +40,23 @@ select cron.schedule(
   $job$
   select net.http_post(
     url := (select decrypted_secret from vault.decrypted_secrets where name = 'project_url') || '/functions/v1/collect-linkedin',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'apikey', (select decrypted_secret from vault.decrypted_secrets where name = 'publishable_key'),
+      'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'publishable_key'),
+      'x-collector-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'collector_shared_secret')
+    ),
+    body := jsonb_build_object('scheduled', true, 'source', 'supabase_cron')
+  );
+  $job$
+);
+
+select cron.schedule(
+  'content-dashboard-instagram-daily',
+  '0 10 * * *',
+  $job$
+  select net.http_post(
+    url := (select decrypted_secret from vault.decrypted_secrets where name = 'project_url') || '/functions/v1/collect-instagram',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'apikey', (select decrypted_secret from vault.decrypted_secrets where name = 'publishable_key'),
