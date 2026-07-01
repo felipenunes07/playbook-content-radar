@@ -111,7 +111,7 @@ export function buildYoutubeActorInput(account, options = {}) {
 export function buildInstagramActorInput(account, options = {}) {
   return {
     directUrls: [account.accountUrl],
-    resultsType: 'posts',
+    resultsType: options.resultsType || 'posts',
     resultsLimit: Number(options.maxPosts || 200),
     onlyPostsNewerThan: options.since || undefined,
     addParentData: false,
@@ -200,7 +200,7 @@ export function normalizeApifyYoutubeItem(item, account, metricDate = new Date()
 }
 
 export function normalizeApifyInstagramItem(item, account, metricDate = new Date().toISOString().slice(0, 10)) {
-  const id = instagramId(item);
+  let id = instagramId(item);
   if (!id) return null;
   const content = String(first(item, ['caption', 'text', 'title']) || '');
   const likes = number(first(item, ['likesCount', 'likes', 'likeCount']));
@@ -210,11 +210,17 @@ export function normalizeApifyInstagramItem(item, account, metricDate = new Date
   const published = first(item, ['timestamp', 'takenAt', 'taken_at', 'date', 'publishedAt', 'createdAt']);
   const type = String(first(item, ['type']) || '').toLowerCase();
   const productType = String(first(item, ['productType', 'product_type']) || '').toLowerCase();
-  const format = productType === 'clips' ? 'reel'
+  const format = (productType === 'story' || type.includes('story')) ? 'story'
+    : productType === 'clips' ? 'reel'
     : type === 'video' ? 'video'
     : type === 'sidecar' ? 'carousel'
     : type === 'image' ? 'image'
     : (views ? 'reel' : 'image');
+  
+  if (format === 'story' && !id.startsWith('story_')) {
+    id = `story_${id}`;
+  }
+
   const shortCode = first(item, ['shortCode', 'shortcode', 'code']);
   return {
     platform: 'instagram',

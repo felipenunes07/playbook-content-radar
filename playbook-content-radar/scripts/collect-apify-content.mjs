@@ -159,6 +159,7 @@ async function collectInstagram(token, options) {
 
   for (const account of defaultAccounts.instagram) {
     const input = buildInstagramActorInput(account, {
+      resultsType: 'posts',
       since: options.since || latest[account.ownerName] || '2020-01-01',
       maxPosts: options.maxPosts || process.env.APIFY_INSTAGRAM_MAX_POSTS || 200,
     });
@@ -178,6 +179,26 @@ async function collectInstagram(token, options) {
       }
     } catch (error) {
       errors.push({ platform: 'instagram', account: account.ownerName, error: error.message });
+    }
+
+    // Capture active stories
+    const storyInput = buildInstagramActorInput(account, {
+      resultsType: 'stories',
+      maxPosts: 50,
+    });
+    try {
+      console.log(`Coletando stories ativos para ${account.ownerName}...`);
+      const items = await runActor(actorId, token, storyInput, { waitSecs: Number(options.waitSecs || 120) });
+      raw.push({ account, actorId, input: storyInput, items });
+      for (const item of Array.isArray(items) ? items : []) {
+        try {
+          const norm = normalizeApifyInstagramItem(item, account, metricDate);
+          if (norm) normalized.push(norm);
+        }
+        catch (error) { errors.push({ platform: 'instagram-stories', account: account.ownerName, error: error.message, item }); }
+      }
+    } catch (error) {
+      console.warn(`Stories indisponíveis para ${account.ownerName}:`, error.message);
     }
   }
 

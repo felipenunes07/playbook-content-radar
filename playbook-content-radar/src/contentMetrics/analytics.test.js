@@ -101,7 +101,9 @@ describe('trend and rankings', () => {
       Total: week.Total,
     }))).toEqual([
       { week: '2026-W02', Victor: 1, Fernando: 0, Total: 1 },
+      { week: '2026-W03', Victor: 0, Fernando: 0, Total: 0 },
       { week: '2026-W04', Victor: 0, Fernando: 1, Total: 1 },
+      { week: '2026-W05', Victor: 0, Fernando: 0, Total: 0 },
       { week: '2026-W06', Victor: 1, Fernando: 0, Total: 1 },
     ]);
   });
@@ -114,8 +116,10 @@ describe('trend and rankings', () => {
       Total: week.Total,
     }))).toEqual([
       { week: '2026-W02', Victor: 1, Fernando: 0, Total: 1 },
-      { week: '2026-W04', Victor: 0.5, Fernando: 0.5, Total: 1 },
-      { week: '2026-W06', Victor: 0.67, Fernando: 0.33, Total: 1 },
+      { week: '2026-W03', Victor: 0.5, Fernando: 0, Total: 0.5 },
+      { week: '2026-W04', Victor: 0.33, Fernando: 0.33, Total: 0.67 },
+      { week: '2026-W05', Victor: 0.25, Fernando: 0.25, Total: 0.5 },
+      { week: '2026-W06', Victor: 0.25, Fernando: 0.25, Total: 0.5 },
     ]);
   });
 
