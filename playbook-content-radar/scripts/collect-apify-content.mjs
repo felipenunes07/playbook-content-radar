@@ -182,14 +182,13 @@ async function collectInstagram(token, options) {
     }
 
     // Capture active stories
-    const storyInput = buildInstagramActorInput(account, {
-      resultsType: 'stories',
-      maxPosts: 50,
-    });
+    const storyActorId = process.env.APIFY_INSTAGRAM_STORY_ACTOR_ID || 'datavoyantlab/instagram-story-downloader';
+    const storyHandle = account.handle || account.accountUrl.match(/instagram\.com\/([^/?#]+)/i)?.[1] || '';
+    const storyInput = { usernames: [storyHandle] };
     try {
       console.log(`Coletando stories ativos para ${account.ownerName}...`);
-      const items = await runActor(actorId, token, storyInput, { waitSecs: Number(options.waitSecs || 120) });
-      raw.push({ account, actorId, input: storyInput, items });
+      const items = await runActor(storyActorId, token, storyInput, { waitSecs: Number(options.waitSecs || 120) });
+      raw.push({ account, actorId: storyActorId, input: storyInput, items });
       for (const item of Array.isArray(items) ? items : []) {
         try {
           const norm = normalizeApifyInstagramItem(item, account, metricDate);

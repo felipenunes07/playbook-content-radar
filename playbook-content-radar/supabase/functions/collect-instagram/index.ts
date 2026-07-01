@@ -248,13 +248,11 @@ Deno.serve(async (request) => {
           }
         }
 
-        // Stream separado de Stories via o MESMO actor principal com resultsType='stories'.
+        // Stream separado de Stories via actor de stories dedicado e gratuito.
         // Captura só o que estiver ativo no momento da coleta; falhas aqui não derrubam posts/reels.
         try {
-          const storyActorId = Deno.env.get('APIFY_INSTAGRAM_STORY_ACTOR_ID') || actorId;
-          const storyInput = Deno.env.get('APIFY_INSTAGRAM_STORY_ACTOR_ID')
-            ? renderStoriesInput(account)
-            : { directUrls: [account.account_url], resultsType: 'stories', resultsLimit: 50, searchLimit: 1 };
+          const storyActorId = Deno.env.get('APIFY_INSTAGRAM_STORY_ACTOR_ID') || 'datavoyantlab/instagram-story-downloader';
+          const storyInput = renderStoriesInput(account);
           const stories = await runActor(storyActorId, token, storyInput);
           console.log(`Stories raw para ${account.owner_name}: ${Array.isArray(stories) ? stories.length : 0} itens`);
           for (const story of Array.isArray(stories) ? stories : []) {
