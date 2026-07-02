@@ -62,6 +62,7 @@ export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek }) {
     <div className="cm-chart cm-chart-large" aria-label="Posts por semana por criador" style={{ position: 'relative' }}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
+          syncId="weekly-metrics"
           data={series}
           margin={{ top: 12, right: 16, left: -10, bottom: 0 }}
           barCategoryGap="28%"
@@ -165,6 +166,7 @@ export function WeeklyEngagementChart({ data, onWeekClick, selectedWeek }) {
     <div className="cm-chart" aria-label="Engagement e comentários por semana">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart 
+          syncId="weekly-metrics"
           data={data} 
           margin={{ top: 8, right: 10, left: -12, bottom: 0 }}
           onClick={(state) => {

@@ -3423,6 +3423,40 @@ kbd {
   color: #c026d3;
 }
 
+.calendar-filter-divider {
+  width: 1px;
+  align-self: stretch;
+  background: #e2e8f0;
+  margin: 2px 2px;
+}
+
+.calendar-platform-chip .chip-avatar {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+.calendar-platform-chip.active .chip-avatar {
+  filter: none;
+  opacity: 1;
+}
+
+.calendar-platform-chip.active.owner-victor {
+  background: #eaf7f0;
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #065f46;
+}
+
+.calendar-platform-chip.active.owner-fernando {
+  background: #eff6ff;
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #1e40af;
+}
+
 /* Platform tag na lista lateral de publicados */
 .platform-tag {
   font-weight: 600;

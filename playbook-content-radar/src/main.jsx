@@ -6,7 +6,7 @@ import {
   Search, Download, Trash2, AlertCircle, MessageSquare, FileText,
   CheckCircle2, XCircle, AlertTriangle, ArrowLeft, Archive,
   ThumbsUp, ThumbsDown, Lightbulb, MoreHorizontal, Calendar,
-  TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock, Youtube, Instagram
+  TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock
 } from 'lucide-react';
 import './styles.css';
 import { createClient } from '@supabase/supabase-js';
@@ -34,6 +34,40 @@ const LinkedinIcon = ({ size = 24, ...props }) => (
     {...props}
   >
     <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" />
+  </svg>
+);
+
+// YouTube brand icon (lucide removeu ícones de marca)
+const YoutubeIcon = ({ size = 24, ...props }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    {...props}
+  >
+    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+  </svg>
+);
+
+// Instagram brand icon (lucide removeu ícones de marca)
+const InstagramIcon = ({ size = 24, ...props }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
   </svg>
 );
 
@@ -4982,13 +5016,14 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [publishedPosts, setPublishedPosts] = useState([]);
   const [platformFilters, setPlatformFilters] = useState({ linkedin: true, youtube: true, instagram: true });
+  const [ownerFilters, setOwnerFilters] = useState({ victor: true, fernando: true });
 
   useEffect(() => {
     let active = true;
     Promise.all([
       supabase.from('v_latest_linkedin_post_metrics').select('external_post_id, owner_name, author_name, published_at, hook, post_url, format, likes, comments, shares, engagement_total, is_repost, repost_id'),
       supabase.from('v_latest_youtube_video_metrics').select('video_id, owner_name, title, video_url, published_at, views, likes, comments, engagement_total'),
-      supabase.from('v_latest_instagram_post_metrics').select('external_post_id, owner_name, published_at, hook, caption, post_url, likes, comments, engagement_total, is_repost'),
+      supabase.from('v_latest_instagram_post_metrics').select('external_post_id, owner_name, published_at, hook, caption, post_url, format, likes, comments, engagement_total, is_repost'),
     ]).then(([li, yt, ig]) => {
       if (!active) return;
       const linkedin = filterContent(Array.isArray(li.data) ? li.data : []).map(p => ({
@@ -5014,7 +5049,8 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
         views: v.views,
         engagement_total: v.engagement_total,
       }));
-      const instagram = (Array.isArray(ig.data) ? ig.data : []).filter(p => p.is_repost !== true).map(p => ({
+      // Stories são efêmeros e não pertencem ao calendário editorial — só posts e reels
+      const instagram = (Array.isArray(ig.data) ? ig.data : []).filter(p => p.is_repost !== true && p.format !== 'story').map(p => ({
         key: `ig-${p.external_post_id || p.post_url}`,
         platform: 'instagram',
         owner_name: p.owner_name,
@@ -5031,8 +5067,14 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
   }, []);
 
   const visiblePublished = useMemo(() => {
-    return publishedPosts.filter(p => platformFilters[p.platform]);
-  }, [publishedPosts, platformFilters]);
+    return publishedPosts.filter(p => {
+      if (!platformFilters[p.platform]) return false;
+      const firstName = (p.owner_name || '').split(' ')[0].toLowerCase();
+      // Autores fora do mapa de filtros (se surgirem novos) permanecem sempre visíveis
+      if (firstName in ownerFilters) return ownerFilters[firstName];
+      return true;
+    });
+  }, [publishedPosts, platformFilters, ownerFilters]);
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -5155,8 +5197,8 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
             <div className="calendar-platform-filters">
               {[
                 { id: 'linkedin', label: 'LinkedIn', icon: <LinkedinIcon size={12} /> },
-                { id: 'youtube', label: 'YouTube', icon: <Youtube size={12} /> },
-                { id: 'instagram', label: 'Instagram', icon: <Instagram size={12} /> },
+                { id: 'youtube', label: 'YouTube', icon: <YoutubeIcon size={12} /> },
+                { id: 'instagram', label: 'Instagram', icon: <InstagramIcon size={12} /> },
               ].map(pl => (
                 <button
                   key={pl.id}
@@ -5166,6 +5208,22 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                   title={platformFilters[pl.id] ? `Ocultar publicações do ${pl.label}` : `Mostrar publicações do ${pl.label}`}
                 >
                   {pl.icon} {pl.label}
+                </button>
+              ))}
+              <span className="calendar-filter-divider" />
+              {[
+                { id: 'victor', label: 'Victor', avatarKey: 'Victor' },
+                { id: 'fernando', label: 'Fernando', avatarKey: 'Fernando' },
+              ].map(person => (
+                <button
+                  key={person.id}
+                  type="button"
+                  className={`calendar-platform-chip owner-chip owner-${person.id} ${ownerFilters[person.id] ? 'active' : ''}`}
+                  onClick={() => setOwnerFilters(f => ({ ...f, [person.id]: !f[person.id] }))}
+                  title={ownerFilters[person.id] ? `Ocultar publicações de ${person.label}` : `Mostrar publicações de ${person.label}`}
+                >
+                  <img src={USER_AVATARS[person.avatarKey]} alt={person.label} className="chip-avatar" />
+                  {person.label}
                 </button>
               ))}
             </div>
@@ -5230,7 +5288,7 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                           }}
                           title={`${platformLabel} · Publicado por ${post.owner_name} · ${statLine}${post.url ? ' | Clique para abrir' : ''}`}
                         >
-                          {post.platform === 'youtube' ? <Youtube size={11} className="platform-icon" /> : post.platform === 'instagram' ? <Instagram size={11} className="platform-icon" /> : <LinkedinIcon size={11} className="platform-icon" />}
+                          {post.platform === 'youtube' ? <YoutubeIcon size={11} className="platform-icon" /> : post.platform === 'instagram' ? <InstagramIcon size={11} className="platform-icon" /> : <LinkedinIcon size={11} className="platform-icon" />}
                           <span className="title-text">{post.title}</span>
                           <img
                             src={USER_AVATARS[ownerFirstName] || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.owner_name || 'P')}&background=057642&color=fff&bold=true`}

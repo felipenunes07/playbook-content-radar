@@ -14,6 +14,13 @@
       "runtimeArgs": ["--prefix", "playbook-content-radar", "run", "dev", "--", "--port", "5299", "--strictPort"],
       "autoPort": false,
       "port": 5299
+    },
+    {
+      "name": "dev-mobile",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "playbook-content-radar", "run", "dev", "--", "--port", "5399", "--strictPort"],
+      "autoPort": false,
+      "port": 5399
     }
   ]
 }
