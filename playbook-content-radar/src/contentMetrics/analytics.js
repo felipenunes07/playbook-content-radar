@@ -389,5 +389,49 @@ export function buildExecutiveSummary(items, options = {}) {
   };
 }
 
+// Mês atual vs o mesmo trecho do mês anterior (dia 1 até o mesmo dia),
+// senão o mês cheio anterior venceria sempre no início do mês.
+export function buildMonthlyComparison(items, options = {}) {
+  const rows = Array.isArray(items) ? items : [];
+  const now = validDate(options.now) || new Date();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  const currentStart = Date.UTC(year, month, 1);
+  const previousStart = Date.UTC(year, month - 1, 1);
+  const lastDayPrevious = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const previousEnd = Date.UTC(year, month - 1, Math.min(now.getUTCDate(), lastDayPrevious), 23, 59, 59, 999);
+
+  const empty = () => ({ posts: 0, engagement: 0, comments: 0, platforms: {} });
+  const current = empty();
+  const previous = empty();
+  for (const row of rows) {
+    const date = validDate(row.published_at);
+    if (!date) continue;
+    const time = date.getTime();
+    const bucket = time >= currentStart && time <= now.getTime()
+      ? current
+      : time >= previousStart && time <= previousEnd ? previous : null;
+    if (!bucket) continue;
+    bucket.posts += 1;
+    bucket.engagement += number(row.engagement_total);
+    bucket.comments += number(row.comments);
+    const platform = row.platform || 'outros';
+    bucket.platforms[platform] = (bucket.platforms[platform] || 0) + 1;
+  }
+
+  const delta = (cur, prev) => (prev > 0 ? Math.round(((cur - prev) / prev) * 100) : null);
+  const topEntry = Object.entries(current.platforms).sort((a, b) => b[1] - a[1])[0] || null;
+  return {
+    monthLabel: MONTHS[month],
+    previousMonthLabel: MONTHS[(month + 11) % 12],
+    current,
+    previous,
+    postsDelta: delta(current.posts, previous.posts),
+    engagementDelta: delta(current.engagement, previous.engagement),
+    commentsDelta: delta(current.comments, previous.comments),
+    topPlatform: topEntry ? { platform: topEntry[0], posts: topEntry[1] } : null,
+  };
+}
+
 
 

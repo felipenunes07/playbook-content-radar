@@ -39,7 +39,7 @@ export function WeeklyContentTypeChart({ data }) {
           <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="feed" name="Reels + Publicações" stackId="tipo" fill="#0a66c2" />
-          <Bar dataKey="stories" name="Stories" stackId="tipo" fill="#93c5fd" />
+          <Bar dataKey="stories" name="Stories" stackId="tipo" fill="#e1306c" />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -89,17 +89,36 @@ export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek }) {
   );
 }
 
-export function CalendarHeatmapChart({ data, onDateClick, selectedDate }) {
+export function CalendarHeatmapChart({ data, onDateClick, selectedDate, platform = 'all' }) {
+  const scrollRef = React.useRef(null);
+  const [cellSize, setCellSize] = React.useState(15);
+  const weeksCount = data?.weeks?.length || 0;
+  React.useEffect(() => {
+    if (!scrollRef.current || !weeksCount) return undefined;
+    const GAP = 4;
+    const LABEL = 36; // coluna dos dias da semana (28) + gap do body (8)
+    const fit = () => {
+      if (!scrollRef.current) return;
+      const size = Math.floor((scrollRef.current.clientWidth - LABEL + GAP) / weeksCount) - GAP;
+      setCellSize(Math.max(11, Math.min(18, size)));
+    };
+    fit();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(fit);
+    observer.observe(scrollRef.current);
+    return () => observer.disconnect();
+  }, [weeksCount]);
   if (!data?.days?.length) return <EmptyChart />;
   const weekdays = ['', 'Seg', '', 'Qua', '', 'Sex', ''];
   return (
-    <div className="cm-heatmap" aria-label="Tipo: calendário/heatmap estilo GitHub">
+    <div className={`cm-heatmap platform-${platform}`} style={{ '--hm-cell': `${cellSize}px` }} aria-label="Tipo: calendário/heatmap estilo GitHub">
       <div className="cm-heatmap-summary">
         <strong>{data.totalPosts.toLocaleString('pt-BR')}</strong>
         <span>conteúdos em {data.activeDays.toLocaleString('pt-BR')} dias ativos</span>
       </div>
-      <div className="cm-heatmap-scroll">
-        <div className="cm-heatmap-months" style={{ gridTemplateColumns: `34px repeat(${data.weeks.length}, 13px)` }}>
+      <div className="cm-heatmap-scroll" ref={scrollRef}>
+        {/* 32px = largura dos dias (28) + gap do body (8) - gap desta grade (4), pra alinhar meses às semanas */}
+        <div className="cm-heatmap-months" style={{ gridTemplateColumns: `32px repeat(${data.weeks.length}, var(--hm-cell))` }}>
           <span />
           {data.weeks.map((week, index) => {
             const month = data.months.find((item) => item.weekIndex === index);
@@ -108,7 +127,7 @@ export function CalendarHeatmapChart({ data, onDateClick, selectedDate }) {
         </div>
         <div className="cm-heatmap-body">
           <div className="cm-heatmap-weekdays">{weekdays.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}</div>
-          <div className="cm-heatmap-grid" style={{ gridTemplateColumns: `repeat(${data.weeks.length}, 13px)` }}>
+          <div className="cm-heatmap-grid" style={{ gridTemplateColumns: `repeat(${data.weeks.length}, var(--hm-cell))` }}>
             {data.weeks.map((week) => (
               <div className="cm-heatmap-week" key={week[0].date}>
                 {week.map((day) => {

@@ -42,6 +42,7 @@ import {
   aggregateYoutubeMetrics,
   buildCreatorComparison,
   buildExecutiveSummary,
+  buildMonthlyComparison,
   buildMonthlyTrend,
   buildCalendarHeatmap,
   buildWeeklyCadence,
@@ -187,17 +188,33 @@ function CreatorToggle({ selectedOwner, onChange }) {
   </div>;
 }
 
-function ExecutiveCards({ summary }) {
-  const trendLabel = summary.cadenceTrend === 'up' ? 'Subiu' : summary.cadenceTrend === 'down' ? 'Caiu' : 'Estável';
+function DeltaBadge({ delta, previousMonthLabel }) {
+  if (delta == null) return <em className="cm-delta neutral">sem base em {previousMonthLabel}</em>;
+  const up = delta >= 0;
+  return <em className={`cm-delta ${up ? 'up' : 'down'}`}>{up ? '▲' : '▼'} {Math.abs(delta)}% vs {previousMonthLabel}</em>;
+}
+
+const platformLabels = { linkedin: 'LinkedIn', youtube: 'YouTube', instagram: 'Instagram' };
+
+function ExecutiveCards({ summary, monthly }) {
+  const top = monthly.topPlatform;
   const cards = [
-    ['Conteúdos últimos 30 dias', integer.format(summary.postsLast30Days)],
-    ['Média conteúdos/semana', decimal.format(summary.averagePostsPerWeek)],
-    ['Engagement total', integer.format(summary.totalEngagement)],
-    ['Comentários', integer.format(summary.totalComments)],
-    ['Dias desde último conteúdo', summary.daysSinceLastPost == null ? '—' : integer.format(summary.daysSinceLastPost)],
-    ['Tendência de cadência', trendLabel],
+    { label: `Conteúdos em ${monthly.monthLabel}`, value: integer.format(monthly.current.posts), delta: monthly.postsDelta },
+    { label: `Engagement em ${monthly.monthLabel}`, value: integer.format(monthly.current.engagement), delta: monthly.engagementDelta },
+    { label: `Comentários em ${monthly.monthLabel}`, value: integer.format(monthly.current.comments), delta: monthly.commentsDelta },
+    { label: 'Média conteúdos/semana', value: decimal.format(summary.averagePostsPerWeek), note: 'no período filtrado' },
+    { label: 'Dias desde último conteúdo', value: summary.daysSinceLastPost == null ? '—' : integer.format(summary.daysSinceLastPost), note: 'todas as plataformas' },
+    { label: 'Plataforma destaque do mês', value: top ? (platformLabels[top.platform] || top.platform) : '—', note: top ? `${integer.format(top.posts)} conteúdos em ${monthly.monthLabel}` : 'sem conteúdos no mês' },
   ];
-  return <div className="cm-executive-cards">{cards.map(([label, value]) => <div className="cm-executive-card" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>;
+  return <div className="cm-executive-cards">{cards.map((card) => (
+    <div className="cm-executive-card" key={card.label}>
+      <span>{card.label}</span>
+      <strong>{card.value}</strong>
+      {card.delta !== undefined
+        ? <DeltaBadge delta={card.delta} previousMonthLabel={monthly.previousMonthLabel} />
+        : <em className="cm-delta neutral">{card.note}</em>}
+    </div>
+  ))}</div>;
 }
 
 function Overview({ filtered, allPosts, data, filters, setFilters }) {
@@ -297,6 +314,7 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
     cadenceTrend: stableSummary.cadenceTrend,
   };
   
+  const monthly = buildMonthlyComparison(platformFiltered);
   const weekly = buildWeeklyCadence(platformFiltered);
   const heatmap = buildCalendarHeatmap(platformFiltered);
   const comparison = buildCreatorComparison(interactiveFiltered);
@@ -370,10 +388,10 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
       </div>
     )}
 
-    <ExecutiveCards summary={summary} />
+    <ExecutiveCards summary={summary} monthly={monthly} />
     <section className="cm-panel cm-hero-chart"><div className="cm-section-heading"><div><span className="cm-eyebrow">Cadência</span><h2>Conteúdos por semana</h2><p>Victor vs Fernando vs Total Playbook. Este é o gráfico central para saber se a frequência aumentou ou caiu.</p></div><small>{weekly.length} semanas</small></div><WeeklyCadenceChart data={weekly} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} /></section>
     <div className="cm-primary-grid">
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Distribuição</span><h2>Frequência diária</h2><p>Consistência de conteúdos dia a dia ao longo do ano.</p></div><small>{heatmap.days.length} dias</small></div><CalendarHeatmapChart data={heatmap} onDateClick={handleDateClick} selectedDate={selectedDate?.date} /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Distribuição</span><h2>Frequência diária</h2><p>Consistência de conteúdos dia a dia ao longo do ano.</p></div><small>{heatmap.days.length} dias</small></div><CalendarHeatmapChart data={heatmap} onDateClick={handleDateClick} selectedDate={selectedDate?.date} platform={selectedPlatform} /></section>
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Resultado</span><h2>Engagement por semana</h2></div></div><WeeklyEngagementChart data={weekly} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} /></section>
     </div>
     

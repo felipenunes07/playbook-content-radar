@@ -6,7 +6,7 @@ import {
   Search, Download, Trash2, AlertCircle, MessageSquare, FileText,
   CheckCircle2, XCircle, AlertTriangle, ArrowLeft, Archive,
   ThumbsUp, ThumbsDown, Lightbulb, MoreHorizontal, Calendar,
-  TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock
+  TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock, Youtube, Instagram
 } from 'lucide-react';
 import './styles.css';
 import { createClient } from '@supabase/supabase-js';
@@ -4981,18 +4981,58 @@ const localDateKey = (date) => {
 function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onScheduleDate, onOpenStudio, addToast }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [publishedPosts, setPublishedPosts] = useState([]);
+  const [platformFilters, setPlatformFilters] = useState({ linkedin: true, youtube: true, instagram: true });
 
   useEffect(() => {
     let active = true;
-    supabase
-      .from('v_latest_linkedin_post_metrics')
-      .select('external_post_id, owner_name, author_name, published_at, hook, post_url, format, likes, comments, shares, engagement_total, is_repost, repost_id')
-      .then(({ data, error }) => {
-        if (!active || error || !Array.isArray(data)) return;
-        setPublishedPosts(filterContent(data));
-      });
+    Promise.all([
+      supabase.from('v_latest_linkedin_post_metrics').select('external_post_id, owner_name, author_name, published_at, hook, post_url, format, likes, comments, shares, engagement_total, is_repost, repost_id'),
+      supabase.from('v_latest_youtube_video_metrics').select('video_id, owner_name, title, video_url, published_at, views, likes, comments, engagement_total'),
+      supabase.from('v_latest_instagram_post_metrics').select('external_post_id, owner_name, published_at, hook, caption, post_url, likes, comments, engagement_total, is_repost'),
+    ]).then(([li, yt, ig]) => {
+      if (!active) return;
+      const linkedin = filterContent(Array.isArray(li.data) ? li.data : []).map(p => ({
+        key: `li-${p.external_post_id || p.post_url}`,
+        platform: 'linkedin',
+        owner_name: p.owner_name,
+        published_at: p.published_at,
+        title: p.hook || 'Post no LinkedIn',
+        url: p.post_url,
+        likes: p.likes,
+        comments: p.comments,
+        engagement_total: p.engagement_total,
+      }));
+      const youtube = (Array.isArray(yt.data) ? yt.data : []).map(v => ({
+        key: `yt-${v.video_id}`,
+        platform: 'youtube',
+        owner_name: v.owner_name,
+        published_at: v.published_at,
+        title: v.title || 'Vídeo no YouTube',
+        url: v.video_url,
+        likes: v.likes,
+        comments: v.comments,
+        views: v.views,
+        engagement_total: v.engagement_total,
+      }));
+      const instagram = (Array.isArray(ig.data) ? ig.data : []).filter(p => p.is_repost !== true).map(p => ({
+        key: `ig-${p.external_post_id || p.post_url}`,
+        platform: 'instagram',
+        owner_name: p.owner_name,
+        published_at: p.published_at,
+        title: p.hook || p.caption || 'Post no Instagram',
+        url: p.post_url,
+        likes: p.likes,
+        comments: p.comments,
+        engagement_total: p.engagement_total,
+      }));
+      setPublishedPosts([...linkedin, ...youtube, ...instagram]);
+    });
     return () => { active = false; };
   }, []);
+
+  const visiblePublished = useMemo(() => {
+    return publishedPosts.filter(p => platformFilters[p.platform]);
+  }, [publishedPosts, platformFilters]);
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -5057,7 +5097,7 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
 
   const publishedByDate = useMemo(() => {
     const map = new Map();
-    for (const post of publishedPosts) {
+    for (const post of visiblePublished) {
       if (!post.published_at) continue;
       const d = new Date(post.published_at);
       if (Number.isNaN(d.getTime())) continue;
@@ -5066,15 +5106,15 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
       map.get(key).push(post);
     }
     return map;
-  }, [publishedPosts]);
+  }, [visiblePublished]);
 
   const publishedThisMonth = useMemo(() => {
-    return publishedPosts.filter(p => {
+    return visiblePublished.filter(p => {
       if (!p.published_at) return false;
       const d = new Date(p.published_at);
       return d.getFullYear() === year && d.getMonth() === month;
     }).sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
-  }, [publishedPosts, year, month]);
+  }, [visiblePublished, year, month]);
 
   const unscheduledIdeas = useMemo(() => {
     return ideas.filter(i =>
@@ -5111,6 +5151,23 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
               <span style={{ fontSize: '11px', background: 'rgba(5, 118, 66, 0.08)', color: '#057642', padding: '2px 8px', borderRadius: '99px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 <CheckCircle2 size={11} /> {publishedThisMonth.length} publicados
               </span>
+            </div>
+            <div className="calendar-platform-filters">
+              {[
+                { id: 'linkedin', label: 'LinkedIn', icon: <LinkedinIcon size={12} /> },
+                { id: 'youtube', label: 'YouTube', icon: <Youtube size={12} /> },
+                { id: 'instagram', label: 'Instagram', icon: <Instagram size={12} /> },
+              ].map(pl => (
+                <button
+                  key={pl.id}
+                  type="button"
+                  className={`calendar-platform-chip platform-${pl.id} ${platformFilters[pl.id] ? 'active' : ''}`}
+                  onClick={() => setPlatformFilters(f => ({ ...f, [pl.id]: !f[pl.id] }))}
+                  title={platformFilters[pl.id] ? `Ocultar publicações do ${pl.label}` : `Mostrar publicações do ${pl.label}`}
+                >
+                  {pl.icon} {pl.label}
+                </button>
+              ))}
             </div>
             <div className="calendar-nav-buttons">
               <button type="button" className="calendar-nav-btn" onClick={prevMonth} title="Mês anterior">
@@ -5159,18 +5216,22 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                   <div className="calendar-cell-posts-container">
                     {cellPublished.map(post => {
                       const ownerFirstName = (post.owner_name || '').split(' ')[0];
+                      const platformLabel = post.platform === 'youtube' ? 'YouTube' : post.platform === 'instagram' ? 'Instagram' : 'LinkedIn';
+                      const statLine = post.platform === 'youtube'
+                        ? `${post.views || 0} views · ${post.likes || 0} likes`
+                        : `${post.likes || 0} reações · ${post.comments || 0} comentários`;
                       return (
                         <div
-                          key={post.external_post_id || post.post_url}
-                          className={`calendar-published-card owner-${ownerFirstName.toLowerCase() || 'victor'}`}
+                          key={post.key}
+                          className={`calendar-published-card platform-${post.platform}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (post.post_url) window.open(post.post_url, '_blank', 'noopener');
+                            if (post.url) window.open(post.url, '_blank', 'noopener');
                           }}
-                          title={`Publicado por ${post.owner_name} · ${post.likes || 0} reações · ${post.comments || 0} comentários${post.post_url ? ' | Clique para abrir no LinkedIn' : ''}`}
+                          title={`${platformLabel} · Publicado por ${post.owner_name} · ${statLine}${post.url ? ' | Clique para abrir' : ''}`}
                         >
-                          <CheckCircle2 size={11} className="published-check" />
-                          <span className="title-text">{post.hook || 'Post publicado'}</span>
+                          {post.platform === 'youtube' ? <Youtube size={11} className="platform-icon" /> : post.platform === 'instagram' ? <Instagram size={11} className="platform-icon" /> : <LinkedinIcon size={11} className="platform-icon" />}
+                          <span className="title-text">{post.title}</span>
                           <img
                             src={USER_AVATARS[ownerFirstName] || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.owner_name || 'P')}&background=057642&color=fff&bold=true`}
                             alt={post.owner_name}
@@ -5251,7 +5312,7 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
 
           <div className="calendar-sidebar-card">
             <h3>Publicados em {MONTH_NAMES[month]}</h3>
-            <p className="desc">Posts já no ar no LinkedIn, com engajamento coletado.</p>
+            <p className="desc">Conteúdo já no ar (LinkedIn, YouTube e Instagram), com engajamento coletado.</p>
 
             <div className="calendar-sidebar-list">
               {publishedThisMonth.length === 0 ? (
@@ -5261,22 +5322,26 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
               ) : (
                 publishedThisMonth.map(post => (
                   <div
-                    key={post.external_post_id || post.post_url}
+                    key={post.key}
                     className="calendar-sidebar-item"
-                    style={{ cursor: post.post_url ? 'pointer' : 'default' }}
-                    onClick={() => { if (post.post_url) window.open(post.post_url, '_blank', 'noopener'); }}
+                    style={{ cursor: post.url ? 'pointer' : 'default' }}
+                    onClick={() => { if (post.url) window.open(post.url, '_blank', 'noopener'); }}
                   >
                     <div className="item-info">
-                      <span className="item-title" title={post.hook}>{post.hook || 'Post publicado'}</span>
+                      <span className="item-title" title={post.title}>{post.title}</span>
                       <div className="item-meta">
                         <strong style={{ color: '#0f172a' }}>{new Date(post.published_at).toLocaleDateString('pt-BR')}</strong>
+                        <span>•</span>
+                        <span className={`platform-tag platform-${post.platform}`}>
+                          {post.platform === 'youtube' ? 'YouTube' : post.platform === 'instagram' ? 'Instagram' : 'LinkedIn'}
+                        </span>
                         <span>•</span>
                         <span style={{ color: '#057642', fontWeight: 600 }}>{(post.owner_name || '').split(' ')[0]}</span>
                         <span>•</span>
                         <span>{post.engagement_total || 0} interações</span>
                       </div>
                     </div>
-                    {post.post_url && <ExternalLink size={14} style={{ color: '#64748b', flexShrink: 0 }} />}
+                    {post.url && <ExternalLink size={14} style={{ color: '#64748b', flexShrink: 0 }} />}
                   </div>
                 ))
               )}

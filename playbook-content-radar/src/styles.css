@@ -3159,6 +3159,8 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
   padding: 16px 20px;
   border-bottom: 1px solid #f1f5f9;
   background: #ffffff;
@@ -3349,18 +3351,86 @@ kbd {
   background: #f1f5f9;
 }
 
-.calendar-published-card .published-check {
+.calendar-published-card .platform-icon {
   flex-shrink: 0;
-  color: #057642;
 }
 
-.calendar-published-card.owner-victor {
-  border-left-color: #10b981;
+.calendar-published-card.platform-linkedin {
+  border-left-color: #0a66c2;
 }
 
-.calendar-published-card.owner-fernando {
-  border-left-color: #3b82f6;
+.calendar-published-card.platform-linkedin .platform-icon {
+  color: #0a66c2;
 }
+
+.calendar-published-card.platform-youtube {
+  border-left-color: #dc2626;
+}
+
+.calendar-published-card.platform-youtube .platform-icon {
+  color: #dc2626;
+}
+
+.calendar-published-card.platform-instagram {
+  border-left-color: #c026d3;
+}
+
+.calendar-published-card.platform-instagram .platform-icon {
+  color: #c026d3;
+}
+
+/* Platform filter chips no cabeçalho do calendário */
+.calendar-platform-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.calendar-platform-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 99px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.calendar-platform-chip:hover {
+  border-color: #cbd5e1;
+}
+
+.calendar-platform-chip.active.platform-linkedin {
+  background: rgba(10, 102, 194, 0.08);
+  border-color: rgba(10, 102, 194, 0.3);
+  color: #0a66c2;
+}
+
+.calendar-platform-chip.active.platform-youtube {
+  background: rgba(220, 38, 38, 0.07);
+  border-color: rgba(220, 38, 38, 0.3);
+  color: #dc2626;
+}
+
+.calendar-platform-chip.active.platform-instagram {
+  background: rgba(192, 38, 211, 0.07);
+  border-color: rgba(192, 38, 211, 0.3);
+  color: #c026d3;
+}
+
+/* Platform tag na lista lateral de publicados */
+.platform-tag {
+  font-weight: 600;
+}
+
+.platform-tag.platform-linkedin { color: #0a66c2; }
+.platform-tag.platform-youtube { color: #dc2626; }
+.platform-tag.platform-instagram { color: #c026d3; }
 
 .calendar-published-card .title-text {
   overflow: hidden;

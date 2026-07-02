@@ -30,11 +30,12 @@ describe('ContentMetricsWorkspace', () => {
     expect(screen.getByText(/Snapshot histórico local/i)).toBeInTheDocument();
     expect(screen.getByText('2 posts no arquivo completo')).toBeInTheDocument();
     expect(screen.getByText('Post campeão de IA')).toBeInTheDocument();
-    expect(screen.getByText('187')).toBeInTheDocument();
+    expect(screen.getByText(/Plataforma destaque do mês/i)).toBeInTheDocument();
+    expect(screen.getByText(/Média conteúdos\/semana/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Victor/i }));
-    await waitFor(() => expect(screen.getByText('112')).toBeInTheDocument());
-    expect(screen.queryByText('Post de vendas')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Post de vendas')).not.toBeInTheDocument());
+    expect(screen.getByText('Post campeão de IA')).toBeInTheDocument();
   });
 
   it('defaults content and YouTube filters to the latest 12 months in the loaded data', async () => {
