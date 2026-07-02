@@ -36,9 +36,6 @@ export function ContentFilters({ filters, onChange, posts, compact = false, adva
       {!compact && <label>Até<input aria-label="Data final" type="date" value={filters.to || ''} onChange={set('to')} /></label>}
       <label>Formato<select aria-label="Formato" value={filters.format || ''} onChange={set('format')}><option value="">Todos</option>{values('format').map((value) => <option key={value}>{value}</option>)}</select></label>
 
-      {!hideCta && <label>CTA<select aria-label="CTA" value={filters.cta || ''} onChange={set('cta')}><option value="">Todos</option>{values('cta_keyword', 'Sem CTA').map((value) => <option key={value}>{value}</option>)}</select></label>}
-      {advanced && <label>Etapa<select aria-label="Etapa do funil" value={filters.funnelStage || ''} onChange={set('funnelStage')}><option value="">Todas</option>{values('funnel_stage', 'Não classificado').map((value) => <option key={value}>{value}</option>)}</select></label>}
-      {advanced && <label>Intenção<select aria-label="Intenção comercial" value={filters.commercialIntent || ''} onChange={set('commercialIntent')}><option value="">Todas</option>{values('commercial_intent', 'Não classificado').map((value) => <option key={value}>{value}</option>)}</select></label>}
       <label className="cm-search"><span>Buscar</span><div><Search size={14} /><input aria-label="Buscar posts" value={filters.search || ''} onChange={set('search')} placeholder="Hook, texto ou tema" /></div></label>
     </div>
   );
