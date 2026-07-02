@@ -188,6 +188,38 @@ function CreatorToggle({ selectedOwner, onChange }) {
   </div>;
 }
 
+// Números atuais de seguidores/inscritos por pessoa. A coleta diária de perfil
+// começou em 02/07/2026, então o gráfico de linha fica quase vazio no início —
+// esta faixa garante que a seção mostre o estado atual desde o primeiro dia.
+function GrowthCurrentStrip({ growth, platform, metric = 'followers', label = 'seguidores' }) {
+  const rows = (growth || []).filter((g) => g.platform === platform && g[metric] != null && Number(g[metric]) > 0);
+  if (!rows.length) return null;
+  const byOwner = new Map();
+  rows.forEach((g) => {
+    const previous = byOwner.get(g.owner_name);
+    if (!previous || String(g.metric_date) > String(previous.metric_date)) byOwner.set(g.owner_name, g);
+  });
+  const chips = [...byOwner.values()].sort((a, b) => Number(b[metric]) - Number(a[metric]));
+  const collectedDays = new Set(rows.map((g) => String(g.metric_date))).size;
+  const firstDate = rows.reduce((min, g) => (!min || String(g.metric_date) < min ? String(g.metric_date) : min), null);
+  return (
+    <div className="cm-growth-strip">
+      {chips.map((g) => (
+        <div className="cm-growth-chip" key={g.owner_name}>
+          <span>{g.owner_name}</span>
+          <strong>{Number(g[metric]).toLocaleString('pt-BR')}</strong>
+          <small>{label} · {new Date(String(g.metric_date)).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</small>
+        </div>
+      ))}
+      {collectedDays < 8 && firstDate && (
+        <small className="cm-growth-note">
+          Coleta diária ativa desde {new Date(firstDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })} — o histórico do gráfico se forma a cada dia.
+        </small>
+      )}
+    </div>
+  );
+}
+
 function DeltaBadge({ delta, previousMonthLabel }) {
   if (delta == null) return <em className="cm-delta neutral">sem base em {previousMonthLabel}</em>;
   const up = delta >= 0;
@@ -467,6 +499,7 @@ function LinkedinAnalysis({ filtered, allPosts, data, filters, setFilters }) {
           <p>Evolução do número total de seguidores no LinkedIn ao longo do tempo.</p>
         </div>
       </div>
+      <GrowthCurrentStrip growth={data.growth} platform="linkedin" />
       <AccountGrowthChart data={filteredGrowth} />
     </section>
   ) : null;
@@ -578,6 +611,7 @@ function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSet
           <p>Evolução do número total de seguidores no Instagram, coletado diariamente.</p>
         </div>
       </div>
+      <GrowthCurrentStrip growth={data.growth} platform="instagram" />
       <AccountGrowthChart data={filteredGrowth} />
     </section>
   ) : null;
@@ -653,6 +687,7 @@ function YoutubeSection({ data, videos, filters, setFilters, onSettings }) {
           <p>Evolução de inscritos e views totais do YouTube.</p>
         </div>
       </div>
+      <GrowthCurrentStrip growth={data.growth} platform="youtube" metric="subscribers" label="inscritos" />
       <AccountGrowthChart data={filteredGrowth} />
     </section>
   ) : null;

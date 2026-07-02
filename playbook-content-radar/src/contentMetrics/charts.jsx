@@ -237,6 +237,8 @@ export function PerformanceBars({ rows, valueKey = 'engagement', label = 'Engage
 export function AccountGrowthChart({ data }) {
   if (!data.length) return null;
   const rows = [...data].sort((a, b) => String(a.metric_date).localeCompare(String(b.metric_date)));
+  // Com poucos snapshots (coleta diária recém-ativada), linha sem marcador é invisível.
+  const sparseDot = rows.length <= 30 ? { r: 3.5, strokeWidth: 0 } : false;
 
   // Identify all keys that represent lines (excluding date and views)
   const allKeys = new Set();
@@ -281,16 +283,16 @@ export function AccountGrowthChart({ data }) {
               type="monotone" 
               dataKey={key} 
               name={key === 'subscribers' ? 'Inscritos' : key} 
-              stroke={getStrokeColor(key, index)} 
-              strokeWidth={2.5} 
-              connectNulls 
-              dot={false}
+              stroke={getStrokeColor(key, index)}
+              strokeWidth={2.5}
+              connectNulls
+              dot={sparseDot}
             />
           ))}
 
           {/* Render YouTube views if present in single-creator mode */}
           {rows.some(r => r.total_views !== undefined && r.total_views !== null) && (
-            <Line type="monotone" dataKey="total_views" name="Views totais" stroke="#9cbfe0" strokeWidth={2} connectNulls dot={false} />
+            <Line type="monotone" dataKey="total_views" name="Views totais" stroke="#9cbfe0" strokeWidth={2} connectNulls dot={sparseDot} />
           )}
         </LineChart>
       </ResponsiveContainer>
