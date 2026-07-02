@@ -87,6 +87,23 @@ describe('normalizeApifyPost', () => {
     expect(result.post).toMatchObject({ hook: 'Comenta "MAPS" que eu mando o material', cta_keyword: 'MAPS', author_name: 'Fernando Tedesco' });
     expect(result.metric).toMatchObject({ likes: 40, comments: 12, shares: 3, source: 'apify_daily' });
   });
+
+  it('ignora arrays homônimos (comments/reactions raspados) e usa as contagens do engagement', () => {
+    // harvestapi devolve `comments: []` (lista de comentários) no topo do item
+    // e as contagens reais em `engagement` — o array não pode virar contagem 0.
+    const result = normalizeApifyPost({
+      id: '7475182143250337792',
+      linkedinUrl: 'https://linkedin.com/posts/x_activity-7475182143250337792',
+      content: 'Post com engagement aninhado',
+      comments: [],
+      reactions: [],
+      commentIds: [],
+      postedAt: { date: '2026-06-23T13:15:15Z' },
+      engagement: { likes: 853, comments: 58, shares: 0, reactions: [{ type: 'LIKE', count: 619 }, { type: 'APPRECIATION', count: 163 }] },
+    }, '2026-07-02');
+
+    expect(result.metric).toMatchObject({ likes: 853, comments: 58, shares: 0, reactions_total: 782 });
+  });
 });
 
 describe('collector helpers', () => {

@@ -3706,7 +3706,10 @@ function IdeasListView({
   onOpenStudio
 }) {
 
-  const [viewMode, setViewMode] = useState(currentUser === 'Felipe' ? 'table' : 'feed');
+  // No celular a Tabela Operacional (7 colunas) vira scroll horizontal; o feed é
+  // muito mais confortável, então ele é o padrão em telas estreitas mesmo pro Felipe.
+  const isNarrowScreen = typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches;
+  const [viewMode, setViewMode] = useState(currentUser === 'Felipe' && !isNarrowScreen ? 'table' : 'feed');
   const [commentingIdea, setCommentingIdea] = useState(null);
   const [customComment, setCustomComment] = useState('');
   const [selectedQuickComment, setSelectedQuickComment] = useState('');

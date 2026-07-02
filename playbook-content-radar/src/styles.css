@@ -5374,3 +5374,219 @@ kbd {
 
 
 
+
+
+/* ==================== MOBILE RESPONSIVE OVERHAUL (Felipe/Admin + geral) ==================== */
+
+/* Correções de base (valem em qualquer largura): o título dos cards do calendário
+   usa -webkit-box com flex:1; sem min-width:0 o min-content dele (palavra mais longa)
+   alarga as células e estoura a grade de 7 colunas em telas estreitas. */
+.calendar-published-card .title-text,
+.calendar-scheduled-card .title-text {
+  min-width: 0;
+  word-break: break-word;
+}
+
+.calendar-day-cell,
+.calendar-cell-posts-container,
+.li-column-left,
+.li-column-center,
+.li-column-right,
+.li-company-info {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  /* --- Dashboard do Felipe: 3 colunas viram pilha (feed primeiro, pendências depois) --- */
+  .li-three-columns {
+    grid-template-columns: 1fr;
+  }
+  .li-column-center { order: 1; }
+  .li-column-right { order: 2; }
+  .li-column-left { order: 3; }
+
+  .li-company-banner {
+    height: 76px;
+  }
+  .li-company-profile-row {
+    padding: 0 16px 14px 16px;
+    gap: 10px;
+  }
+  .li-company-avatar {
+    width: 62px;
+    height: 62px;
+    margin-top: -31px;
+    font-size: 28px;
+  }
+  .li-company-title-row h2 {
+    font-size: 18px;
+  }
+  .li-company-actions {
+    width: 100%;
+  }
+  .li-company-actions .li-btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+  .li-admin-tabs {
+    overflow-x: auto;
+    gap: 2px;
+    padding: 0 10px;
+    scrollbar-width: none;
+  }
+  .li-admin-tabs::-webkit-scrollbar { display: none; }
+  .li-admin-tab {
+    padding: 12px 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* --- Tabela Operacional: scroll horizontal em vez de esmagar as 7 colunas --- */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-container table {
+    min-width: 840px;
+  }
+  .table-container th,
+  .table-container td {
+    padding: 12px 12px;
+  }
+
+  /* --- Busca + abas de curador na Listagem de Ideias --- */
+  .search-box-row {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+  .curator-filter-segmented-container {
+    width: 100%;
+    min-width: 0;
+  }
+  .li-tabs-container {
+    overflow-x: auto;
+    gap: 8px;
+    scrollbar-width: none;
+  }
+  .li-tabs-container::-webkit-scrollbar { display: none; }
+  .li-tab {
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 8px 8px 10px 8px;
+  }
+
+  /* Ribbon de status acima dos cards do feed (status + agendar + score) */
+  .li-feed-curator-status {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 14px !important;
+  }
+
+  .li-feed-actions-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .li-action-btn-group {
+    flex-wrap: wrap;
+  }
+
+  /* Barra inferior respeita o notch/safe-area do iPhone */
+  .mobile-bottom-nav {
+    height: calc(58px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .main-area {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (max-width: 600px) {
+  /* --- Calendário Editorial compacto --- */
+  .calendar-control-header {
+    padding: 12px;
+  }
+  .calendar-month-title {
+    font-size: 15px;
+    flex-wrap: wrap;
+  }
+  .calendar-cells-grid {
+    grid-auto-rows: minmax(58px, auto);
+  }
+  .calendar-day-cell {
+    padding: 4px 3px;
+    gap: 3px;
+  }
+  .calendar-weekday-col {
+    padding: 8px 2px;
+    font-size: 9.5px;
+  }
+  .day-number {
+    font-size: 10.5px;
+  }
+  .calendar-day-cell.today .day-number {
+    width: 18px;
+    height: 18px;
+  }
+  .calendar-cell-posts-container {
+    max-height: none;
+    overflow: visible;
+  }
+  /* Cards viram "pills" compactas: só ícone da plataforma + avatar do responsável.
+     O toque continua abrindo o post/estúdio; o detalhe completo fica na lista lateral. */
+  .calendar-published-card,
+  .calendar-scheduled-card {
+    padding: 2px 3px;
+    justify-content: center;
+    gap: 2px;
+    border-left-width: 2px;
+  }
+  .calendar-published-card .title-text,
+  .calendar-scheduled-card .title-text {
+    display: none;
+  }
+  .calendar-sidebar-card {
+    padding: 14px;
+  }
+
+  /* --- Cabeçalhos de views admin --- */
+  .admin-view-header h2 {
+    font-size: 20px;
+  }
+  .view-mode-toggle-container {
+    width: 100%;
+    justify-content: stretch;
+  }
+  .view-mode-toggle-container button {
+    flex: 1;
+  }
+
+  /* --- Modais confortáveis no celular --- */
+  .pub-studio-backdrop {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .pub-studio-modal {
+    height: 94dvh;
+    max-height: 94dvh;
+    border-radius: 16px 16px 0 0;
+  }
+  .pub-studio-body {
+    padding: 14px;
+  }
+  .pub-studio-header {
+    padding: 12px 16px;
+  }
+  .scheduler-modal-backdrop {
+    padding: 12px;
+  }
+
+  /* Métricas do Radar (cards de KPI do dashboard) em 2 colunas já cobertas;
+     reduz o vão pra caber melhor em 375px */
+  .li-analytics-grid {
+    gap: 12px;
+  }
+  .li-analytics-value {
+    font-size: 20px;
+  }
+}

@@ -23,6 +23,19 @@ function firstValue(item: Record<string, any>, keys: string[]) {
   return null;
 }
 
+// Alguns actors expõem o MESMO nome de campo com outro tipo — ex.: harvestapi
+// devolve `comments: []` (lista de comentários raspados) no topo do item e a
+// contagem real em `engagement.comments`. Uma extração de contagem só pode
+// aceitar valores numéricos, senão Number([]) vira 0 e engole o fallback.
+function firstNumeric(item: Record<string, any>, keys: string[]) {
+  for (const key of keys) {
+    const value = item[key];
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) return Number(value);
+  }
+  return null;
+}
+
 function detectFormat(post: Record<string, unknown>) {
   if (post.repostId) return 'repost';
   if (post.postVideo || post.video || post.videoUrl) return 'video';
@@ -67,12 +80,12 @@ export function normalizeApifyPost(item: Record<string, any>, metricDate = new D
 
   const format = detectFormat(item);
   const content = String(firstValue(item, ['content', 'text', 'postText', 'commentary', 'body']) || '');
-  const likes = integer(firstValue(item, ['likeCount', 'likes', 'likesCount']) ?? item.engagement?.likes ?? item.stats?.likes);
-  const comments = integer(firstValue(item, ['commentCount', 'comments', 'commentsCount']) ?? item.engagement?.comments ?? item.stats?.comments);
-  const shares = integer(firstValue(item, ['shareCount', 'repostCount', 'shares', 'reposts']) ?? item.engagement?.shares ?? item.stats?.shares);
+  const likes = integer(firstNumeric(item, ['likeCount', 'likes', 'likesCount']) ?? item.engagement?.likes ?? item.stats?.likes);
+  const comments = integer(firstNumeric(item, ['commentCount', 'comments', 'commentsCount']) ?? item.engagement?.comments ?? item.stats?.comments);
+  const shares = integer(firstNumeric(item, ['shareCount', 'repostCount', 'shares', 'reposts']) ?? item.engagement?.shares ?? item.stats?.shares);
   const reactions = Array.isArray(item.engagement?.reactions)
     ? item.engagement.reactions.reduce((sum: number, reaction: any) => sum + integer(reaction?.count), 0)
-    : integer(firstValue(item, ['reactionCount', 'reactionsCount', 'reactions']) ?? likes);
+    : integer(firstNumeric(item, ['reactionCount', 'reactionsCount', 'reactions']) ?? likes);
   const published = item.postedAt?.date || firstValue(item, ['postedDate', 'publishedAt', 'date', 'createdAt', 'timestamp']);
 
   return {
