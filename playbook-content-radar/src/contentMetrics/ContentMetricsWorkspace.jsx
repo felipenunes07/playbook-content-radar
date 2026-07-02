@@ -499,6 +499,34 @@ function EmptyCollector({ platform, onSettings }) {
 function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSettings, client }) {
   const [pulling, setPulling] = useState(false);
   const [pullMsg, setPullMsg] = useState('');
+
+  // Crescimento diário de seguidores (coletado pela collect-instagram no cron).
+  // Mesmo padrão das seções LinkedIn/YouTube: uma linha por pessoa no gráfico.
+  const filteredGrowth = useMemo(() => {
+    if (!data?.growth) return [];
+    const instagramGrowth = data.growth.filter(g => g.platform === 'instagram');
+    const grouped = {};
+    instagramGrowth.forEach(g => {
+      const date = g.metric_date;
+      if (!grouped[date]) grouped[date] = { metric_date: date };
+      grouped[date][g.owner_name] = Number(g.followers || 0);
+    });
+    return Object.values(grouped).sort((a, b) => a.metric_date.localeCompare(b.metric_date));
+  }, [data?.growth]);
+
+  const growthSection = filteredGrowth.length ? (
+    <section className="cm-panel">
+      <div className="cm-section-heading">
+        <div>
+          <span className="cm-eyebrow">Seguidores</span>
+          <h2>Crescimento de contas</h2>
+          <p>Evolução do número total de seguidores no Instagram, coletado diariamente.</p>
+        </div>
+      </div>
+      <AccountGrowthChart data={filteredGrowth} />
+    </section>
+  ) : null;
+
   const pullNow = async () => {
     if (!client?.functions?.invoke) { setPullMsg('Coleta manual indisponível no modo offline.'); return; }
     setPulling(true); setPullMsg('');
@@ -512,7 +540,7 @@ function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSet
       setPulling(false);
     }
   };
-  if (!data.instagram.length) return <EmptyCollector platform="Instagram" onSettings={onSettings} />;
+  if (!data.instagram.length) return <>{growthSection}<EmptyCollector platform="Instagram" onSettings={onSettings} /></>;
   const metrics = aggregateContentMetrics(filtered);
   const weekly = buildWeeklyContentTypeCadence(filtered);
   return <>
@@ -530,6 +558,7 @@ function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSet
       <div className="cm-section-heading"><div><span className="cm-eyebrow">Cadência</span><h2>Publicações por semana</h2><p>Stories separados de Reels + Publicações (feed permanente).</p></div><small>{weekly.length} semanas</small></div>
       <WeeklyContentTypeChart data={weekly} />
     </section>
+    {growthSection}
     <div className="cm-analysis-grid">
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>Reel · Story · Carrossel · Imagem</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">CTA</span><h2>Comentários por chamada</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'cta_keyword')} valueKey="comments" label="Comentários" /></section>

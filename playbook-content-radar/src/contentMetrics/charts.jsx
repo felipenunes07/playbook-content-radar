@@ -39,7 +39,7 @@ export function WeeklyContentTypeChart({ data }) {
           <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="feed" name="Reels + Publicações" fill="#0a66c2" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="stories" name="Stories" fill="#d946ef" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="stories" name="Stories" fill="#e1306c" radius={[4, 4, 0, 0]} />
           <Line type="monotone" dataKey="Total" name="Total" stroke="#111827" strokeWidth={2.5} strokeDasharray="4 4" dot={false} />
         </ComposedChart>
       </ResponsiveContainer>

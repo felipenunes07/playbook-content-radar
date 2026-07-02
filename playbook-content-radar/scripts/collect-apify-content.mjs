@@ -182,7 +182,7 @@ async function collectInstagram(token, options) {
     }
 
     // Capture active stories
-    const storyActorId = process.env.APIFY_INSTAGRAM_STORY_ACTOR_ID || 'datavoyantlab/instagram-story-downloader';
+    const storyActorId = process.env.APIFY_INSTAGRAM_STORY_ACTOR_ID || 'igview-owner/instagram-story-viewer';
     const storyHandle = account.handle || account.accountUrl.match(/instagram\.com\/([^/?#]+)/i)?.[1] || '';
     const storyInput = { usernames: [storyHandle] };
     try {

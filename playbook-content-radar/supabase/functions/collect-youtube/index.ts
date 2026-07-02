@@ -52,13 +52,20 @@ function renderInput(account: Record<string, any>, since: string) {
 }
 
 function accountStats(items: Record<string, any>[]) {
-  const first = items[0] || {};
   const number = (value: unknown) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : null;
   };
-  const subscribers = number(first.channelSubscriberCount ?? first.subscriberCount ?? first.subscribers ?? first.numberOfSubscribers);
-  const totalViews = number(first.channelViewCount ?? first.channelViews ?? first.totalViews) ?? items.reduce((sum, item) => sum + (number(item.viewCount ?? item.views) || 0), 0);
+  // O actor devolve itens heterogêneos (vídeos, shorts, canal) e nem todo item traz os
+  // dados do canal — varre todos até achar em vez de confiar só no primeiro.
+  let subscribers: number | null = null;
+  let channelViews: number | null = null;
+  for (const item of items) {
+    subscribers ??= number(item.channelSubscriberCount ?? item.subscriberCount ?? item.subscribers ?? item.numberOfSubscribers);
+    channelViews ??= number(item.channelViewCount ?? item.channelViews ?? item.totalViews);
+    if (subscribers != null && channelViews != null) break;
+  }
+  const totalViews = channelViews ?? items.reduce((sum, item) => sum + (number(item.viewCount ?? item.views) || 0), 0);
   return { subscribers, totalViews, totalVideos: items.length };
 }
 
@@ -129,6 +136,17 @@ Deno.serve(async (request) => {
           const rawItems = await runActor(actorId, token, input);
           const items = Array.isArray(rawItems) ? rawItems : [];
           const stats = accountStats(items);
+
+          // Se nenhum item do actor trouxe o total de inscritos, cai no HTML público do
+          // canal — é justamente o número que o dashboard de crescimento acompanha.
+          if (stats.subscribers == null) {
+            try {
+              const publicStats = await fetchPublicChannelStats(account);
+              stats.subscribers = publicStats.subscribers;
+            } catch (publicError: any) {
+              console.error(`Inscritos indisponíveis para ${account.owner_name}:`, publicError?.message || publicError);
+            }
+          }
 
           const { error: accountMetricError } = await client.from('account_daily_metrics').upsert({
             account_id: account.id,

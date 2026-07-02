@@ -97,21 +97,33 @@ Deno.serve(async (request) => {
           }
         }
 
-        // Scrape and track profile followers count daily
+        // Scrape and track profile followers count daily.
+        // NB: o actor anterior (microworlds/linkedin-profile-scraper) foi removido da
+        // Apify Store, o que fazia esta etapa falhar em silêncio todos os dias. O da
+        // harvestapi devolve followerCount/connectionsCount e aceita o mesmo input.
         try {
-          const profileActorId = Deno.env.get('APIFY_LINKEDIN_PROFILE_ACTOR_ID') || 'microworlds/linkedin-profile-scraper';
-          const profileResults = await runActor(profileActorId, token, { urls: [account.account_url] });
+          const profileActorId = Deno.env.get('APIFY_LINKEDIN_PROFILE_ACTOR_ID') || 'harvestapi/linkedin-profile-scraper';
+          const profileResults = await runActor(profileActorId, token, {
+            profileScraperMode: 'Profile details no email ($4 per 1k)',
+            urls: [account.account_url],
+          });
           const profileData = Array.isArray(profileResults) ? profileResults[0] : null;
-          const followers = profileData ? (Number(profileData.followersCount || profileData.followers || 0)) : 0;
+          const followers = profileData
+            ? Number(profileData.followerCount || profileData.followersCount || profileData.followers || 0)
+            : 0;
           if (followers > 0) {
+            const connections = profileData?.connectionsCount != null ? String(profileData.connectionsCount) : null;
             const { error: growthError } = await client.from('account_daily_metrics').upsert({
               account_id: account.id,
               metric_date: metricDate,
               followers: followers,
+              connections,
               source: 'apify_linkedin_profile',
               raw: { firstItem: profileData }
             }, { onConflict: 'account_id,metric_date,source' });
             if (growthError) console.error(`Erro ao salvar métrica de seguidores do LinkedIn:`, growthError.message);
+          } else {
+            console.error(`Perfil do LinkedIn sem followerCount para ${account.owner_name}:`, JSON.stringify(profileData)?.slice(0, 300));
           }
         } catch (e: any) {
           console.error(`Erro ao coletar seguidores do LinkedIn para ${account.owner_name}:`, e.message);

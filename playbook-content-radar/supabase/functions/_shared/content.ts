@@ -285,5 +285,13 @@ export function validateClassification(value: Record<string, unknown>) {
 }
 
 export function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) return error.message;
+  // Erros do Supabase/PostgREST são objetos simples com .message (não instâncias de
+  // Error); sem este tratamento viram "[object Object]" no log e escondem a causa.
+  if (error && typeof error === 'object') {
+    const message = (error as any).message || (error as any).error_description || (error as any).error;
+    if (message) return String(message);
+    try { return JSON.stringify(error); } catch { /* objetos circulares */ }
+  }
+  return String(error);
 }
