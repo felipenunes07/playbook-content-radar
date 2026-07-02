@@ -10,7 +10,7 @@ function EmptyChart({ children = 'Sem dados para o período selecionado.' }) {
   return <div className="cm-empty-chart">{children}</div>;
 }
 
-export function ContentTrendChart({ data, metric = 'engagement' }) {
+export function ContentTrendChart({ data, metric = 'engagement', color = '#0a66c2' }) {
   if (!data.length) return <EmptyChart />;
   return (
     <div className="cm-chart" aria-label="Tendência mensal de conteúdo">
@@ -20,7 +20,7 @@ export function ContentTrendChart({ data, metric = 'engagement' }) {
           <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={24} />
           <YAxis tickFormatter={(value) => compact.format(value)} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
           <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
-          <Line type="monotone" dataKey={metric} name={metric === 'posts' ? 'Posts' : 'Engagement'} stroke="#0a66c2" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} animationDuration={500} />
+          <Line type="monotone" dataKey={metric} name={metric === 'posts' ? 'Posts' : 'Engagement'} stroke={color} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} animationDuration={500} />
         </LineChart>
       </ResponsiveContainer>
     </div>

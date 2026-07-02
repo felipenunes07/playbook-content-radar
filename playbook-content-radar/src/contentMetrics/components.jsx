@@ -4,6 +4,19 @@ import { Edit3, ExternalLink, History, Search, Sparkles } from 'lucide-react';
 const integer = new Intl.NumberFormat('pt-BR');
 const date = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
+const getPlatformLabel = (row) => {
+  if (row.platform === 'youtube' || row.video_id) return 'YouTube';
+  if (row.platform === 'instagram' || row.shortcode) return 'Instagram';
+  return 'LinkedIn';
+};
+
+const getPlatformStyle = (row) => {
+  const label = getPlatformLabel(row);
+  if (label === 'YouTube') return { background: '#fee2e2', color: '#b91c1c' };
+  if (label === 'Instagram') return { background: '#fdf2f8', color: '#db2777' };
+  return { background: '#e0e7ff', color: '#4338ca' };
+};
+
 export function MetricStrip({ metrics, youtubeViews = 0 }) {
   const items = [
     ['Posts', metrics.contentCount],
@@ -26,6 +39,7 @@ export function MetricStrip({ metrics, youtubeViews = 0 }) {
     </div>
   );
 }
+
 export function ContentFilters({ filters, onChange, posts, compact = false, advanced = false, hideOwner = false, hideCta = false }) {
   const values = (field, fallback = '') => [...new Set(posts.map((post) => post[field] || fallback).filter(Boolean))].sort();
   const set = (field) => (event) => onChange({ ...filters, [field]: event.target.value });
@@ -48,19 +62,6 @@ export function YoutubeFilters({ filters, onChange, videos }) {
 }
 
 export function TopContentTable({ rows, metric = 'engagement_score', title = 'Top conteúdos' }) {
-  const getPlatformLabel = (row) => {
-    if (row.platform === 'youtube' || row.video_id) return 'YouTube';
-    if (row.platform === 'instagram' || row.shortcode) return 'Instagram';
-    return 'LinkedIn';
-  };
-
-  const getPlatformStyle = (row) => {
-    const label = getPlatformLabel(row);
-    if (label === 'YouTube') return { background: '#fee2e2', color: '#b91c1c' };
-    if (label === 'Instagram') return { background: '#fdf2f8', color: '#db2777' };
-    return { background: '#e0e7ff', color: '#4338ca' };
-  };
-
   return (
     <section className="cm-table-section">
       <div className="cm-section-heading"><div><span className="cm-eyebrow">Ranking</span><h2>{title}</h2></div><small>{rows.length} resultados</small></div>
@@ -100,7 +101,143 @@ export function YoutubeVideosTable({ rows, title = 'Vídeos monitorados' }) {
 }
 
 export function OperationalPostsTable({ rows, onAction }) {
-  return <section className="cm-table-section"><div className="cm-section-heading"><div><span className="cm-eyebrow">Operação</span><h2>Tabela operacional de posts</h2></div><small>{rows.length} posts</small></div>{!rows.length ? <div className="cm-empty">Nenhum post encontrado.</div> : <div className="cm-table-wrap"><table className="cm-table cm-operational-table"><thead><tr><th>Data</th><th>Autor / hook</th><th>Formato</th><th>Tema</th><th>CTA</th><th>Likes</th><th>Comentários</th><th>Shares</th><th>Score</th><th>Classificação</th><th>Ações</th></tr></thead><tbody>{rows.map((row) => <tr key={row.external_post_id || row.id}><td>{row.published_at ? date.format(new Date(row.published_at)) : '—'}</td><td><strong className="cm-hook">{row.hook || 'Sem hook'}</strong><small>{row.owner_name}</small></td><td><span className="cm-tag">{row.format || 'unknown'}</span></td><td>{row.theme || '—'}</td><td>{row.cta_keyword || '—'}</td><td>{integer.format(row.likes || 0)}</td><td>{integer.format(row.comments || 0)}</td><td>{integer.format(row.shares || 0)}</td><td><strong>{integer.format(row.engagement_score || 0)}</strong></td><td><StatusPill status={row.classification_status || 'pending'} /></td><td><div className="cm-row-actions"><button type="button" aria-label={`Editar classificação de ${row.hook || 'post'}`} title="Editar tema, CTA e formato" onClick={() => onAction?.('edit', row)}><Edit3 size={14} /></button><button type="button" aria-label={`Reclassificar ${row.hook || 'post'}`} title="Reclassificar com IA" onClick={() => onAction?.('classify', row)}><Sparkles size={14} /></button><button type="button" aria-label={`Histórico de métricas de ${row.hook || 'post'}`} title="Ver histórico de métricas" onClick={() => onAction?.('history', row)}><History size={14} /></button>{row.post_url && <a className="cm-open" href={row.post_url} target="_blank" rel="noreferrer" aria-label={`Abrir ${row.hook || 'post'}`}><ExternalLink size={14} /></a>}</div></td></tr>)}</tbody></table></div>}</section>;
+  const [sortConfig, setSortConfig] = React.useState({ key: 'engagement_score', direction: 'desc' });
+
+  const sortedRows = React.useMemo(() => {
+    const sortable = [...rows];
+    if (!sortConfig.key) return sortable;
+    
+    sortable.sort((a, b) => {
+      let aVal = a[sortConfig.key];
+      let bVal = b[sortConfig.key];
+      
+      if (aVal == null) return sortConfig.direction === 'asc' ? 1 : -1;
+      if (bVal == null) return sortConfig.direction === 'asc' ? -1 : 1;
+
+      if (typeof aVal === 'string') {
+        return sortConfig.direction === 'asc' 
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      } else {
+        return sortConfig.direction === 'asc' 
+          ? aVal - bVal
+          : bVal - aVal;
+      }
+    });
+    return sortable;
+  }, [rows, sortConfig]);
+
+  const requestSort = (key) => {
+    let direction = 'desc';
+    if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return ' ↕';
+    return sortConfig.direction === 'asc' ? ' ▲' : ' ▼';
+  };
+
+  return (
+    <section className="cm-table-section">
+      <div className="cm-section-heading">
+        <div>
+          <span className="cm-eyebrow">Operação</span>
+          <h2>Tabela operacional de posts</h2>
+        </div>
+        <small>{rows.length} posts</small>
+      </div>
+      {!rows.length ? (
+        <div className="cm-empty">Nenhum post encontrado.</div>
+      ) : (
+        <div className="cm-table-wrap">
+          <table className="cm-table cm-operational-table">
+            <thead>
+              <tr>
+                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('published_at')}>Data{getSortIcon('published_at')}</th>
+                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('hook')}>Autor / hook{getSortIcon('hook')}</th>
+                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('format')}>Formato{getSortIcon('format')}</th>
+                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('theme')}>Tema{getSortIcon('theme')}</th>
+                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('cta_keyword')}>CTA{getSortIcon('cta_keyword')}</th>
+                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('likes')}>Likes{getSortIcon('likes')}</th>
+                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('comments')}>Comentários{getSortIcon('comments')}</th>
+                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('shares')}>Shares{getSortIcon('shares')}</th>
+                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('engagement_score')}>Score{getSortIcon('engagement_score')}</th>
+                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('classification_status')}>Classificação{getSortIcon('classification_status')}</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedRows.map((row) => (
+                <tr key={row.external_post_id || row.id}>
+                  <td>{row.published_at ? date.format(new Date(row.published_at)) : '—'}</td>
+                  <td>
+                    <strong className="cm-hook">{row.hook || 'Sem hook'}</strong>
+                    <small>{row.owner_name}</small>
+                  </td>
+                  <td>
+                    <span className="cm-tag">{row.format || 'unknown'}</span>
+                  </td>
+                  <td>{row.theme || '—'}</td>
+                  <td>{row.cta_keyword || '—'}</td>
+                  <td>{integer.format(row.likes || 0)}</td>
+                  <td>{integer.format(row.comments || 0)}</td>
+                  <td>{integer.format(row.shares || 0)}</td>
+                  <td>
+                    <strong>{integer.format(row.engagement_score || 0)}</strong>
+                  </td>
+                  <td>
+                    <StatusPill status={row.classification_status || 'pending'} />
+                  </td>
+                  <td>
+                    <div className="cm-row-actions">
+                      <button 
+                        type="button" 
+                        aria-label={`Editar classificação de ${row.hook || 'post'}`} 
+                        title="Editar tema, CTA e formato" 
+                        onClick={() => onAction?.('edit', row)}
+                      >
+                        <Edit3 size={14} />
+                      </button>
+                      <button 
+                        type="button" 
+                        aria-label={`Reclassificar ${row.hook || 'post'}`} 
+                        title="Reclassificar com IA" 
+                        onClick={() => onAction?.('classify', row)}
+                      >
+                        <Sparkles size={14} />
+                      </button>
+                      <button 
+                        type="button" 
+                        aria-label={`Histórico de métricas de ${row.hook || 'post'}`} 
+                        title="Ver histórico de métricas" 
+                        onClick={() => onAction?.('history', row)}
+                      >
+                        <History size={14} />
+                      </button>
+                      {row.post_url && (
+                        <a 
+                          className="cm-open" 
+                          href={row.post_url} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          aria-label={`Abrir ${row.hook || 'post'}`}
+                        >
+                          <ExternalLink size={14} />
+                        </a>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
 }
 
 export function StatusPill({ status }) {
