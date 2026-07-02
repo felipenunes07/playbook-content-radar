@@ -126,14 +126,22 @@ Deno.serve(async (request) => {
     if (!token) throw new Error('APIFY_TOKEN não configurado');
 
     const resolvedUrl = await resolveInstagramUrl(String(url));
-    const items = await runActor(actorId, token, {
-      directUrls: [resolvedUrl],
-      resultsType: 'posts',
-      resultsLimit: 1,
-      searchLimit: 1,
-      addParentData: false,
-    });
-    const item = Array.isArray(items) ? items.find((entry: any) => entry && (entry.caption || entry.likesCount != null || entry.shortCode)) : null;
+    // O actor do Apify falha esporadicamente (rate limit do IG, página restrita) e devolve
+    // dataset vazio ou um item de erro. Uma segunda tentativa resolve a maioria dos casos.
+    let item: Record<string, any> | null = null;
+    for (let attempt = 0; attempt < 2 && !item; attempt += 1) {
+      if (attempt > 0) await wait(2000);
+      const items = await runActor(actorId, token, {
+        directUrls: [resolvedUrl],
+        resultsType: 'posts',
+        resultsLimit: 1,
+        searchLimit: 1,
+        addParentData: false,
+      });
+      item = Array.isArray(items)
+        ? items.find((entry: any) => entry && !entry.error && (entry.caption || entry.likesCount != null || entry.shortCode)) || null
+        : null;
+    }
     if (!item) {
       return new Response(JSON.stringify({ success: false, error: 'Nenhum dado extraído do post do Instagram.' }), {
         status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },

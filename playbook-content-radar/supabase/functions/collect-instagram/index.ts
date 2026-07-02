@@ -273,7 +273,9 @@ Deno.serve(async (request) => {
             }
           }
         } catch (storiesError: any) {
-          console.error(`Stories indisponíveis para ${account.owner_name}:`, storiesError?.message || storiesError);
+          const message = `Stories error: ${storiesError?.message || storiesError}`;
+          console.error(`Stories indisponíveis para ${account.owner_name}:`, message);
+          errors.push({ account: account.owner_name, error: message });
         }
 
         // Track followers count
