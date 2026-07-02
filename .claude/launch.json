@@ -7,6 +7,13 @@
       "runtimeArgs": ["--prefix", "playbook-content-radar", "run", "dev", "--", "--port", "5199", "--strictPort"],
       "autoPort": false,
       "port": 5199
+    },
+    {
+      "name": "dev-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "playbook-content-radar", "run", "dev", "--", "--port", "5299", "--strictPort"],
+      "autoPort": false,
+      "port": 5299
     }
   ]
 }

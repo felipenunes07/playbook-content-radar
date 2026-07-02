@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import {
@@ -15,6 +15,7 @@ import fernandoPhoto from './assets/fernando.png';
 import felipePhoto from './assets/felipe.jfif';
 import playbookLogo from './assets/playbook-logo.png';
 import { pathToMetricsSection, sectionToMetricsPath } from './contentMetrics/routes.js';
+import { filterContent } from './contentMetrics/analytics.js';
 
 const SUPABASE_URL = 'https://xcihctupmfawtawbzwvm.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjaWhjdHVwbWZhd3Rhd2J6d3ZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNTY1MTIsImV4cCI6MjA5NTgzMjUxMn0.GFVSHYY0S9nwfunxUyGGio5EQgsZE04nvFZAFz-L4Ow';
@@ -4972,8 +4973,26 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
   );
 }
 
+// Chave de data no fuso local (YYYY-MM-DD), para casar published_at (timestamptz) com as células do mês
+const localDateKey = (date) => {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
 function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onScheduleDate, onOpenStudio, addToast }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [publishedPosts, setPublishedPosts] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    supabase
+      .from('v_latest_linkedin_post_metrics')
+      .select('external_post_id, owner_name, author_name, published_at, hook, post_url, format, likes, comments, shares, engagement_total, is_repost, repost_id')
+      .then(({ data, error }) => {
+        if (!active || error || !Array.isArray(data)) return;
+        setPublishedPosts(filterContent(data));
+      });
+    return () => { active = false; };
+  }, []);
 
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -5036,6 +5055,27 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
     }).sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
   }, [ideas, year, month]);
 
+  const publishedByDate = useMemo(() => {
+    const map = new Map();
+    for (const post of publishedPosts) {
+      if (!post.published_at) continue;
+      const d = new Date(post.published_at);
+      if (Number.isNaN(d.getTime())) continue;
+      const key = localDateKey(d);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(post);
+    }
+    return map;
+  }, [publishedPosts]);
+
+  const publishedThisMonth = useMemo(() => {
+    return publishedPosts.filter(p => {
+      if (!p.published_at) return false;
+      const d = new Date(p.published_at);
+      return d.getFullYear() === year && d.getMonth() === month;
+    }).sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+  }, [publishedPosts, year, month]);
+
   const unscheduledIdeas = useMemo(() => {
     return ideas.filter(i =>
       !i.scheduledAt &&
@@ -5068,6 +5108,9 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
               <span style={{ fontSize: '11px', background: 'rgba(10, 102, 194, 0.08)', color: 'var(--linkedin-blue)', padding: '2px 8px', borderRadius: '99px', fontWeight: 600 }}>
                 {scheduledPosts.length} agendados
               </span>
+              <span style={{ fontSize: '11px', background: 'rgba(5, 118, 66, 0.08)', color: '#057642', padding: '2px 8px', borderRadius: '99px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <CheckCircle2 size={11} /> {publishedThisMonth.length} publicados
+              </span>
             </div>
             <div className="calendar-nav-buttons">
               <button type="button" className="calendar-nav-btn" onClick={prevMonth} title="Mês anterior">
@@ -5092,6 +5135,7 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
             {cells.map((cell, idx) => {
               const dateStr = cell.date.toISOString().split('T')[0];
               const cellPosts = ideas.filter(i => i.scheduledAt === dateStr);
+              const cellPublished = publishedByDate.get(localDateKey(cell.date)) || [];
 
               return (
                 <div
@@ -5113,6 +5157,32 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                   <span className="day-number">{cell.date.getDate()}</span>
 
                   <div className="calendar-cell-posts-container">
+                    {cellPublished.map(post => {
+                      const ownerFirstName = (post.owner_name || '').split(' ')[0];
+                      return (
+                        <div
+                          key={post.external_post_id || post.post_url}
+                          className={`calendar-published-card owner-${ownerFirstName.toLowerCase() || 'victor'}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (post.post_url) window.open(post.post_url, '_blank', 'noopener');
+                          }}
+                          title={`Publicado por ${post.owner_name} · ${post.likes || 0} reações · ${post.comments || 0} comentários${post.post_url ? ' | Clique para abrir no LinkedIn' : ''}`}
+                        >
+                          <CheckCircle2 size={11} className="published-check" />
+                          <span className="title-text">{post.hook || 'Post publicado'}</span>
+                          <img
+                            src={USER_AVATARS[ownerFirstName] || `https://ui-avatars.com/api/?name=${encodeURIComponent(post.owner_name || 'P')}&background=057642&color=fff&bold=true`}
+                            alt={post.owner_name}
+                            className="assignee-avatar"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(post.owner_name || 'P')}&background=057642&color=fff&bold=true`;
+                            }}
+                          />
+                        </div>
+                      );
+                    })}
                     {cellPosts.map(post => (
                       <div
                         key={post.id}
@@ -5178,6 +5248,40 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
               </div>
             </div>
           )}
+
+          <div className="calendar-sidebar-card">
+            <h3>Publicados em {MONTH_NAMES[month]}</h3>
+            <p className="desc">Posts já no ar no LinkedIn, com engajamento coletado.</p>
+
+            <div className="calendar-sidebar-list">
+              {publishedThisMonth.length === 0 ? (
+                <div className="calendar-empty-state">
+                  Nenhuma publicação coletada neste mês.
+                </div>
+              ) : (
+                publishedThisMonth.map(post => (
+                  <div
+                    key={post.external_post_id || post.post_url}
+                    className="calendar-sidebar-item"
+                    style={{ cursor: post.post_url ? 'pointer' : 'default' }}
+                    onClick={() => { if (post.post_url) window.open(post.post_url, '_blank', 'noopener'); }}
+                  >
+                    <div className="item-info">
+                      <span className="item-title" title={post.hook}>{post.hook || 'Post publicado'}</span>
+                      <div className="item-meta">
+                        <strong style={{ color: '#0f172a' }}>{new Date(post.published_at).toLocaleDateString('pt-BR')}</strong>
+                        <span>•</span>
+                        <span style={{ color: '#057642', fontWeight: 600 }}>{(post.owner_name || '').split(' ')[0]}</span>
+                        <span>•</span>
+                        <span>{post.engagement_total || 0} interações</span>
+                      </div>
+                    </div>
+                    {post.post_url && <ExternalLink size={14} style={{ color: '#64748b', flexShrink: 0 }} />}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
 
           <div className="calendar-sidebar-card">
             <h3>Agenda de {MONTH_NAMES[month]}</h3>

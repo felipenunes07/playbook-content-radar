@@ -34,13 +34,12 @@ export function WeeklyContentTypeChart({ data }) {
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 12, right: 16, left: -10, bottom: 0 }}>
           <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
-          <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={20} />
+          <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={56} interval="preserveStartEnd" tickMargin={8} />
           <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
           <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="feed" name="Reels + Publicações" fill="#0a66c2" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="stories" name="Stories" fill="#e1306c" radius={[4, 4, 0, 0]} />
-          <Line type="monotone" dataKey="Total" name="Total" stroke="#111827" strokeWidth={2.5} strokeDasharray="4 4" dot={false} />
+          <Bar dataKey="feed" name="Reels + Publicações" stackId="tipo" fill="#0a66c2" />
+          <Bar dataKey="stories" name="Stories" stackId="tipo" fill="#93c5fd" />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -54,30 +53,36 @@ export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek }) {
       onWeekClick({ week: barData.week, label: barData.label });
     }
   };
+  const series = data.map((entry, index) => {
+    const window = data.slice(Math.max(0, index - 3), index + 1);
+    const media = window.reduce((sum, row) => sum + row.Total, 0) / window.length;
+    return { ...entry, media: Math.round(media * 10) / 10 };
+  });
   return (
     <div className="cm-chart cm-chart-large" aria-label="Posts por semana por criador" style={{ position: 'relative' }}>
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart 
-          data={data} 
+        <ComposedChart
+          data={series}
           margin={{ top: 12, right: 16, left: -10, bottom: 0 }}
+          barCategoryGap="28%"
           style={{ cursor: onWeekClick ? 'pointer' : 'default' }}
         >
           <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
-          <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={20} />
+          <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={56} interval="preserveStartEnd" tickMargin={8} />
           <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
           <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="Victor" fill="#0a66c2" radius={[4, 4, 0, 0]} onClick={handleBarClick}>
-            {data.map((entry) => (
+          <Bar dataKey="Victor" stackId="cadence" fill="#0a66c2" onClick={handleBarClick}>
+            {series.map((entry) => (
               <Cell key={entry.week} fillOpacity={!selectedWeek || entry.week === selectedWeek ? 1 : 0.2} />
             ))}
           </Bar>
-          <Bar dataKey="Fernando" fill="#f59e0b" radius={[4, 4, 0, 0]} onClick={handleBarClick}>
-            {data.map((entry) => (
+          <Bar dataKey="Fernando" stackId="cadence" fill="#93c5fd" onClick={handleBarClick}>
+            {series.map((entry) => (
               <Cell key={entry.week} fillOpacity={!selectedWeek || entry.week === selectedWeek ? 1 : 0.2} />
             ))}
           </Bar>
-          <Line type="monotone" dataKey="Total" stroke="#111827" strokeWidth={2.5} strokeDasharray="4 4" dot={false} />
+          <Line type="monotone" dataKey="media" name="Média 4 semanas" stroke="#64748b" strokeWidth={2} dot={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -155,12 +160,12 @@ export function WeeklyEngagementChart({ data, onWeekClick, selectedWeek }) {
           style={{ cursor: 'pointer' }}
         >
           <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
-          <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={24} />
+          <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={56} interval="preserveStartEnd" tickMargin={8} />
           <YAxis tickFormatter={(value) => compact.format(value)} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
           <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Line type="monotone" dataKey="engagement" name="Engagement" stroke="#0a66c2" strokeWidth={2.5} dot={false} />
-          <Line type="monotone" dataKey="comments" name="Comentários" stroke="#f59e0b" strokeWidth={2.5} dot={false} />
+          <Line type="monotone" dataKey="comments" name="Comentários" stroke="#93c5fd" strokeWidth={2.5} dot={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -227,14 +232,14 @@ export function AccountGrowthChart({ data }) {
   // Define a curated list of colors matching our theme
   const colors = {
     "Victor Baggio": "#0a66c2",
-    "Fernando Tedesco": "#f59e0b",
+    "Fernando Tedesco": "#93c5fd",
     "Seguidores": "#0a66c2",
     "subscribers": "#0a66c2"
   };
 
   const getStrokeColor = (key, index) => {
     if (colors[key]) return colors[key];
-    const fallbackColors = ["#0a66c2", "#f59e0b", "#10b981", "#8b5cf6", "#ec4899"];
+    const fallbackColors = ["#0a66c2", "#93c5fd", "#64748b", "#1e3a8a", "#bfdbfe"];
     return fallbackColors[index % fallbackColors.length];
   };
 

@@ -268,15 +268,11 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
       : null;
 
   return <>
-    <div className="cm-executive-toolbar" style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', width: '100%' }}>
-        <div><span className="cm-eyebrow">Filtro principal</span><h2>Victor, Fernando ou Playbook total</h2></div>
+    <div className="cm-executive-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+      <div><span className="cm-eyebrow">Filtro principal</span><h2>Victor, Fernando ou Playbook total</h2></div>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} />
-      </div>
-      
-      <div className="cm-platform-toggle-container" style={{ display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '16px', width: '100%', justifyContent: 'flex-end' }}>
-        <span className="cm-eyebrow" style={{ margin: 0 }}>Plataforma</span>
-        <div className="cm-creator-toggle cm-platform-toggle" style={{ margin: 0 }}>
+        <div className="cm-creator-toggle cm-platform-toggle" style={{ margin: 0 }} aria-label="Filtro de plataforma">
           <button type="button" className={`platform-all ${selectedPlatform === 'all' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('all'); setSelectedDate(null); setSelectedWeek(null); }} aria-label="Todas">
             <AllIcon size={15} />
           </button>
