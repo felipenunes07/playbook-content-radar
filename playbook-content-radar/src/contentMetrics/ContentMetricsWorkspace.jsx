@@ -223,9 +223,50 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
     }
   };
 
+  const handlePlatformClick = (platform, event) => {
+    setSelectedDate(null);
+    setSelectedWeek(null);
+
+    const isCtrl = event.ctrlKey || event.metaKey;
+
+    if (platform === 'all') {
+      setSelectedPlatform('all');
+      return;
+    }
+
+    if (!isCtrl) {
+      setSelectedPlatform(platform);
+      return;
+    }
+
+    // Ctrl click logic: if 'all', holding Ctrl deselects the clicked platform, leaving the others
+    if (selectedPlatform === 'all') {
+      const others = ['linkedin', 'youtube', 'instagram'].filter(p => p !== platform);
+      setSelectedPlatform(others.join(','));
+    } else {
+      const activeList = selectedPlatform.split(',').filter(Boolean);
+      if (activeList.includes(platform)) {
+        const updated = activeList.filter(p => p !== platform);
+        if (updated.length === 0 || updated.length === 3) {
+          setSelectedPlatform('all');
+        } else {
+          setSelectedPlatform(updated.join(','));
+        }
+      } else {
+        const updated = [...activeList, platform];
+        if (updated.length === 3) {
+          setSelectedPlatform('all');
+        } else {
+          setSelectedPlatform(updated.join(','));
+        }
+      }
+    }
+  };
+
   const platformFiltered = useMemo(() => {
     if (selectedPlatform === 'all') return filtered;
-    return filtered.filter(item => item.platform === selectedPlatform);
+    const activeList = selectedPlatform.split(',');
+    return filtered.filter(item => activeList.includes(item.platform));
   }, [filtered, selectedPlatform]);
 
   const interactiveFiltered = useMemo(() => {
@@ -273,16 +314,16 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} />
         <div className="cm-creator-toggle cm-platform-toggle" style={{ margin: 0 }} aria-label="Filtro de plataforma">
-          <button type="button" className={`platform-all ${selectedPlatform === 'all' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('all'); setSelectedDate(null); setSelectedWeek(null); }} aria-label="Todas">
+          <button type="button" className={`platform-all ${selectedPlatform === 'all' ? 'active' : ''}`} onClick={(e) => handlePlatformClick('all', e)} aria-label="Todas">
             <AllIcon size={15} />
           </button>
-          <button type="button" className={`platform-linkedin ${selectedPlatform === 'linkedin' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('linkedin'); setSelectedDate(null); setSelectedWeek(null); }} aria-label="LinkedIn">
+          <button type="button" className={`platform-linkedin ${selectedPlatform === 'all' ? '' : selectedPlatform.split(',').includes('linkedin') ? 'active' : ''}`} onClick={(e) => handlePlatformClick('linkedin', e)} aria-label="LinkedIn">
             <LinkedInIcon size={15} />
           </button>
-          <button type="button" className={`platform-youtube ${selectedPlatform === 'youtube' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('youtube'); setSelectedDate(null); setSelectedWeek(null); }} aria-label="YouTube">
+          <button type="button" className={`platform-youtube ${selectedPlatform === 'all' ? '' : selectedPlatform.split(',').includes('youtube') ? 'active' : ''}`} onClick={(e) => handlePlatformClick('youtube', e)} aria-label="YouTube">
             <YouTubeIcon size={15} />
           </button>
-          <button type="button" className={`platform-instagram ${selectedPlatform === 'instagram' ? 'active' : ''}`} onClick={() => { setSelectedPlatform('instagram'); setSelectedDate(null); setSelectedWeek(null); }} aria-label="Instagram">
+          <button type="button" className={`platform-instagram ${selectedPlatform === 'all' ? '' : selectedPlatform.split(',').includes('instagram') ? 'active' : ''}`} onClick={(e) => handlePlatformClick('instagram', e)} aria-label="Instagram">
             <InstagramGlyph size={15} />
           </button>
         </div>
