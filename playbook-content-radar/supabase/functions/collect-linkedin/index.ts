@@ -1,29 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { collectorDeadline, remainingMs, runActor } from '../_shared/apify.ts';
 import { errorMessage, normalizeApifyPost, parseApifyInput } from '../_shared/content.ts';
 import { adminClient, corsHeaders, finishRun, json, requireCollectorSecret, startRun } from '../_shared/server.ts';
-
-const APIFY_API = 'https://api.apify.com/v2';
-const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-
-async function apify(path: string, token: string, init?: RequestInit) {
-  const separator = path.includes('?') ? '&' : '?';
-  const response = await fetch(`${APIFY_API}/${path}${separator}token=${encodeURIComponent(token)}`, init);
-  const body = await response.json();
-  if (!response.ok) throw new Error(body?.error?.message || `Apify API ${response.status}`);
-  return body.data ?? body;
-}
-
-async function runActor(actorId: string, token: string, input: Record<string, unknown>) {
-  let run = await apify(`acts/${encodeURIComponent(actorId)}/runs?waitForFinish=100`, token, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
-  });
-  for (let attempt = 0; attempt < 8 && !['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(run.status); attempt += 1) {
-    await wait(5000);
-    run = await apify(`actor-runs/${run.id}`, token);
-  }
-  if (run.status !== 'SUCCEEDED') throw new Error(`Actor terminou com status ${run.status || 'desconhecido'}`);
-  return apify(`datasets/${run.defaultDatasetId}/items?clean=true&limit=1000`, token);
-}
 
 async function latestLinkedInSince(client: ReturnType<typeof adminClient>, accountId: string) {
   const { data, error } = await client
@@ -35,7 +13,12 @@ async function latestLinkedInSince(client: ReturnType<typeof adminClient>, accou
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return data?.published_at ? String(data.published_at).slice(0, 10) : '2020-01-01';
+  const latest = data?.published_at ? String(data.published_at).slice(0, 10) : '2020-01-01';
+  // Janela mínima de 30 dias: se `since` fosse só o último post, assim que alguém
+  // publica o postedLimitDate avança e os posts anteriores saem da coleta — e param
+  // de receber snapshot diário de likes/comentários (aconteceu em 02/07/2026).
+  const windowStart = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  return latest < windowStart ? latest : windowStart;
 }
 
 function renderInput(account: Record<string, any>, since: string) {
@@ -60,6 +43,7 @@ Deno.serve(async (request) => {
     const actorId = Deno.env.get('APIFY_LINKEDIN_ACTOR_ID') || 'harvestapi/linkedin-post-search';
     if (!token || !actorId) throw new Error('APIFY_TOKEN e APIFY_LINKEDIN_ACTOR_ID são obrigatórios');
     const client = adminClient();
+    const deadlineAt = collectorDeadline();
     runId = await startRun(client, 'apify_linkedin');
     const { data: accounts, error: accountsError } = await client.from('content_accounts').select('*').eq('platform', 'linkedin').eq('status', 'active');
     if (accountsError) throw accountsError;
@@ -71,10 +55,14 @@ Deno.serve(async (request) => {
     const errors: Array<{ account: string; error: string }> = [];
 
     for (const account of accounts || []) {
+      if (remainingMs(deadlineAt) < 45000) {
+        errors.push({ account: account.owner_name, error: 'Conta adiada: orçamento de tempo do coletor esgotado' });
+        continue;
+      }
       try {
         const since = await latestLinkedInSince(client, account.id);
         const input = renderInput(account, since);
-        const items = await runActor(actorId, token, input);
+        const items = await runActor(actorId, token, input, deadlineAt);
         // Per-item isolation: one malformed item (bad date, constraint/unique collision)
         // must not abort the whole account's remaining posts. Failures are counted so the
         // run summary reflects dropped items instead of silently losing them.
@@ -97,38 +85,6 @@ Deno.serve(async (request) => {
           }
         }
 
-        // Scrape and track profile followers count daily.
-        // NB: o actor anterior (microworlds/linkedin-profile-scraper) foi removido da
-        // Apify Store, o que fazia esta etapa falhar em silêncio todos os dias. O da
-        // harvestapi devolve followerCount/connectionsCount e aceita o mesmo input.
-        try {
-          const profileActorId = Deno.env.get('APIFY_LINKEDIN_PROFILE_ACTOR_ID') || 'harvestapi/linkedin-profile-scraper';
-          const profileResults = await runActor(profileActorId, token, {
-            profileScraperMode: 'Profile details no email ($4 per 1k)',
-            urls: [account.account_url],
-          });
-          const profileData = Array.isArray(profileResults) ? profileResults[0] : null;
-          const followers = profileData
-            ? Number(profileData.followerCount || profileData.followersCount || profileData.followers || 0)
-            : 0;
-          if (followers > 0) {
-            const connections = profileData?.connectionsCount != null ? String(profileData.connectionsCount) : null;
-            const { error: growthError } = await client.from('account_daily_metrics').upsert({
-              account_id: account.id,
-              metric_date: metricDate,
-              followers: followers,
-              connections,
-              source: 'apify_linkedin_profile',
-              raw: { firstItem: profileData }
-            }, { onConflict: 'account_id,metric_date,source' });
-            if (growthError) console.error(`Erro ao salvar métrica de seguidores do LinkedIn:`, growthError.message);
-          } else {
-            console.error(`Perfil do LinkedIn sem followerCount para ${account.owner_name}:`, JSON.stringify(profileData)?.slice(0, 300));
-          }
-        } catch (e: any) {
-          console.error(`Erro ao coletar seguidores do LinkedIn para ${account.owner_name}:`, e.message);
-        }
-
         await client.from('content_accounts').update({ last_collected_at: new Date().toISOString(), last_error: null }).eq('id', account.id);
         accountsProcessed += 1;
       } catch (error) {
@@ -136,6 +92,42 @@ Deno.serve(async (request) => {
         errors.push({ account: account.owner_name, error: message });
         await client.from('content_accounts').update({ last_error: message }).eq('id', account.id);
       }
+    }
+
+    // Seguidores: um único run em LOTE com os perfis de todas as contas.
+    // NB: o actor da harvestapi limita contas free da Apify a 10 runs no total
+    // ("Free users are limited to 10 runs") — bloqueou a coleta em 03/07/2026.
+    // O da apimaestro é pay-per-result (US$5/1k perfis), sem limite de runs.
+    try {
+      const profileActorId = Deno.env.get('APIFY_LINKEDIN_PROFILE_ACTOR_ID') || 'apimaestro/linkedin-profile-batch-scraper-no-cookies-required';
+      const usernames = (accounts || []).map((account) => String(account.handle || '').trim()).filter(Boolean);
+      if (usernames.length && remainingMs(deadlineAt) >= 45000) {
+        const profiles = await runActor(profileActorId, token, { usernames, includeEmail: false }, deadlineAt);
+        for (const profile of Array.isArray(profiles) ? profiles : []) {
+          const info = profile?.basic_info || profile;
+          const identifier = String(info?.public_identifier || '').toLowerCase();
+          const account = (accounts || []).find((candidate) => String(candidate.handle || '').toLowerCase() === identifier);
+          const followers = Number(info?.follower_count ?? info?.followerCount ?? 0);
+          if (!account || !(followers > 0)) {
+            console.error('Perfil do LinkedIn sem conta correspondente ou sem follower_count:', JSON.stringify(info)?.slice(0, 200));
+            continue;
+          }
+          const connections = info?.connection_count != null ? String(info.connection_count) : null;
+          const { error: growthError } = await client.from('account_daily_metrics').upsert({
+            account_id: account.id,
+            metric_date: metricDate,
+            followers,
+            connections,
+            source: 'apify_linkedin_profile',
+            raw: { basic_info: info },
+          }, { onConflict: 'account_id,metric_date,source' });
+          if (growthError) console.error('Erro ao salvar seguidores do LinkedIn:', growthError.message);
+        }
+      } else if (usernames.length) {
+        errors.push({ account: 'seguidores', error: 'Coleta de seguidores adiada: orçamento de tempo esgotado' });
+      }
+    } catch (profileError: any) {
+      errors.push({ account: 'seguidores', error: `Falha na coleta de seguidores: ${errorMessage(profileError)}` });
     }
 
     const status = (errors.length || itemErrors) ? (accountsProcessed ? 'partial' : 'failed') : 'success';

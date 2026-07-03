@@ -1,29 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { collectorDeadline, remainingMs, runActor } from '../_shared/apify.ts';
 import { errorMessage, normalizeApifyYouTubeVideo, parseApifyInput, parsePublicYouTubeChannelStats } from '../_shared/content.ts';
 import { adminClient, corsHeaders, finishRun, json, requireCollectorSecret, startRun } from '../_shared/server.ts';
-
-const APIFY_API = 'https://api.apify.com/v2';
-const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-
-async function apify(path: string, token: string, init?: RequestInit) {
-  const separator = path.includes('?') ? '&' : '?';
-  const response = await fetch(`${APIFY_API}/${path}${separator}token=${encodeURIComponent(token)}`, init);
-  const body = await response.json();
-  if (!response.ok) throw new Error(body?.error?.message || `Apify API ${response.status}`);
-  return body.data ?? body;
-}
-
-async function runActor(actorId: string, token: string, input: Record<string, unknown>) {
-  let run = await apify(`acts/${encodeURIComponent(actorId)}/runs?waitForFinish=100`, token, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
-  });
-  for (let attempt = 0; attempt < 10 && !['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(run.status); attempt += 1) {
-    await wait(5000);
-    run = await apify(`actor-runs/${run.id}`, token);
-  }
-  if (run.status !== 'SUCCEEDED') throw new Error(`Actor terminou com status ${run.status || 'desconhecido'}`);
-  return apify(`datasets/${run.defaultDatasetId}/items?clean=true&limit=1000`, token);
-}
 
 async function latestYouTubeSince(client: ReturnType<typeof adminClient>, accountId: string) {
   const { data, error } = await client
@@ -106,6 +84,7 @@ Deno.serve(async (request) => {
     const actorId = Deno.env.get('APIFY_YOUTUBE_ACTOR_ID') || 'streamers/youtube-scraper';
     const client = adminClient();
     const source = token && actorId ? 'apify_youtube' : 'public_youtube';
+    const deadlineAt = collectorDeadline();
     runId = await startRun(client, source);
     const { data: accounts, error: accountsError } = await client.from('content_accounts').select('*').eq('platform', 'youtube').eq('status', 'active');
     if (accountsError) throw accountsError;
@@ -117,6 +96,10 @@ Deno.serve(async (request) => {
     const errors: Array<{ account: string; error: string }> = [];
 
     for (const account of accounts || []) {
+      if (remainingMs(deadlineAt) < 45000) {
+        errors.push({ account: account.owner_name, error: 'Conta adiada: orçamento de tempo do coletor esgotado' });
+        continue;
+      }
       try {
         if (source === 'public_youtube') {
           const stats = await fetchPublicChannelStats(account);
@@ -133,7 +116,8 @@ Deno.serve(async (request) => {
         } else {
           const since = await latestYouTubeSince(client, account.id);
           const input = renderInput(account, since);
-          const rawItems = await runActor(actorId, token, input);
+          // source === 'apify_youtube' garante token presente (ver derivação de `source`).
+          const rawItems = await runActor(actorId, token!, input, deadlineAt);
           const items = Array.isArray(rawItems) ? rawItems : [];
           const stats = accountStats(items);
 
@@ -172,8 +156,13 @@ Deno.serve(async (request) => {
               if (metricError) throw metricError;
               itemsProcessed += 1;
             } catch (itemError) {
+              const message = errorMessage(itemError);
+              // O actor mistura no dataset itens que não são vídeos (cards de canal,
+              // playlists) e que não têm id — ignorar sem contar como erro, senão
+              // todo run vira "partial" à toa.
+              if (/sem id/i.test(message)) continue;
               itemErrors += 1;
-              console.error(`Erro ao salvar vídeo do YouTube (${account.owner_name}):`, errorMessage(itemError));
+              console.error(`Erro ao salvar vídeo do YouTube (${account.owner_name}):`, message);
             }
           }
         }

@@ -25,6 +25,18 @@ export function adminClient() {
 }
 
 export async function startRun(client: any, source: string) {
+  // Auto-conserto: se uma execução anterior foi morta pelo runtime sem chamar
+  // finishRun (timeout de parede), a linha ficava "running" pra sempre e sumia
+  // dos alertas. Qualquer run do mesmo source com mais de 30min é marcado como
+  // failed antes de abrir o novo.
+  const staleCutoff = new Date(Date.now() - 30 * 60000).toISOString();
+  const { error: staleError } = await client.from('collection_runs')
+    .update({ status: 'failed', finished_at: new Date().toISOString(), error_message: 'Run não finalizou (provável timeout da function) — marcado ao iniciar a execução seguinte' })
+    .eq('source', source)
+    .eq('status', 'running')
+    .lt('started_at', staleCutoff);
+  if (staleError) console.error('Não foi possível limpar runs órfãos:', errorMessage(staleError));
+
   const { data, error } = await client.from('collection_runs').insert({ source, status: 'running' }).select('id').single();
   if (error) throw error;
   return data.id as string;

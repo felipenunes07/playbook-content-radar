@@ -5396,6 +5396,23 @@ kbd {
   min-width: 0;
 }
 
+/* Grid items têm min-width:auto por padrão: a track 1fr do .app-shell crescia até o
+   min-content do conteúdo (filtros, calendário, tabelas) e o overflow-x interno nunca
+   ativava — era isso que estourava a largura de todas as views no celular. */
+.main-area,
+.sidebar,
+.calendar-main-card,
+.calendar-sidebar {
+  min-width: 0;
+}
+
+/* A linha de meta (data • plataforma • autor • interações) é flex sem wrap e forçava
+   a largura dos cards laterais do calendário em telas estreitas. */
+.calendar-sidebar-item .item-meta {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
 @media (max-width: 900px) {
   /* --- Dashboard do Felipe: 3 colunas viram pilha (feed primeiro, pendências depois) --- */
   .li-three-columns {

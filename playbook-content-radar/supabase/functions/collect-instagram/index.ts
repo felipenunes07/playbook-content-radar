@@ -1,29 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { collectorDeadline, remainingMs, runActor } from '../_shared/apify.ts';
 import { errorMessage, parseApifyInput } from '../_shared/content.ts';
 import { adminClient, corsHeaders, finishRun, json, startRun } from '../_shared/server.ts';
-
-const APIFY_API = 'https://api.apify.com/v2';
-const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-
-async function apify(path: string, token: string, init?: RequestInit) {
-  const separator = path.includes('?') ? '&' : '?';
-  const response = await fetch(`${APIFY_API}/${path}${separator}token=${encodeURIComponent(token)}`, init);
-  const body = await response.json();
-  if (!response.ok) throw new Error(body?.error?.message || `Apify API ${response.status}`);
-  return body.data ?? body;
-}
-
-async function runActor(actorId: string, token: string, input: Record<string, unknown>) {
-  let run = await apify(`acts/${encodeURIComponent(actorId)}/runs?waitForFinish=100`, token, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
-  });
-  for (let attempt = 0; attempt < 8 && !['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(run.status); attempt += 1) {
-    await wait(5000);
-    run = await apify(`actor-runs/${run.id}`, token);
-  }
-  if (run.status !== 'SUCCEEDED') throw new Error(`Actor terminou com status ${run.status || 'desconhecido'}`);
-  return apify(`datasets/${run.defaultDatasetId}/items?clean=true&limit=1000`, token);
-}
 
 const integer = (value: unknown) => {
   const number = Number(value);
@@ -215,6 +193,7 @@ Deno.serve(async (request) => {
     const actorId = Deno.env.get('APIFY_INSTAGRAM_ACTOR_ID') || 'apify/instagram-scraper';
     if (!token || !actorId) throw new Error('APIFY_TOKEN e APIFY_INSTAGRAM_ACTOR_ID são obrigatórios');
     const client = adminClient();
+    const deadlineAt = collectorDeadline();
     runId = await startRun(client, 'apify_instagram');
     const { data: accounts, error: accountsError } = await client.from('content_accounts').select('*').eq('platform', 'instagram').eq('status', 'active');
     if (accountsError) throw accountsError;
@@ -226,10 +205,14 @@ Deno.serve(async (request) => {
     const errors: Array<{ account: string; error: string }> = [];
 
     for (const account of accounts || []) {
+      if (remainingMs(deadlineAt) < 45000) {
+        errors.push({ account: account.owner_name, error: 'Conta adiada: orçamento de tempo do coletor esgotado' });
+        continue;
+      }
       try {
         const collectedPostIds = new Set<string>();
         const input = renderInput(account);
-        const items = await runActor(actorId, token, input);
+        const items = await runActor(actorId, token, input, deadlineAt);
         for (const item of Array.isArray(items) ? items : []) {
           try {
             const normalized = normalizeInstagramPost(item, metricDate);
@@ -253,7 +236,7 @@ Deno.serve(async (request) => {
         try {
           const storyActorId = Deno.env.get('APIFY_INSTAGRAM_STORY_ACTOR_ID') || 'igview-owner/instagram-story-viewer';
           const storyInput = renderStoriesInput(account);
-          const stories = await runActor(storyActorId, token, storyInput);
+          const stories = await runActor(storyActorId, token, storyInput, deadlineAt);
           console.log(`Stories raw para ${account.owner_name}: ${Array.isArray(stories) ? stories.length : 0} itens`);
           for (const story of Array.isArray(stories) ? stories : []) {
             try {
@@ -281,7 +264,7 @@ Deno.serve(async (request) => {
         // Track followers count
         try {
           const profileInput = { directUrls: [account.account_url], resultsType: 'details', resultsLimit: 1 };
-          const profileResults = await runActor(actorId, token, profileInput);
+          const profileResults = await runActor(actorId, token, profileInput, deadlineAt);
           const profileData = Array.isArray(profileResults) ? profileResults[0] : null;
           const followers = profileData ? integer(firstValue(profileData, ['followersCount', 'followers', 'followerCount'])) : 0;
           if (followers > 0) {

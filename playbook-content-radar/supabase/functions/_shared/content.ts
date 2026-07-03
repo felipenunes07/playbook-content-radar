@@ -37,7 +37,7 @@ function firstNumeric(item: Record<string, any>, keys: string[]) {
 }
 
 function detectFormat(post: Record<string, unknown>) {
-  if (post.repostId) return 'repost';
+  if (post.repostId || post.repostedBy) return 'repost';
   if (post.postVideo || post.video || post.videoUrl) return 'video';
   const images = Array.isArray(post.postImages) ? post.postImages : (Array.isArray(post.images) ? post.images : []);
   if (images.length > 1) return 'carousel';
@@ -72,11 +72,21 @@ function media(post: Record<string, any>, format: string) {
 }
 
 export function normalizeApifyPost(item: Record<string, any>, metricDate = new Date().toISOString().slice(0, 10)) {
-  const postUrl = firstValue(item, ['linkedinUrl', 'shareLinkedinUrl', 'url', 'postUrl', 'link']);
+  let postUrl = firstValue(item, ['linkedinUrl', 'shareLinkedinUrl', 'url', 'postUrl', 'link']);
   const externalId = String(firstValue(item, ['id', 'entityId', 'postId', 'urn', 'activityUrn']) || '').trim()
     || String(postUrl || '').match(/activity[-:](\d{8,})/)?.[1]
     || String(postUrl || '').trim();
   if (!externalId) throw new Error('Item do Apify sem identidade');
+
+  // harvestapi marca reposts com `repostedBy` e devolve a URL (e o engagement) do
+  // post ORIGINAL. Como content_posts tem UNIQUE(post_url), manter essa URL faz o
+  // upsert do post original colidir com a linha do repost e ser descartado todo dia.
+  const urlActivityId = String(postUrl || '').match(/activity[-:](\d{8,})/)?.[1] || null;
+  const isRepost = Boolean(item.repostId || item.repostedBy);
+  const repostOriginalId = item.repostId
+    ? String(item.repostId)
+    : (isRepost && urlActivityId && urlActivityId !== externalId ? urlActivityId : null);
+  if (item.repostedBy) postUrl = `https://www.linkedin.com/feed/update/urn:li:activity:${externalId}`;
 
   const format = detectFormat(item);
   const content = String(firstValue(item, ['content', 'text', 'postText', 'commentary', 'body']) || '');
@@ -102,18 +112,21 @@ export function normalizeApifyPost(item: Record<string, any>, metricDate = new D
       hook: hook(content),
       format,
       cta_keyword: cta(content),
-      is_repost: Boolean(item.repostId),
-      repost_id: item.repostId ? String(item.repostId) : null,
+      is_repost: isRepost,
+      repost_id: repostOriginalId,
       ...media(item, format),
       classification_status: 'pending',
       raw: item,
     },
     metric: {
       metric_date: metricDate,
-      likes,
-      comments,
-      shares,
-      reactions_total: reactions,
+      // O engagement que o actor devolve num repost é o do post ORIGINAL — salvar
+      // duplicaria likes/comentários na conta de quem repostou. O repost conta na
+      // cadência (linha em content_posts), mas as métricas ficam zeradas.
+      likes: item.repostedBy ? 0 : likes,
+      comments: item.repostedBy ? 0 : comments,
+      shares: item.repostedBy ? 0 : shares,
+      reactions_total: item.repostedBy ? 0 : reactions,
       views: firstValue(item, ['views', 'viewCount']) == null ? null : integer(firstValue(item, ['views', 'viewCount'])),
       source: 'apify_daily',
       metric_type: 'daily_collect',

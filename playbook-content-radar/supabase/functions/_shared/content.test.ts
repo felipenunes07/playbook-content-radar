@@ -104,6 +104,31 @@ describe('normalizeApifyPost', () => {
 
     expect(result.metric).toMatchObject({ likes: 853, comments: 58, shares: 0, reactions_total: 782 });
   });
+
+  it('trata repost do harvestapi: URL própria (evita UNIQUE post_url), formato repost e métricas zeradas', () => {
+    // O actor devolve no repost a MESMA linkedinUrl e o MESMO engagement do post
+    // original — só o id/entityId diferem, e `repostedBy` identifica o repost.
+    const result = normalizeApifyPost({
+      id: '7475178124121452545',
+      entityId: '7475178124121452545',
+      linkedinUrl: 'https://www.linkedin.com/posts/victorzbaggio_criei-um-mcp-activity-7475174637459472384-Er0l',
+      content: 'Criei um MCP que conecta o Claude a TUDO no LinkedIn',
+      author: { name: 'Victor Baggio', publicIdentifier: 'victorzbaggio' },
+      repostedBy: { name: 'Fernando Tedesco', publicIdentifier: 'fernando-tedesco' },
+      repostedAt: { date: '2026-06-23T13:29:06Z' },
+      postedAt: { date: '2026-06-23T13:29:06Z' },
+      engagement: { likes: 583, comments: 3200, shares: 5 },
+    }, '2026-07-02');
+
+    expect(result.post).toMatchObject({
+      external_post_id: '7475178124121452545',
+      post_url: 'https://www.linkedin.com/feed/update/urn:li:activity:7475178124121452545',
+      is_repost: true,
+      repost_id: '7475174637459472384',
+      format: 'repost',
+    });
+    expect(result.metric).toMatchObject({ likes: 0, comments: 0, shares: 0, reactions_total: 0 });
+  });
 });
 
 describe('collector helpers', () => {
