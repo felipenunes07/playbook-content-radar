@@ -20,6 +20,12 @@ function latestDate(rows, fallback) {
 
 const generatedAccountGrowthSources = new Set(['historical_json', 'historical_import']);
 
+// Reposts não contam como conteúdo próprio (engagement pertence ao post original).
+// A view do Supabase já os exclui; este filtro garante o mesmo no snapshot local.
+function withoutReposts(rows) {
+  return (Array.isArray(rows) ? rows : []).filter((row) => !(row.is_repost || row.format === 'repost'));
+}
+
 function buildAccountGrowth(metrics = [], accounts = []) {
   const accountById = new Map(accounts.map((account) => [account.id, account]));
   return (Array.isArray(metrics) ? metrics : [])
@@ -43,7 +49,7 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
   if (!supabase) {
     return {
       source: 'local_snapshot',
-      linkedin: fallback.records || [],
+      linkedin: withoutReposts(fallback.records),
       ...empty,
       freshness: fallback.collected_at || null,
       warning: 'Supabase não configurado',
@@ -67,7 +73,7 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
 
     return {
       source: 'supabase',
-      linkedin: linkedinResult.data || [],
+      linkedin: withoutReposts(linkedinResult.data),
       youtube: youtubeResult.data?.length ? youtubeResult.data : (bundledYoutubeHistory.records || []),
       instagram: instagramResult.data?.length ? instagramResult.data : (bundledInstagramHistory.records || []),
       accounts,
@@ -83,7 +89,7 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
   } catch (error) {
     return {
       source: 'local_snapshot',
-      linkedin: fallback.records || [],
+      linkedin: withoutReposts(fallback.records),
       ...empty,
       freshness: fallback.collected_at || null,
       warning: error instanceof Error ? error.message : String(error),
