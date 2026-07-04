@@ -108,10 +108,12 @@ function ProspectValue({ value, running }) {
   return <strong>{integer.format(value)}</strong>;
 }
 
-export function OperationalPostsTable({ rows, onAction, prospecting = {}, runningIds, onProspect }) {
+export function OperationalPostsTable({ rows, onAction, prospecting = {}, runningIds, onProspect, showProspecting = false }) {
   const [sortConfig, setSortConfig] = React.useState({ key: 'engagement_score', direction: 'desc' });
   const isRunning = (id) => Boolean(runningIds && runningIds.has(id));
-  const canProspect = (row) => getPlatformLabel(row) === 'LinkedIn' && Boolean(row.post_url) && typeof onProspect === 'function';
+  // Todo post do LinkedIn é prospectável: mesmo sem post_url, a função reconstrói a
+  // URL a partir do id da activity. Só precisa do id da linha pra chamar a função.
+  const canProspect = (row) => getPlatformLabel(row) === 'LinkedIn' && Boolean(row.id) && typeof onProspect === 'function';
 
   const sortedRows = React.useMemo(() => {
     const sortable = [...rows];
@@ -176,9 +178,11 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('shares')}>Shares{getSortIcon('shares')}</th>
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('engagement_score')}>Score{getSortIcon('engagement_score')}</th>
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('classification_status')}>Classificação{getSortIcon('classification_status')}</th>
-                <th title="Comentaristas únicos raspados no post">Leads</th>
-                <th title="Leads novos (ainda não no banco) = oportunidades de prospecção">Oport.</th>
-                <th title="Leads novos que passaram no filtro de qualificação (Fase 2)">Qualif.</th>
+                {showProspecting && <>
+                  <th title="Comentaristas únicos raspados no post">Leads</th>
+                  <th title="Leads novos (ainda não no banco) = oportunidades de prospecção">Oport.</th>
+                  <th title="Leads novos que passaram no filtro de qualificação (Fase 2)">Qualif.</th>
+                </>}
                 <th>Ações</th>
               </tr>
             </thead>
@@ -204,18 +208,20 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
                   <td>
                     <StatusPill status={row.classification_status || 'pending'} />
                   </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <ProspectValue value={prospecting[row.id]?.total_leads} running={isRunning(row.id)} />
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <ProspectValue value={prospecting[row.id]?.opportunities} running={isRunning(row.id)} />
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <ProspectValue value={prospecting[row.id]?.new_qualified} running={isRunning(row.id)} />
-                  </td>
+                  {showProspecting && <>
+                    <td style={{ textAlign: 'center' }}>
+                      <ProspectValue value={prospecting[row.id]?.total_leads} running={isRunning(row.id)} />
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <ProspectValue value={prospecting[row.id]?.opportunities} running={isRunning(row.id)} />
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <ProspectValue value={prospecting[row.id]?.new_qualified} running={isRunning(row.id)} />
+                    </td>
+                  </>}
                   <td>
                     <div className="cm-row-actions">
-                      {canProspect(row) && (
+                      {showProspecting && canProspect(row) && (
                         <button
                           type="button"
                           aria-label={`Prospectar comentaristas de ${row.hook || 'post'}`}

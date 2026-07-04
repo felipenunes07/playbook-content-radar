@@ -698,8 +698,8 @@ function YoutubeSection({ data, videos, filters, setFilters, onSettings }) {
   return <><YoutubeFilters filters={filters} onChange={setFilters} videos={data.youtube} /><div className="cm-metric-strip"><div className="cm-metric"><span>Vídeos</span><strong>{totals.videos}</strong></div><div className="cm-metric"><span>Views</span><strong>{integer.format(totals.views)}</strong></div><div className="cm-metric"><span>Likes</span><strong>{integer.format(totals.likes)}</strong></div><div className="cm-metric"><span>Comentários</span><strong>{integer.format(totals.comments)}</strong></div><div className="cm-metric"><span>Engagement</span><strong>{integer.format(totals.engagement)}</strong></div><div className="cm-metric"><span>Taxa média</span><strong>{totals.engagementRate.toLocaleString('pt-BR')}%</strong></div></div><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Publicação</span><h2>Vídeos publicados por mês</h2></div><small>{trend.length} períodos</small></div><ContentTrendChart data={trend} metric="posts" color="#e52d27" /></section>{growthSection}<YoutubeVideosTable rows={[...videos].sort((a, b) => Number(b.views || 0) - Number(a.views || 0)).slice(0, 50)} title="Top vídeos por views" /></>;
 }
 
-function PostsSection({ filtered, allPosts, filters, setFilters, onAction, prospecting, runningIds, onProspect }) {
-  return <><div className="cm-executive-toolbar compact"><CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} /></div><ContentFilters filters={filters} onChange={setFilters} posts={allPosts} compact advanced hideOwner /><OperationalPostsTable rows={rankContent(filtered, 'engagement_score', 250)} onAction={onAction} prospecting={prospecting} runningIds={runningIds} onProspect={onProspect} /></>;
+function PostsSection({ filtered, allPosts, filters, setFilters, onAction, prospecting, runningIds, onProspect, showProspecting = false }) {
+  return <><div className="cm-executive-toolbar compact"><CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} /></div><ContentFilters filters={filters} onChange={setFilters} posts={allPosts} compact advanced hideOwner /><OperationalPostsTable rows={rankContent(filtered, 'engagement_score', 250)} onAction={onAction} prospecting={prospecting} runningIds={runningIds} onProspect={onProspect} showProspecting={showProspecting} /></>;
 }
 
 function VideosSection({ data, onSettings }) {
@@ -754,7 +754,7 @@ function SettingsSection({ data, client }) {
   return <div className="cm-settings-grid"><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Secrets</span><h2>Integrações sem chave no front</h2></div></div><div className="cm-secret-list">{secrets.map(([label, name]) => <div key={name}><span>{label}</span><code>{name}</code><StatusPill status={data.source === 'supabase' ? 'pending' : 'paused'} /></div>)}</div><p className="cm-table-note">Tokens reais nunca são exibidos no frontend. O token da Apify deve ficar só nos Edge Function Secrets.</p></section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Agenda</span><h2>Coletas automáticas</h2></div></div><div className="cm-schedule"><div><span>YouTube via Apify</span><strong>Todos os dias · 06:00</strong><button onClick={() => run('collect-youtube')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'collect-youtube' ? 'spin' : ''} /> Executar agora</button></div><div><span>LinkedIn via Apify</span><strong>Todos os dias · 06:30</strong><button onClick={() => run('collect-linkedin')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'collect-linkedin' ? 'spin' : ''} /> Executar agora</button></div></div>{message && <div className="cm-settings-message">{message}</div>}</section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Incremental</span><h2>Onde parou e o que entra novo</h2></div></div><div className="cm-config-summary"><div><span>LinkedIn histórico importado</span><strong>12/05/2026</strong></div><div><span>Deduplicação</span><strong>external_post_id / video_id</strong></div><div><span>Novas coletas</span><strong>Upsert + snapshot diário</strong></div><div><span>Classificação</span><strong>Formato, tema, CTA, funil e intenção</strong></div></div><p className="cm-table-note">A coleta consulta os perfis/canais ativos, salva só registros novos ou métricas novas e marca erro por conta quando algum scraper falha.</p></section></div>;
 }
 
-export default function ContentMetricsWorkspace({ client, initialData, initialSection = 'overview', onSectionChange }) {
+export default function ContentMetricsWorkspace({ client, initialData, initialSection = 'overview', onSectionChange, mode = 'full' }) {
   const [section, setSection] = useState(initialSection);
   const [data, setData] = useState(initialData || null);
   const [loading, setLoading] = useState(!initialData);
@@ -874,7 +874,19 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   const navigate = (next) => { setSection(next); onSectionChange?.(next); };
   const title = METRICS_SECTIONS.find((item) => item.id === section)?.label || 'Visão geral';
 
-  if (loading || !data) return <div className="cm-loading"><RefreshCw className="spin" size={20} /> Carregando métricas…</div>;
+  if (loading || !data) return <div className="cm-loading"><RefreshCw className="spin" size={20} /> Carregando…</div>;
+
+  // Página de Prospecção (aba própria no menu lateral, fora das Métricas): só a
+  // tabela de posts com o botão Prospectar e os números de leads/oportunidades.
+  // A lista/banco de leads (Fase 3) entra aqui embaixo depois.
+  if (mode === 'prospecting') {
+    return <div className="content-metrics-workspace">
+      <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Comercial</span><h1>Prospecção</h1><p>Rode um post para raspar quem comentou, cruzar com o banco de leads e ver as oportunidades novas.</p></div><div className="cm-header-meta"><span>{data.linkedin.length} posts</span><Users size={16} /></div></header>
+      <SourceNotice data={data} />
+      {operationMessage && <div className="cm-operation-message">{operationMessage}<button type="button" onClick={() => setOperationMessage('')}>Fechar</button></div>}
+      <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} prospecting={prospectingByPost} runningIds={prospectingRunning} onProspect={handleProspect} onAction={() => {}} showProspecting />
+    </div>;
+  }
 
   return <div className="content-metrics-workspace">
     <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Performance publicada</span><h1>Métricas de conteúdo</h1><p>Leitura histórica e operation diária de LinkedIn, YouTube e Instagram.</p></div><div className="cm-header-meta"><span>{data.linkedin.length} posts carregados</span><SlidersHorizontal size={16} /></div></header>
@@ -887,7 +899,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       {section === 'linkedin' && <LinkedinAnalysis filtered={filtered} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'youtube' && <YoutubeSection data={data} videos={filteredYoutube} filters={youtubeFilters} setFilters={setYoutubeFilters} onSettings={() => navigate('settings')} />}
       {section === 'instagram' && <InstagramSection data={data} filtered={filteredInstagram} allPosts={data.instagram} filters={instagramFilters} setFilters={setInstagramFilters} onSettings={() => navigate('settings')} client={client} />}
-      {section === 'posts' && <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} prospecting={prospectingByPost} runningIds={prospectingRunning} onProspect={handleProspect} onAction={(action) => setOperationMessage(action === 'history' ? 'O histórico completo ficará disponível assim que os snapshots diários forem publicados no Supabase.' : 'Essa ação usa a API administrativa protegida. Publique o schema e autentique o operador antes de alterar dados.')} />}
+      {section === 'posts' && <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} onAction={(action) => setOperationMessage(action === 'history' ? 'O histórico completo ficará disponível assim que os snapshots diários forem publicados no Supabase.' : 'Essa ação usa a API administrativa protegida. Publique o schema e autentique o operador antes de alterar dados.')} />}
       {section === 'videos' && <VideosSection data={data} onSettings={() => navigate('settings')} />}
       {section === 'accounts' && <AccountsSection data={data} />}
       {section === 'imports' && <ImportsSection data={data} />}

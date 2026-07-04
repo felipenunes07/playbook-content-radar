@@ -54,6 +54,25 @@ function toTimestamp(value: any): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+// Monta a URL pública do post pro actor de comentários. Nem todo post do banco tem
+// post_url (imports históricos antigos não guardaram), mas quase todos têm o id da
+// activity em external_post_id/entity_id/share_urn — o que basta pra reconstruir a
+// URL /feed/update/urn:li:activity:<id> que o actor aceita. Assim TODO post vira
+// prospectável, não só os que já tinham post_url.
+function buildScrapeUrl(post: Record<string, any>): string | null {
+  if (post.post_url && String(post.post_url).includes('linkedin.com')) return String(post.post_url);
+  for (const candidate of [post.external_post_id, post.entity_id, post.share_urn]) {
+    const value = String(candidate || '').trim();
+    if (!value) continue;
+    if (/^\d{8,}$/.test(value)) return `https://www.linkedin.com/feed/update/urn:li:activity:${value}`;
+    const urnMatch = value.match(/urn:li:(?:activity|ugcPost|share):\d+/i);
+    if (urnMatch) return `https://www.linkedin.com/feed/update/${urnMatch[0]}`;
+    const idMatch = value.match(/(?:activity|ugcPost|share)[-:](\d{8,})/i);
+    if (idMatch) return `https://www.linkedin.com/feed/update/urn:li:activity:${idMatch[1]}`;
+  }
+  return null;
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   let jobId: string | null = null;
@@ -75,9 +94,10 @@ Deno.serve(async (request) => {
 
     client = adminClient();
     const { data: post, error: postError } = await client
-      .from('content_posts').select('id, post_url').eq('id', postId).single();
+      .from('content_posts').select('id, post_url, external_post_id, entity_id, share_urn').eq('id', postId).single();
     if (postError) throw postError;
-    if (!post?.post_url) throw new Error('Post sem post_url — não é possível raspar comentários');
+    const scrapeUrl = buildScrapeUrl(post || {});
+    if (!scrapeUrl) throw new Error('Não foi possível determinar a URL do post para raspar comentários');
 
     const { data: job, error: jobError } = await client
       .from('prospecting_jobs').insert({ post_id: post.id, status: 'running' }).select('id').single();
@@ -87,7 +107,7 @@ Deno.serve(async (request) => {
     const maxItems = Math.max(1, Math.min(2000, Number(Deno.env.get('APIFY_COMMENTS_MAX_ITEMS') || 1000)));
     const deadlineAt = collectorDeadline();
     const items = await runActor(actorId, token, {
-      posts: [post.post_url],
+      posts: [scrapeUrl],
       maxItems,
       scrapeReplies: false,
       profileScraperMode: 'short',

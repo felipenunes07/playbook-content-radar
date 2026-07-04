@@ -6,7 +6,7 @@ import {
   Search, Download, Trash2, AlertCircle, MessageSquare, FileText,
   CheckCircle2, XCircle, AlertTriangle, ArrowLeft, Archive,
   ThumbsUp, ThumbsDown, Lightbulb, MoreHorizontal, Calendar,
-  TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock
+  TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock, Users
 } from 'lucide-react';
 import './styles.css';
 import { createClient } from '@supabase/supabase-js';
@@ -1131,6 +1131,12 @@ function App() {
                   <TrendingUp size={16} /> Métricas
                 </button>
                 <button
+                  className={view === 'prospecting' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('prospecting')}
+                >
+                  <Users size={16} /> Prospecção
+                </button>
+                <button
                   className={view === 'new' ? 'nav-link active' : 'nav-link'}
                   onClick={() => setView('new')}
                 >
@@ -1260,6 +1266,11 @@ function App() {
                   if (window.location.pathname !== path) window.history.pushState({ contentMetrics: section }, '', path);
                 }}
               />
+            </React.Suspense>
+          )}
+          {view === 'prospecting' && user === 'Felipe' && (
+            <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Carregando prospecção…</div>}>
+              <ContentMetricsWorkspace client={supabase} mode="prospecting" />
             </React.Suspense>
           )}
           {view === 'new' && user === 'Felipe' && (
