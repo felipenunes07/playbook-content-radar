@@ -698,8 +698,8 @@ function YoutubeSection({ data, videos, filters, setFilters, onSettings }) {
   return <><YoutubeFilters filters={filters} onChange={setFilters} videos={data.youtube} /><div className="cm-metric-strip"><div className="cm-metric"><span>Vídeos</span><strong>{totals.videos}</strong></div><div className="cm-metric"><span>Views</span><strong>{integer.format(totals.views)}</strong></div><div className="cm-metric"><span>Likes</span><strong>{integer.format(totals.likes)}</strong></div><div className="cm-metric"><span>Comentários</span><strong>{integer.format(totals.comments)}</strong></div><div className="cm-metric"><span>Engagement</span><strong>{integer.format(totals.engagement)}</strong></div><div className="cm-metric"><span>Taxa média</span><strong>{totals.engagementRate.toLocaleString('pt-BR')}%</strong></div></div><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Publicação</span><h2>Vídeos publicados por mês</h2></div><small>{trend.length} períodos</small></div><ContentTrendChart data={trend} metric="posts" color="#e52d27" /></section>{growthSection}<YoutubeVideosTable rows={[...videos].sort((a, b) => Number(b.views || 0) - Number(a.views || 0)).slice(0, 50)} title="Top vídeos por views" /></>;
 }
 
-function PostsSection({ filtered, allPosts, filters, setFilters, onAction }) {
-  return <><div className="cm-executive-toolbar compact"><CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} /></div><ContentFilters filters={filters} onChange={setFilters} posts={allPosts} compact advanced hideOwner /><OperationalPostsTable rows={rankContent(filtered, 'engagement_score', 250)} onAction={onAction} /></>;
+function PostsSection({ filtered, allPosts, filters, setFilters, onAction, prospecting, runningIds, onProspect }) {
+  return <><div className="cm-executive-toolbar compact"><CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} /></div><ContentFilters filters={filters} onChange={setFilters} posts={allPosts} compact advanced hideOwner /><OperationalPostsTable rows={rankContent(filtered, 'engagement_score', 250)} onAction={onAction} prospecting={prospecting} runningIds={runningIds} onProspect={onProspect} /></>;
 }
 
 function VideosSection({ data, onSettings }) {
@@ -762,6 +762,8 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   const [youtubeFilters, setYoutubeFilters] = useState(() => defaultYoutubeFilters(initialData));
   const [instagramFilters, setInstagramFilters] = useState(() => defaultDateFilters(initialData?.instagram || []));
   const [operationMessage, setOperationMessage] = useState('');
+  const [prospectOverrides, setProspectOverrides] = useState({});
+  const [prospectingRunning, setProspectingRunning] = useState(() => new Set());
 
   useEffect(() => { setSection(initialSection); }, [initialSection]);
   useEffect(() => {
@@ -834,6 +836,41 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     return [...linkedin, ...youtube, ...instagram];
   }, [data]);
 
+  // Números de prospecção por post: parte do que veio do banco (última execução de
+  // cada post) e sobrepõe o resultado das execuções feitas nesta sessão.
+  const prospectingByPost = useMemo(() => {
+    const map = {};
+    (data?.prospecting || []).forEach((stat) => { if (stat?.post_id) map[stat.post_id] = stat; });
+    return { ...map, ...prospectOverrides };
+  }, [data?.prospecting, prospectOverrides]);
+
+  const handleProspect = async (post) => {
+    if (!client?.functions?.invoke) { setOperationMessage('Prospecção indisponível no modo offline. Publique as Edge Functions e conecte o Supabase.'); return; }
+    setProspectingRunning((prev) => new Set(prev).add(post.id));
+    setOperationMessage('');
+    try {
+      const { data: res, error } = await client.functions.invoke('prospect-post', { body: { manual: true, postId: post.id } });
+      if (error) throw error;
+      if (!res?.success) throw new Error(res?.error || 'Falha desconhecida na prospecção');
+      setProspectOverrides((prev) => ({
+        ...prev,
+        [post.id]: {
+          post_id: post.id,
+          status: res.status,
+          total_comments: res.totalComments,
+          total_leads: res.totalLeads,
+          opportunities: res.opportunities,
+          new_qualified: null,
+        },
+      }));
+      setOperationMessage(`Prospecção concluída: ${integer.format(res.totalLeads || 0)} leads, ${integer.format(res.opportunities || 0)} oportunidade(s) nova(s).`);
+    } catch (e) {
+      setOperationMessage(`Falha na prospecção: ${e?.message || e}`);
+    } finally {
+      setProspectingRunning((prev) => { const next = new Set(prev); next.delete(post.id); return next; });
+    }
+  };
+
   const navigate = (next) => { setSection(next); onSectionChange?.(next); };
   const title = METRICS_SECTIONS.find((item) => item.id === section)?.label || 'Visão geral';
 
@@ -850,7 +887,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       {section === 'linkedin' && <LinkedinAnalysis filtered={filtered} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'youtube' && <YoutubeSection data={data} videos={filteredYoutube} filters={youtubeFilters} setFilters={setYoutubeFilters} onSettings={() => navigate('settings')} />}
       {section === 'instagram' && <InstagramSection data={data} filtered={filteredInstagram} allPosts={data.instagram} filters={instagramFilters} setFilters={setInstagramFilters} onSettings={() => navigate('settings')} client={client} />}
-      {section === 'posts' && <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} onAction={(action) => setOperationMessage(action === 'history' ? 'O histórico completo ficará disponível assim que os snapshots diários forem publicados no Supabase.' : 'Essa ação usa a API administrativa protegida. Publique o schema e autentique o operador antes de alterar dados.')} />}
+      {section === 'posts' && <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} prospecting={prospectingByPost} runningIds={prospectingRunning} onProspect={handleProspect} onAction={(action) => setOperationMessage(action === 'history' ? 'O histórico completo ficará disponível assim que os snapshots diários forem publicados no Supabase.' : 'Essa ação usa a API administrativa protegida. Publique o schema e autentique o operador antes de alterar dados.')} />}
       {section === 'videos' && <VideosSection data={data} onSettings={() => navigate('settings')} />}
       {section === 'accounts' && <AccountsSection data={data} />}
       {section === 'imports' && <ImportsSection data={data} />}

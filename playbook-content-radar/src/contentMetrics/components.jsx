@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit3, ExternalLink, History, Search, Sparkles } from 'lucide-react';
+import { Edit3, ExternalLink, History, Play, RefreshCw, Search, Sparkles } from 'lucide-react';
 
 const integer = new Intl.NumberFormat('pt-BR');
 const date = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -100,8 +100,18 @@ export function YoutubeVideosTable({ rows, title = 'Vídeos monitorados' }) {
   return <section className="cm-table-section"><div className="cm-section-heading"><div><span className="cm-eyebrow">YouTube</span><h2>{title}</h2></div><small>{rows.length} vídeos</small></div>{!rows.length ? <div className="cm-empty">Nenhum vídeo coletado.</div> : <div className="cm-table-wrap"><table className="cm-table"><thead><tr><th>#</th><th>Vídeo</th><th>Canal</th><th>Views</th><th>Likes</th><th>Comentários</th><th>Engagement</th><th>Taxa</th><th /></tr></thead><tbody>{rows.map((row, index) => <tr key={row.video_id || row.id}><td className="cm-rank">{String(index + 1).padStart(2, '0')}</td><td><strong className="cm-hook">{row.title || 'Sem título'}</strong><small>{row.published_at ? date.format(new Date(row.published_at)) : 'Data indisponível'}</small></td><td>{row.owner_name}</td><td><strong>{integer.format(row.views || 0)}</strong></td><td>{integer.format(row.likes || 0)}</td><td>{integer.format(row.comments || 0)}</td><td>{integer.format(row.engagement_total || 0)}</td><td>{Number(row.engagement_rate || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</td><td>{row.video_url && <a className="cm-open" href={row.video_url} target="_blank" rel="noreferrer" aria-label={`Abrir ${row.title || 'vídeo'}`}><ExternalLink size={15} /></a>}</td></tr>)}</tbody></table></div>}</section>;
 }
 
-export function OperationalPostsTable({ rows, onAction }) {
+// Célula dos números de prospecção: "—" enquanto o post nunca foi prospectado,
+// spinner enquanto roda, e o número depois. dash pra manter a coluna estável.
+function ProspectValue({ value, running }) {
+  if (running) return <RefreshCw size={13} className="spin" />;
+  if (value == null) return <span style={{ color: '#cbd5e1' }}>—</span>;
+  return <strong>{integer.format(value)}</strong>;
+}
+
+export function OperationalPostsTable({ rows, onAction, prospecting = {}, runningIds, onProspect }) {
   const [sortConfig, setSortConfig] = React.useState({ key: 'engagement_score', direction: 'desc' });
+  const isRunning = (id) => Boolean(runningIds && runningIds.has(id));
+  const canProspect = (row) => getPlatformLabel(row) === 'LinkedIn' && Boolean(row.post_url) && typeof onProspect === 'function';
 
   const sortedRows = React.useMemo(() => {
     const sortable = [...rows];
@@ -166,6 +176,9 @@ export function OperationalPostsTable({ rows, onAction }) {
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('shares')}>Shares{getSortIcon('shares')}</th>
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('engagement_score')}>Score{getSortIcon('engagement_score')}</th>
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('classification_status')}>Classificação{getSortIcon('classification_status')}</th>
+                <th title="Comentaristas únicos raspados no post">Leads</th>
+                <th title="Leads novos (ainda não no banco) = oportunidades de prospecção">Oport.</th>
+                <th title="Leads novos que passaram no filtro de qualificação (Fase 2)">Qualif.</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -191,8 +204,28 @@ export function OperationalPostsTable({ rows, onAction }) {
                   <td>
                     <StatusPill status={row.classification_status || 'pending'} />
                   </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <ProspectValue value={prospecting[row.id]?.total_leads} running={isRunning(row.id)} />
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <ProspectValue value={prospecting[row.id]?.opportunities} running={isRunning(row.id)} />
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <ProspectValue value={prospecting[row.id]?.new_qualified} running={isRunning(row.id)} />
+                  </td>
                   <td>
                     <div className="cm-row-actions">
+                      {canProspect(row) && (
+                        <button
+                          type="button"
+                          aria-label={`Prospectar comentaristas de ${row.hook || 'post'}`}
+                          title="Raspar comentários e cruzar com o banco de leads"
+                          disabled={isRunning(row.id)}
+                          onClick={() => onProspect(row)}
+                        >
+                          {isRunning(row.id) ? <RefreshCw size={14} className="spin" /> : <Play size={14} />}
+                        </button>
+                      )}
                       <button 
                         type="button" 
                         aria-label={`Editar classificação de ${row.hook || 'post'}`} 

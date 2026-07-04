@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.content-dashboard-api]
 verify_jwt = false
+
+[functions.prospect-post]
+verify_jwt = false

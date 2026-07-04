@@ -9,6 +9,7 @@ const empty = {
   imports: [],
   runs: [],
   growth: [],
+  prospecting: [],
 };
 
 function latestDate(rows, fallback) {
@@ -60,13 +61,14 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
     const linkedinResult = await supabase.from('v_latest_linkedin_post_metrics').select('*');
     if (linkedinResult.error) throw new Error(linkedinResult.error.message || 'Falha ao ler métricas do LinkedIn');
 
-    const [youtubeResult, instagramResult, accountsResult, importsResult, runsResult, accountMetricsResult] = await Promise.all([
+    const [youtubeResult, instagramResult, accountsResult, importsResult, runsResult, accountMetricsResult, prospectingResult] = await Promise.all([
       supabase.from('v_latest_youtube_video_metrics').select('*'),
       supabase.from('v_latest_instagram_post_metrics').select('*'),
       supabase.from('content_accounts').select('*'),
       supabase.from('import_batches').select('*'),
       supabase.from('collection_runs').select('*'),
       supabase.from('account_daily_metrics').select('*'),
+      supabase.from('v_post_prospecting_stats').select('*'),
     ]);
     const accounts = accountsResult.data || [];
     const growth = buildAccountGrowth(accountMetricsResult.data || [], accounts);
@@ -80,8 +82,9 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
       imports: importsResult.data || [],
       runs: runsResult.data || [],
       growth,
+      prospecting: prospectingResult.data || [],
       freshness: latestDate(linkedinResult.data || []),
-      warning: [youtubeResult, accountsResult, importsResult, runsResult, accountMetricsResult]
+      warning: [youtubeResult, accountsResult, importsResult, runsResult, accountMetricsResult, prospectingResult]
         .map((result) => result.error?.message)
         .filter(Boolean)
         .join(' · ') || null,
