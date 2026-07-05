@@ -1,32 +1,16 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { collectorDeadline, remainingMs, runActor } from '../_shared/apify.ts';
-import { errorMessage, normalizeApifyYouTubeVideo, parseApifyInput, parsePublicYouTubeChannelStats } from '../_shared/content.ts';
+import { buildYouTubeCollectorInput, errorMessage, normalizeApifyYouTubeVideo, parsePublicYouTubeChannelStats, youtubeRefreshSince } from '../_shared/content.ts';
 import { adminClient, corsHeaders, finishRun, json, requireCollectorSecret, startRun } from '../_shared/server.ts';
 
-async function latestYouTubeSince(client: ReturnType<typeof adminClient>, accountId: string) {
-  const { data, error } = await client
-    .from('youtube_videos')
-    .select('published_at')
-    .eq('account_id', accountId)
-    .not('published_at', 'is', null)
-    .order('published_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return data?.published_at ? String(data.published_at).slice(0, 10) : '2020-01-01';
-}
-
-function renderInput(account: Record<string, any>, since: string) {
+function renderInput(account: Record<string, any>) {
   const maxVideos = Math.max(1, Math.min(1000, Number(Deno.env.get('APIFY_YOUTUBE_MAX_VIDEOS') || 200)));
-  const template = Deno.env.get('APIFY_YOUTUBE_INPUT_JSON')
-    || `{"startUrls":[{"url":"{{accountUrl}}"}],"maxResults":${maxVideos},"maxResultsShorts":${maxVideos},"maxResultStreams":0,"oldestPostDate":"{{since}}","sortVideosBy":"NEWEST","downloadSubtitles":false}`;
-  return parseApifyInput(
-    template
-      .replaceAll('{{since}}', since)
-      .replaceAll('{{handle}}', String(account.handle || ''))
-      .replaceAll('{{externalId}}', String(account.external_id || '')),
-    account.account_url,
-  );
+  const refreshDays = Math.trunc(Number(Deno.env.get('APIFY_YOUTUBE_REFRESH_DAYS') || 365));
+  return buildYouTubeCollectorInput(account, {
+    since: youtubeRefreshSince(new Date(), refreshDays),
+    maxVideos,
+    template: Deno.env.get('APIFY_YOUTUBE_INPUT_JSON'),
+  });
 }
 
 function accountStats(items: Record<string, any>[]) {
@@ -114,8 +98,7 @@ Deno.serve(async (request) => {
           }, { onConflict: 'account_id,metric_date,source' });
           if (accountMetricError) throw accountMetricError;
         } else {
-          const since = await latestYouTubeSince(client, account.id);
-          const input = renderInput(account, since);
+          const input = renderInput(account);
           // source === 'apify_youtube' garante token presente (ver derivação de `source`).
           const rawItems = await runActor(actorId, token!, input, deadlineAt);
           const items = Array.isArray(rawItems) ? rawItems : [];

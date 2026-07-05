@@ -293,6 +293,44 @@ export function parseApifyInput(template: string | undefined, accountUrl: string
   }
 }
 
+export function youtubeRefreshSince(today = new Date(), refreshDays = 365) {
+  const days = Math.trunc(Number(refreshDays));
+  if (!Number.isFinite(days) || days <= 0) return null;
+  const date = new Date(today);
+  if (Number.isNaN(date.getTime())) throw new Error('Data de referÃªncia do YouTube invÃ¡lida');
+  date.setUTCDate(date.getUTCDate() - days);
+  return date.toISOString().slice(0, 10);
+}
+
+export function buildYouTubeCollectorInput(account: Record<string, any>, options: {
+  since?: string | null;
+  maxVideos?: number;
+  template?: string | null;
+} = {}) {
+  const maxVideos = Math.max(1, Math.min(1000, Number(options.maxVideos || 200)));
+  const accountUrl = String(account.account_url || account.accountUrl || '');
+  const since = options.since || '';
+  if (options.template) {
+    return parseApifyInput(
+      options.template
+        .replaceAll('{{since}}', since)
+        .replaceAll('{{handle}}', String(account.handle || ''))
+        .replaceAll('{{externalId}}', String(account.external_id || account.externalId || '')),
+      accountUrl,
+    );
+  }
+  const input: Record<string, any> = {
+    startUrls: [{ url: accountUrl }],
+    maxResults: maxVideos,
+    maxResultsShorts: maxVideos,
+    maxResultStreams: 0,
+    sortVideosBy: 'NEWEST',
+    downloadSubtitles: false,
+  };
+  if (since) input.oldestPostDate = since;
+  return input;
+}
+
 export function validateClassification(value: Record<string, unknown>) {
   const valid = THEMES.includes(String(value.theme))
     && PILLARS.includes(String(value.content_pillar))

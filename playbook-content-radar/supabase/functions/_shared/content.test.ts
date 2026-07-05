@@ -7,6 +7,8 @@ import {
   parseApifyInput,
   parsePublicYouTubeChannelStats,
   validateClassification,
+  youtubeRefreshSince,
+  buildYouTubeCollectorInput,
 } from './content.ts';
 
 describe('normalizeYouTubeVideo', () => {
@@ -135,6 +137,21 @@ describe('collector helpers', () => {
   it('chunks API batches and renders an actor input template', () => {
     expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
     expect(parseApifyInput('{"profileUrls":["{{accountUrl}}"]}', 'https://linkedin.com/in/victor')).toEqual({ profileUrls: ['https://linkedin.com/in/victor'] });
+  });
+
+  it('builds daily YouTube input from a refresh window instead of the latest saved upload', () => {
+    const since = youtubeRefreshSince(new Date('2026-07-05T12:00:00Z'), 30);
+    expect(since).toBe('2026-06-05');
+    expect(buildYouTubeCollectorInput(
+      { account_url: 'https://www.youtube.com/@VictorBaggio-AI', handle: '@VictorBaggio-AI' },
+      { since, maxVideos: 50 },
+    )).toMatchObject({
+      startUrls: [{ url: 'https://www.youtube.com/@VictorBaggio-AI' }],
+      oldestPostDate: '2026-06-05',
+      maxResults: 50,
+      maxResultsShorts: 50,
+      sortVideosBy: 'NEWEST',
+    });
   });
 
   it('validates classification enums and rejects malformed model output', () => {
