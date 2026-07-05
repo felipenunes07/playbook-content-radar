@@ -703,13 +703,20 @@ function YoutubeSection({ data, videos, filters, setFilters, onSettings }) {
 // (decisão da call de 04/07: "esses 700 eu não preciso ver" — os demais existem no
 // banco só pro de-para, mas dá pra inspecioná-los pelos filtros).
 
+// "Revisar" foi extinto (decisão de 05/07): limítrofe entra em Aprovados com a
+// ressalva no motivo — o Victor decide na lista se prospecta ou não.
 const leadFilterChips = [
   { id: 'qualified', label: 'Aprovados' },
-  { id: 'review', label: 'Revisar' },
   { id: 'pending', label: 'Aguardando análise' },
   { id: 'disqualified', label: 'Descartados' },
   { id: 'all', label: 'Todos' },
 ];
+
+const leadStatusSets = {
+  qualified: ['qualified', 'review'],
+  pending: ['pending'],
+  disqualified: ['disqualified'],
+};
 
 const seniorityLabels = { 'c-level': 'C-Level', diretoria: 'Diretoria', gerencia: 'Gerência', coordenacao: 'Coordenação', operacional: 'Operacional', desconhecido: '—' };
 
@@ -778,7 +785,11 @@ function IcpSettingsModal({ settings, client, onClose, onNotice, onReload }) {
 
 function LeadsSection({ data, client, onNotice, onReload }) {
   const [filter, setFilter] = useState('qualified');
+  const [postFilter, setPostFilter] = useState('');
+  const [creatorFilter, setCreatorFilter] = useState('');
   const [enriching, setEnriching] = useState(false);
+  const [progress, setProgress] = useState(null); // { done, total, qualified, status: 'running'|'done'|'error', message }
+  const stopEnrichRef = React.useRef(false);
   const [busyLead, setBusyLead] = useState('');
   const [modal, setModal] = useState(null); // { lead, message }
   const [showIcpModal, setShowIcpModal] = useState(false);
@@ -791,15 +802,21 @@ function LeadsSection({ data, client, onNotice, onReload }) {
     return { ...map, ...outreachOverrides };
   }, [data?.leadOutreach, outreachOverrides]);
 
-  const postHookById = useMemo(() => {
+  const postsById = useMemo(() => {
     const map = {};
-    (data?.linkedin || []).forEach((post) => { if (post.id) map[post.id] = post.hook || post.content?.slice(0, 60) || ''; });
+    (data?.linkedin || []).forEach((post) => {
+      if (post.id) map[post.id] = { hook: post.hook || post.content?.slice(0, 60) || '', owner: post.owner_name || '' };
+    });
     return map;
   }, [data?.linkedin]);
+  const postHookById = useMemo(() => {
+    const map = {};
+    Object.entries(postsById).forEach(([id, post]) => { map[id] = post.hook; });
+    return map;
+  }, [postsById]);
 
   const counts = useMemo(() => ({
-    qualified: leads.filter((l) => l.qualification_status === 'qualified').length,
-    review: leads.filter((l) => l.qualification_status === 'review').length,
+    qualified: leads.filter((l) => leadStatusSets.qualified.includes(l.qualification_status)).length,
     pending: leads.filter((l) => l.qualification_status === 'pending').length,
     disqualified: leads.filter((l) => l.qualification_status === 'disqualified').length,
     all: leads.length,
@@ -815,26 +832,63 @@ function LeadsSection({ data, client, onNotice, onReload }) {
     return map;
   }, [data?.leadComments]);
 
+  // Post de origem de um lead: o comentário mais recente ganha do first_seen.
+  const leadPostId = (lead) => commentByLead[lead.id]?.post_id || lead.first_seen_post_id;
+
+  // Opções do filtro por post: só posts que têm lead.
+  const postOptions = useMemo(() => {
+    const seen = new Map();
+    leads.forEach((lead) => {
+      const postId = leadPostId(lead);
+      if (postId && postsById[postId] && !seen.has(postId)) seen.set(postId, postsById[postId]);
+    });
+    return [...seen.entries()].map(([id, post]) => ({ id, ...post }));
+  }, [leads, commentByLead, postsById]);
+
   const visible = useMemo(() => {
-    if (filter === 'all') return leads;
-    return leads.filter((l) => l.qualification_status === filter);
-  }, [leads, filter]);
+    let list = filter === 'all' ? leads : leads.filter((l) => (leadStatusSets[filter] || []).includes(l.qualification_status));
+    if (postFilter) list = list.filter((l) => leadPostId(l) === postFilter);
+    if (creatorFilter) list = list.filter((l) => postsById[leadPostId(l)]?.owner === creatorFilter);
+    return list;
+  }, [leads, filter, postFilter, creatorFilter, commentByLead, postsById]);
 
   const pendingEnrichment = leads.filter((l) => l.enrichment_status === 'pending').length;
 
+  // Analisa a fila INTEIRA: roda lotes de 5 (cada lote ~1min: scrape + IA com
+  // rate limit) até zerar, atualizando o painel de progresso a cada lote. Lotes
+  // pequenos evitam o timeout de gateway que fazia o clique "não terminar nunca".
   const runEnrich = async () => {
     if (!client?.functions?.invoke) { onNotice('Enriquecimento indisponível no modo offline.'); return; }
+    stopEnrichRef.current = false;
     setEnriching(true);
+    const total = pendingEnrichment;
+    let done = 0;
+    let qualifiedTotal = 0;
+    setProgress({ status: 'running', done, total, qualified: qualifiedTotal });
     try {
-      const { data: res, error } = await client.functions.invoke('enrich-leads', { body: { manual: true, limit: 10 } });
-      if (error) throw error;
-      if (!res?.success) throw new Error(res?.error || 'Falha no enriquecimento');
-      onNotice(`Lote enriquecido: ${res.processed} analisado(s), ${res.qualified} qualificado(s), ${res.prefiltered} cortado(s) no pré-filtro. Restam ${res.remaining} na fila.`);
-      await onReload?.();
+      for (let batch = 0; batch < 60; batch += 1) {
+        const { data: res, error } = await client.functions.invoke('enrich-leads', { body: { manual: true, limit: 5 } });
+        if (error) throw error;
+        if (res?.busy) throw new Error(res.error || 'Já existe uma análise em andamento.');
+        if (!res?.success) throw new Error(res?.error || 'Falha no enriquecimento');
+        done += (res.processed || 0) + (res.prefiltered || 0);
+        qualifiedTotal += res.qualified || 0;
+        const remaining = res.remaining ?? 0;
+        setProgress({ status: 'running', done, total: Math.max(total, done + remaining), qualified: qualifiedTotal });
+        // Recarrega a cada lote: os leads analisados já aparecem na lista.
+        await onReload?.().catch(() => {});
+        if (remaining <= 0) break;
+        if (stopEnrichRef.current) break;
+        if ((res.errors || []).length && !res.processed && !res.rateLimited) throw new Error(res.errors[0]?.error || 'Lote falhou por completo');
+        // Rate limit da IA: espera a janela virar antes do próximo lote.
+        if (res.rateLimited) await new Promise((resolve) => setTimeout(resolve, 45000));
+      }
+      setProgress({ status: 'done', done, total: done, qualified: qualifiedTotal });
     } catch (e) {
-      onNotice(`Falha no enriquecimento: ${e?.message || e}`);
+      setProgress({ status: 'error', done, total, qualified: qualifiedTotal, message: String(e?.message || e) });
     } finally {
       setEnriching(false);
+      await onReload?.().catch(() => {});
     }
   };
 
@@ -886,16 +940,71 @@ function LeadsSection({ data, client, onNotice, onReload }) {
             title="Ver e editar os critérios que o agente usa pra qualificar + a mensagem padrão">
             <Settings size={13} /> Ver/editar ICP
           </button>
-          {pendingEnrichment > 0 && (
-            <button type="button" onClick={runEnrich} disabled={enriching}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, cursor: enriching ? 'default' : 'pointer', opacity: enriching ? 0.7 : 1 }}
-              title="Roda profile + empresa + agente de qualificação num lote de 10 leads">
-              <RefreshCw size={13} className={enriching ? 'spin' : ''} />
-              {enriching ? 'Enriquecendo…' : `Analisar fila (${integer.format(pendingEnrichment)} pendentes)`}
+          {pendingEnrichment > 0 && !enriching && (
+            <button type="button" onClick={runEnrich}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+              title="Roda profile + empresa + agente de qualificação em todos os leads pendentes, em lotes">
+              <RefreshCw size={13} />
+              {`Analisar fila (${integer.format(pendingEnrichment)} pendentes)`}
+            </button>
+          )}
+          {enriching && (
+            <button type="button" onClick={() => { stopEnrichRef.current = true; }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+              title="Termina o lote atual e para">
+              Parar após este lote
             </button>
           )}
           <small>{integer.format(visible.length)} leads</small>
         </div>
+      </div>
+      {progress && (
+        <div style={{
+          background: progress.status === 'error' ? '#fef2f2' : progress.status === 'done' ? '#f0fdf4' : '#eff6ff',
+          border: `1px solid ${progress.status === 'error' ? '#fecaca' : progress.status === 'done' ? '#bbf7d0' : '#bfdbfe'}`,
+          borderRadius: 10, padding: '12px 16px', marginBottom: 14,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600, color: progress.status === 'error' ? '#b91c1c' : progress.status === 'done' ? '#065f46' : '#1e3a8a' }}>
+            {progress.status === 'running' && <RefreshCw size={15} className="spin" />}
+            {progress.status === 'running' && `Analisando leads… ${integer.format(progress.done)} de ${integer.format(progress.total)} concluídos · ${integer.format(progress.qualified)} aprovados até agora`}
+            {progress.status === 'done' && `Análise concluída: ${integer.format(progress.done)} leads analisados, ${integer.format(progress.qualified)} aprovados no ICP.`}
+            {progress.status === 'error' && `Análise parou com erro após ${integer.format(progress.done)} leads: ${progress.message}`}
+            <button type="button" onClick={() => setProgress(null)} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 12, textDecoration: 'underline' }}>
+              {progress.status === 'running' ? 'Ocultar' : 'Fechar'}
+            </button>
+          </div>
+          {progress.status === 'running' && (
+            <div style={{ marginTop: 10, height: 8, borderRadius: 999, background: '#dbeafe', overflow: 'hidden' }}>
+              <div className="cm-progress-fill" style={{ width: `${progress.total ? Math.max(4, Math.round((progress.done / progress.total) * 100)) : 4}%`, height: '100%', borderRadius: 999 }} />
+            </div>
+          )}
+          {progress.status === 'running' && (
+            <small style={{ display: 'block', marginTop: 6, color: '#3b5a90' }}>
+              Cada lead leva ~10s (scrape do perfil + empresa + análise da IA). A lista atualiza a cada lote de 5 — pode continuar navegando.
+            </small>
+          )}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+        <select value={creatorFilter} onChange={(e) => setCreatorFilter(e.target.value)} aria-label="Filtrar por criador"
+          style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 10px', fontSize: 12.5, color: '#334155', background: '#fff' }}>
+          <option value="">Criador: todos</option>
+          <option value="Victor Baggio">Victor</option>
+          <option value="Fernando Tedesco">Fernando</option>
+        </select>
+        <select value={postFilter} onChange={(e) => setPostFilter(e.target.value)} aria-label="Filtrar por post"
+          style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 10px', fontSize: 12.5, color: '#334155', background: '#fff', maxWidth: 380 }}>
+          <option value="">Post: todos</option>
+          {postOptions.map((post) => (
+            <option key={post.id} value={post.id}>{post.owner ? `${post.owner.split(' ')[0]} · ` : ''}{String(post.hook).slice(0, 70)}</option>
+          ))}
+        </select>
+        {(postFilter || creatorFilter) && (
+          <button type="button" onClick={() => { setPostFilter(''); setCreatorFilter(''); }}
+            style={{ background: 'transparent', border: 'none', color: '#0a66c2', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>
+            Limpar filtros
+          </button>
+        )}
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
         {leadFilterChips.map((chip) => (

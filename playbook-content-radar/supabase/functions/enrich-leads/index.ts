@@ -74,10 +74,10 @@ async function qualifyLead(payload: Record<string, unknown>, deadlineAt: number,
 2. Área (aprova): marketing, vendas/comercial, operações, growth, receita/RevOps, tecnologia/produto, dono do negócio. Rejeita: financeiro, jurídico, RH. Rejeita também quem parece só querer aprender automação, autônomos/freelancers, negócios B2C locais sem time de vendas.
 3. Empresa atual com ${minHeadcount}+ colaboradores. Se employee_count vier null mas a empresa parecer claramente grande (banco, multinacional conhecida), pode aprovar citando isso no motivo.
 4. IMPORTANTE: se "currently_employed" for false, o lead está sem emprego atual — NUNCA aprove pela empresa antiga; status "rejeitado" com motivo explicando.
-5. Use "revisar" para casos limítrofes que merecem decisão humana: cargo alto mas empresa sem headcount conhecido, porte um pouco abaixo do corte com contexto forte, ou dados insuficientes porém promissores.
-Score 0-100 (fit geral de cargo + área + porte + contexto do comentário): aprovado costuma ficar 70+, revisar 40-69, rejeitado abaixo de 40.`;
+5. Casos limítrofes (cargo alto mas empresa sem headcount conhecido, porte um pouco abaixo do corte com contexto forte): APROVE e deixe a incerteza explícita no motivo — quem decide se prospecta é o Victor, na revisão manual da lista.
+Score 0-100 (fit geral de cargo + área + porte + contexto do comentário): fit cravado fica 80+, aprovado com ressalva 50-79, rejeitado abaixo de 50.`;
   const prompt = `Você qualifica leads B2B para a Playbook Lab (consultoria de IA para vendas). Avalie o lead abaixo e retorne SOMENTE JSON válido com:
-{"status": "aprovado"|"rejeitado"|"revisar", "score": number (0-100), "job_title": string|null, "seniority": "c-level"|"diretoria"|"gerencia"|"coordenacao"|"operacional"|"desconhecido", "area": "marketing"|"vendas"|"operacoes"|"growth"|"tecnologia"|"financeiro"|"rh"|"outro"|"desconhecido", "reason": string (1 frase em pt-BR explicando a decisão), "suggested_angle": string|null (1 frase em pt-BR sugerindo o ângulo de abordagem, conectando o comentário/tema do post com uma dor provável da empresa)}
+{"status": "aprovado"|"rejeitado", "score": number (0-100), "job_title": string|null, "seniority": "c-level"|"diretoria"|"gerencia"|"coordenacao"|"operacional"|"desconhecido", "area": "marketing"|"vendas"|"operacoes"|"growth"|"tecnologia"|"financeiro"|"rh"|"outro"|"desconhecido", "reason": string (1 frase em pt-BR explicando a decisão), "suggested_angle": string|null (1 frase em pt-BR sugerindo o ângulo de abordagem, conectando o comentário/tema do post com uma dor provável da empresa)}
 
 Critérios de qualificação:
 ${rules}
@@ -94,8 +94,10 @@ ${JSON.stringify(payload)}`;
   const content = body.choices?.[0]?.message?.content || body.output_text;
   if (!content) throw new Error('Modelo não retornou conteúdo');
   const parsed = JSON.parse(String(content).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
-  // aprovado/rejeitado/revisar → qualified/disqualified/review (valores do banco).
-  const statusMap: Record<string, string> = { aprovado: 'qualified', rejeitado: 'disqualified', revisar: 'review' };
+  // aprovado/rejeitado → qualified/disqualified. "revisar" foi extinto a pedido do
+  // Felipe (05/07): limítrofe vira aprovado e o Victor decide na lista — se algum
+  // modelo antigo devolver "revisar", cai em qualified.
+  const statusMap: Record<string, string> = { aprovado: 'qualified', rejeitado: 'disqualified', revisar: 'qualified' };
   const status = statusMap[String(parsed.status || '').toLowerCase()] || (parsed.qualified === true ? 'qualified' : 'disqualified');
   const score = Number(parsed.score);
   return {
@@ -117,7 +119,7 @@ async function refreshJobQualifiedCounts(client: ReturnType<typeof adminClient>,
     const { count } = await client.from('leads')
       .select('id', { count: 'exact', head: true })
       .eq('first_seen_post_id', postId)
-      .eq('qualification_status', 'qualified');
+      .in('qualification_status', ['qualified', 'review']);
     const { data: job } = await client.from('prospecting_jobs')
       .select('id').eq('post_id', postId).order('started_at', { ascending: false }).limit(1).maybeSingle();
     if (job) await client.from('prospecting_jobs').update({ new_qualified: count ?? 0 }).eq('id', job.id);
@@ -140,6 +142,20 @@ Deno.serve(async (request) => {
 
     const client = adminClient();
     const deadlineAt = collectorDeadline();
+
+    // Trava de concorrência: duas análises em paralelo brigam pelo rate limit do
+    // LLM (10 req/min no Gemini free) e as duas morrem por timeout — foi a causa
+    // dos runs zumbis de 05/07. Se já tem uma rodando há menos de 8 min, recusa.
+    const { data: activeRuns } = await client.from('collection_runs')
+      .select('id')
+      .eq('source', 'prospect_enrich')
+      .eq('status', 'running')
+      .gte('started_at', new Date(Date.now() - 8 * 60000).toISOString())
+      .limit(1);
+    if (activeRuns?.length) {
+      return json({ success: false, busy: true, error: 'Já existe uma análise em andamento. Aguarde ela terminar (ou até 8 minutos, se tiver travado).' });
+    }
+
     runId = await startRun(client, 'prospect_enrich');
 
     // Critérios do ICP editáveis pela UI (tabela singleton prospect_settings).
@@ -236,9 +252,14 @@ Deno.serve(async (request) => {
     let processed = 0;
     let qualified = 0;
     let llmCalls = 0;
+    let rateLimited = false;
     const errors: Array<{ lead: string; error: string }> = [];
     const affectedPosts = new Set<string>();
     for (const lead of toEnrich) {
+      // Orçamento de parede: se falta pouco tempo, deixa o resto pendente pro
+      // próximo lote em vez de ser morto pelo runtime sem finalizar o run
+      // (era isso que deixava execuções "running" pra sempre).
+      if (remainingMs(deadlineAt) < 50000) break;
       try {
         const profile = profileByIdentifier.get(String(lead.public_identifier).toLowerCase());
         if (!profile) throw new Error('Profile não retornou do actor');
@@ -298,6 +319,13 @@ Deno.serve(async (request) => {
         if (lead.first_seen_post_id) affectedPosts.add(lead.first_seen_post_id);
       } catch (leadError) {
         const message = errorMessage(leadError);
+        // Rate limit do LLM não é culpa do lead: volta pra fila (pending) e encerra
+        // o lote — o próximo lote tenta de novo quando a janela de rate limit virar.
+        if (message.includes('429')) {
+          rateLimited = true;
+          await client.from('leads').update({ enrichment_status: 'pending', enrichment_error: null }).eq('id', lead.id);
+          break;
+        }
         errors.push({ lead: lead.public_identifier || lead.id, error: message });
         await client.from('leads').update({ enrichment_status: 'error', enrichment_error: message }).eq('id', lead.id);
       }
@@ -318,12 +346,13 @@ Deno.serve(async (request) => {
       raw: { errors, prefiltered: junior.length, qualified },
     });
     return json({
-      success: status !== 'failed',
+      success: status !== 'failed' || rateLimited,
       runId,
       status,
       processed,
       prefiltered: junior.length,
       qualified,
+      rateLimited,
       errors,
       remaining: remainingCount ?? 0,
     });

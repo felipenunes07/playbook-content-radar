@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit3, ExternalLink, FileText, History, Image as ImageIcon, Play, RefreshCw, Search, Sparkles, Video } from 'lucide-react';
+import { Edit3, ExternalLink, FileText, History, Image as ImageIcon, Info, Play, RefreshCw, Search, Sparkles, Video } from 'lucide-react';
 
 const integer = new Intl.NumberFormat('pt-BR');
 const date = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -141,10 +141,22 @@ function PostThumb({ row }) {
   return <span className="cm-post-thumb-fallback"><Icon size={18} /></span>;
 }
 
+// Legenda dos números da prospecção (o "i" de informação pedido pelo Felipe).
+// Segue o exemplo do Victor: 1000 comentários → 1000 leads → 300 já no banco →
+// 700 novos → 50 dentro do ICP.
+const prospectLegend = [
+  ['Coment.', 'Total de comentários extraídos do post na última prospecção.'],
+  ['Leads', 'Pessoas únicas que comentaram (a mesma pessoa comentando 2x conta 1).'],
+  ['Já no banco', 'Dessas pessoas, quantas já existiam no banco (comentaram em outro post antes). Não viram lead duplicado — só registramos que comentaram aqui também.'],
+  ['Novos', 'Pessoas novas cadastradas no banco a partir deste post.'],
+  ['Aprovados ICP', 'Dos leads deste post, quantos passaram no filtro de qualificação (cargo alto + área comercial + porte da empresa). Fica "—" enquanto houver análise pendente.'],
+];
+
 export function OperationalPostsTable({ rows, onAction, prospecting = {}, runningIds, onProspect, showProspecting = false }) {
   // Na Prospecção a ordem padrão é cronológica (post mais recente em cima) — o
   // Victor escolhe o post pelo que acabou de publicar, não pelo score.
   const [sortConfig, setSortConfig] = React.useState({ key: showProspecting ? 'published_at' : 'engagement_score', direction: 'desc' });
+  const [showLegend, setShowLegend] = React.useState(false);
   const isRunning = (id) => Boolean(runningIds && runningIds.has(id));
   // Todo post do LinkedIn é prospectável: mesmo sem post_url, a função reconstrói a
   // URL a partir do id da activity. Só precisa do id da linha pra chamar a função.
@@ -191,11 +203,35 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
     <section className="cm-table-section">
       <div className="cm-section-heading">
         <div>
-          <span className="cm-eyebrow">Operação</span>
-          <h2>Tabela operacional de posts</h2>
+          <span className="cm-eyebrow">{showProspecting ? 'Prospecção' : 'Operação'}</span>
+          <h2 style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            {showProspecting ? 'Posts para prospectar' : 'Tabela operacional de posts'}
+            {showProspecting && (
+              <button type="button" onClick={() => setShowLegend((v) => !v)} aria-label="O que significa cada número"
+                title="O que significa cada número"
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', border: '1px solid #cbd5e1', background: showLegend ? '#eff6ff' : '#fff', color: '#0a66c2', cursor: 'pointer', padding: 0 }}>
+                <Info size={13} />
+              </button>
+            )}
+          </h2>
         </div>
         <small>{rows.length} posts</small>
       </div>
+      {showProspecting && showLegend && (
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 16px', marginBottom: 14, fontSize: 12.5, color: '#475569' }}>
+          <strong style={{ display: 'block', marginBottom: 6, color: '#0f172a' }}>O que significa cada número (exemplo: post com 1.000 comentários)</strong>
+          {prospectLegend.map(([label, text]) => (
+            <div key={label} style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+              <strong style={{ minWidth: 105, color: '#0a66c2' }}>{label}</strong>
+              <span>{text}</span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <strong style={{ minWidth: 105, color: '#0a66c2' }}>Exemplo</strong>
+            <span>1.000 comentários → 1.000 leads → 300 já no banco → 700 novos → 50 aprovados no ICP.</span>
+          </div>
+        </div>
+      )}
       {!rows.length ? (
         <div className="cm-empty">Nenhum post encontrado.</div>
       ) : (
@@ -218,10 +254,11 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
                 {!showProspecting && <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('classification_status')}>Classificação{getSortIcon('classification_status')}</th>}
                 {showProspecting && <>
                   <th title="Status da última execução da prospecção deste post">Processo</th>
-                  <th title="Total de comentários extraídos na última prospecção">Coment. extraídos</th>
-                  <th title="Comentaristas únicos raspados no post">Leads</th>
-                  <th title="Leads novos (ainda não no banco) = oportunidades de prospecção">Oport.</th>
-                  <th title="Leads novos que passaram no filtro de qualificação (ICP)">Qualif.</th>
+                  <th title={prospectLegend[0][1]}>Coment.</th>
+                  <th title={prospectLegend[1][1]}>Leads</th>
+                  <th title={prospectLegend[2][1]}>Já no banco</th>
+                  <th title={prospectLegend[3][1]}>Novos</th>
+                  <th title={prospectLegend[4][1]}>Aprovados ICP</th>
                 </>}
                 <th>Ações</th>
               </tr>
@@ -264,6 +301,14 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <ProspectValue value={prospecting[row.id]?.total_leads} running={isRunning(row.id)} />
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <ProspectValue
+                        value={prospecting[row.id]?.total_leads != null && prospecting[row.id]?.opportunities != null
+                          ? Math.max(0, prospecting[row.id].total_leads - prospecting[row.id].opportunities)
+                          : null}
+                        running={isRunning(row.id)}
+                      />
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <ProspectValue value={prospecting[row.id]?.opportunities} running={isRunning(row.id)} />

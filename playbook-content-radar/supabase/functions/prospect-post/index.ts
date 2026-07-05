@@ -196,7 +196,7 @@ Deno.serve(async (request) => {
       .eq('first_seen_post_id', post.id).eq('enrichment_status', 'pending');
     const { count: qualifiedCount } = await client.from('leads')
       .select('id', { count: 'exact', head: true })
-      .eq('first_seen_post_id', post.id).eq('qualification_status', 'qualified');
+      .eq('first_seen_post_id', post.id).in('qualification_status', ['qualified', 'review']);
 
     const status = skipped ? 'partial' : 'success';
     await client.from('prospecting_jobs').update({

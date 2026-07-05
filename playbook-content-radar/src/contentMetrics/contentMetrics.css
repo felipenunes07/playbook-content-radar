@@ -177,3 +177,16 @@ tr.cm-prospect-running-row td {
   font-weight: 600;
   white-space: nowrap;
 }
+
+/* Barra de progresso da análise de leads (gradiente animado enquanto roda). */
+@keyframes cmProgressSlide {
+  0% { background-position: 0 0; }
+  100% { background-position: 28px 0; }
+}
+
+.cm-progress-fill {
+  background: repeating-linear-gradient(45deg, #3b82f6 0 10px, #60a5fa 10px 20px);
+  background-size: 28px 28px;
+  animation: cmProgressSlide 0.9s linear infinite;
+  transition: width 0.6s ease;
+}
