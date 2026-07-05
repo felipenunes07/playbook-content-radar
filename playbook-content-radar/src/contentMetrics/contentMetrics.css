@@ -110,3 +110,70 @@
   box-shadow: none !important;
   opacity: 1 !important;
 }
+
+/* ————— Prospecção ————— */
+
+.cm-post-thumb {
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+  border: 1px solid #e2e8f0;
+}
+
+.cm-post-thumb-fallback {
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2f7;
+  color: #94a3b8;
+  border: 1px solid #e2e8f0;
+}
+
+.cm-prospect-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #0a66c2 !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 8px;
+  padding: 6px 12px !important;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  width: auto !important;
+  height: auto !important;
+}
+
+.cm-prospect-btn:disabled {
+  opacity: 0.75;
+  cursor: default;
+}
+
+/* Linha em raspagem: varredura suave de fundo pra deixar claro que está rodando. */
+@keyframes cmProspectScan {
+  0%, 100% { background-color: #eff6ff; }
+  50% { background-color: #dbeafe; }
+}
+
+tr.cm-prospect-running-row td {
+  animation: cmProspectScan 1.4s ease-in-out infinite;
+}
+
+.cm-scan-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}

@@ -88,8 +88,23 @@ Deno.serve(async (request) => {
     if (!hasSecret && body?.manual !== true) throw new Error('Execução não autorizada');
 
     const { action, leadId } = body;
-    if (!leadId) throw new Error('leadId é obrigatório');
     const client = adminClient();
+
+    // Salva o ICP/mensagem editados na UI (a tabela é só-leitura pro front; a
+    // escrita passa por aqui com o service role).
+    if (action === 'save_settings') {
+      const icpRules = typeof body.icpRules === 'string' ? body.icpRules.trim() : undefined;
+      const messageTemplate = typeof body.messageTemplate === 'string' ? body.messageTemplate.trim() : undefined;
+      if (icpRules === undefined && messageTemplate === undefined) throw new Error('Nada para salvar');
+      const patch: Record<string, unknown> = { id: true };
+      if (icpRules !== undefined) patch.icp_rules = icpRules || null;
+      if (messageTemplate !== undefined) patch.message_template = messageTemplate || null;
+      const { error: settingsError } = await client.from('prospect_settings').upsert(patch, { onConflict: 'id' });
+      if (settingsError) throw settingsError;
+      return json({ success: true, saved: true });
+    }
+
+    if (!leadId) throw new Error('leadId é obrigatório');
 
     if (action === 'generate_message') {
       const { data: lead, error: leadError } = await client.from('leads').select('*').eq('id', leadId).single();
@@ -109,7 +124,9 @@ Deno.serve(async (request) => {
         post = data || null;
       }
 
-      const template = Deno.env.get('PROSPECT_MESSAGE_TEMPLATE');
+      // Template resolvido na ordem: prospect_settings (editável na UI) > secret > LLM.
+      const { data: settings } = await client.from('prospect_settings').select('message_template').eq('id', true).maybeSingle();
+      const template = settings?.message_template || Deno.env.get('PROSPECT_MESSAGE_TEMPLATE');
       const message = template
         ? fillTemplate(template, lead, post)
         : await generateMessage(lead, post, comment?.comment_text || null);

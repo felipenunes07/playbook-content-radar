@@ -13,6 +13,7 @@ const empty = {
   leads: [],
   leadOutreach: [],
   leadComments: [],
+  prospectSettings: null,
 };
 
 function latestDate(rows, fallback) {
@@ -64,7 +65,7 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
     const linkedinResult = await supabase.from('v_latest_linkedin_post_metrics').select('*');
     if (linkedinResult.error) throw new Error(linkedinResult.error.message || 'Falha ao ler métricas do LinkedIn');
 
-    const [youtubeResult, instagramResult, accountsResult, importsResult, runsResult, accountMetricsResult, prospectingResult, leadsResult, leadOutreachResult, leadCommentsResult] = await Promise.all([
+    const [youtubeResult, instagramResult, accountsResult, importsResult, runsResult, accountMetricsResult, prospectingResult, leadsResult, leadOutreachResult, leadCommentsResult, prospectSettingsResult] = await Promise.all([
       supabase.from('v_latest_youtube_video_metrics').select('*'),
       supabase.from('v_latest_instagram_post_metrics').select('*'),
       supabase.from('content_accounts').select('*'),
@@ -75,6 +76,7 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
       supabase.from('leads').select('*'),
       supabase.from('lead_outreach').select('*'),
       supabase.from('lead_comments').select('lead_id, post_id, comment_text, commented_at, created_at'),
+      supabase.from('prospect_settings').select('*'),
     ]);
     const accounts = accountsResult.data || [];
     const growth = buildAccountGrowth(accountMetricsResult.data || [], accounts);
@@ -94,6 +96,7 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
       leads: (leadsResult.data || []).slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))),
       leadOutreach: leadOutreachResult.data || [],
       leadComments: leadCommentsResult.data || [],
+      prospectSettings: prospectSettingsResult.data?.[0] || null,
       freshness: latestDate(linkedinResult.data || []),
       warning: [youtubeResult, accountsResult, importsResult, runsResult, accountMetricsResult, prospectingResult]
         .map((result) => result.error?.message)

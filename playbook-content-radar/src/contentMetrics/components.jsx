@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit3, ExternalLink, History, Play, RefreshCw, Search, Sparkles } from 'lucide-react';
+import { Edit3, ExternalLink, FileText, History, Image as ImageIcon, Play, RefreshCw, Search, Sparkles, Video } from 'lucide-react';
 
 const integer = new Intl.NumberFormat('pt-BR');
 const date = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -108,8 +108,43 @@ function ProspectValue({ value, running }) {
   return <strong>{integer.format(value)}</strong>;
 }
 
+// URL pública do post pra abrir no LinkedIn. Imports históricos não guardaram
+// post_url, mas o id da activity basta pra reconstruir — espelho do buildScrapeUrl
+// da edge function, pra TODO post ter o link de redirecionamento.
+export function linkedinPostUrl(row) {
+  if (row.post_url && String(row.post_url).includes('linkedin.com')) return String(row.post_url);
+  for (const candidate of [row.external_post_id, row.entity_id, row.share_urn]) {
+    const value = String(candidate || '').trim();
+    if (!value) continue;
+    if (/^\d{8,}$/.test(value)) return `https://www.linkedin.com/feed/update/urn:li:activity:${value}`;
+    const urnMatch = value.match(/urn:li:(?:activity|ugcPost|share):\d+/i);
+    if (urnMatch) return `https://www.linkedin.com/feed/update/${urnMatch[0]}`;
+    const idMatch = value.match(/(?:activity|ugcPost|share)[-:](\d{8,})/i);
+    if (idMatch) return `https://www.linkedin.com/feed/update/urn:li:activity:${idMatch[1]}`;
+  }
+  return null;
+}
+
+// Miniatura do post (identificação visual rápida). URLs do CDN do LinkedIn expiram,
+// então no erro cai pro placeholder por formato.
+function PostThumb({ row }) {
+  const [failed, setFailed] = React.useState(false);
+  if (!failed && row.media_url && row.media_type === 'image') {
+    return <img className="cm-post-thumb" src={row.media_url} alt="" loading="lazy" onError={() => setFailed(true)} />;
+  }
+  if (!failed && row.media_url && row.media_type === 'video') {
+    // preload="metadata" + #t=0.1 fazem o browser renderizar o primeiro frame como
+    // prévia, sem baixar o vídeo inteiro nem tocar nada.
+    return <video className="cm-post-thumb" src={`${row.media_url}#t=0.1`} muted playsInline preload="metadata" onError={() => setFailed(true)} />;
+  }
+  const Icon = row.format === 'video' || row.media_type === 'video' ? Video : row.format === 'text' ? FileText : ImageIcon;
+  return <span className="cm-post-thumb-fallback"><Icon size={18} /></span>;
+}
+
 export function OperationalPostsTable({ rows, onAction, prospecting = {}, runningIds, onProspect, showProspecting = false }) {
-  const [sortConfig, setSortConfig] = React.useState({ key: 'engagement_score', direction: 'desc' });
+  // Na Prospecção a ordem padrão é cronológica (post mais recente em cima) — o
+  // Victor escolhe o post pelo que acabou de publicar, não pelo score.
+  const [sortConfig, setSortConfig] = React.useState({ key: showProspecting ? 'published_at' : 'engagement_score', direction: 'desc' });
   const isRunning = (id) => Boolean(runningIds && runningIds.has(id));
   // Todo post do LinkedIn é prospectável: mesmo sem post_url, a função reconstrói a
   // URL a partir do id da activity. Só precisa do id da linha pra chamar a função.
@@ -168,16 +203,19 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
           <table className="cm-table cm-operational-table">
             <thead>
               <tr>
-                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('published_at')}>Data{getSortIcon('published_at')}</th>
+                <th style={{ cursor: 'pointer', userSelect: 'none', minWidth: 112 }} onClick={() => requestSort('published_at')}>Data{getSortIcon('published_at')}</th>
+                {showProspecting && <th aria-label="Mídia" />}
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('hook')}>Autor / hook{getSortIcon('hook')}</th>
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('format')}>Formato{getSortIcon('format')}</th>
-                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('theme')}>Tema{getSortIcon('theme')}</th>
-                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('cta_keyword')}>CTA{getSortIcon('cta_keyword')}</th>
+                {!showProspecting && <>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('theme')}>Tema{getSortIcon('theme')}</th>
+                  <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('cta_keyword')}>CTA{getSortIcon('cta_keyword')}</th>
+                </>}
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('likes')}>Likes{getSortIcon('likes')}</th>
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('comments')}>Comentários{getSortIcon('comments')}</th>
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('shares')}>Shares{getSortIcon('shares')}</th>
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('engagement_score')}>Score{getSortIcon('engagement_score')}</th>
-                <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('classification_status')}>Classificação{getSortIcon('classification_status')}</th>
+                {!showProspecting && <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('classification_status')}>Classificação{getSortIcon('classification_status')}</th>}
                 {showProspecting && <>
                   <th title="Status da última execução da prospecção deste post">Processo</th>
                   <th title="Total de comentários extraídos na última prospecção">Coment. extraídos</th>
@@ -190,8 +228,9 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
             </thead>
             <tbody>
               {sortedRows.map((row) => (
-                <tr key={row.external_post_id || row.id}>
-                  <td>{row.published_at ? date.format(new Date(row.published_at)) : '—'}</td>
+                <tr key={row.external_post_id || row.id} className={isRunning(row.id) ? 'cm-prospect-running-row' : undefined}>
+                  <td style={{ whiteSpace: 'nowrap' }}>{row.published_at ? date.format(new Date(row.published_at)) : '—'}</td>
+                  {showProspecting && <td><PostThumb row={row} /></td>}
                   <td>
                     <strong className="cm-hook">{row.hook || 'Sem hook'}</strong>
                     <small>{row.owner_name}</small>
@@ -199,21 +238,23 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
                   <td>
                     <span className="cm-tag">{row.format || 'unknown'}</span>
                   </td>
-                  <td>{row.theme || '—'}</td>
-                  <td>{row.cta_keyword || '—'}</td>
+                  {!showProspecting && <>
+                    <td>{row.theme || '—'}</td>
+                    <td>{row.cta_keyword || '—'}</td>
+                  </>}
                   <td>{integer.format(row.likes || 0)}</td>
                   <td>{integer.format(row.comments || 0)}</td>
                   <td>{integer.format(row.shares || 0)}</td>
                   <td>
                     <strong>{integer.format(row.engagement_score || 0)}</strong>
                   </td>
-                  <td>
+                  {!showProspecting && <td>
                     <StatusPill status={row.classification_status || 'pending'} />
-                  </td>
+                  </td>}
                   {showProspecting && <>
                     <td style={{ textAlign: 'center' }}>
                       {isRunning(row.id)
-                        ? <span className="cm-status pending">Rodando…</span>
+                        ? <span className="cm-scan-pill"><RefreshCw size={12} className="spin" /> Raspando…</span>
                         : prospecting[row.id]?.status
                           ? <StatusPill status={prospecting[row.id].status} />
                           : <span style={{ color: '#cbd5e1' }}>—</span>}
@@ -233,51 +274,65 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
                   </>}
                   <td>
                     <div className="cm-row-actions">
-                      {showProspecting && canProspect(row) && (
-                        <button
-                          type="button"
-                          aria-label={`Prospectar comentaristas de ${row.hook || 'post'}`}
-                          title="Raspar comentários e cruzar com o banco de leads"
-                          disabled={isRunning(row.id)}
-                          onClick={() => onProspect(row)}
-                        >
-                          {isRunning(row.id) ? <RefreshCw size={14} className="spin" /> : <Play size={14} />}
-                        </button>
-                      )}
-                      <button 
-                        type="button" 
-                        aria-label={`Editar classificação de ${row.hook || 'post'}`} 
-                        title="Editar tema, CTA e formato" 
-                        onClick={() => onAction?.('edit', row)}
-                      >
-                        <Edit3 size={14} />
-                      </button>
-                      <button 
-                        type="button" 
-                        aria-label={`Reclassificar ${row.hook || 'post'}`} 
-                        title="Reclassificar com IA" 
-                        onClick={() => onAction?.('classify', row)}
-                      >
-                        <Sparkles size={14} />
-                      </button>
-                      <button 
-                        type="button" 
-                        aria-label={`Histórico de métricas de ${row.hook || 'post'}`} 
-                        title="Ver histórico de métricas" 
-                        onClick={() => onAction?.('history', row)}
-                      >
-                        <History size={14} />
-                      </button>
-                      {row.post_url && (
-                        <a 
-                          className="cm-open" 
-                          href={row.post_url} 
-                          target="_blank" 
-                          rel="noreferrer" 
-                          aria-label={`Abrir ${row.hook || 'post'}`}
-                        >
-                          <ExternalLink size={14} />
-                        </a>
+                      {showProspecting ? (
+                        <>
+                          {canProspect(row) && (
+                            <button
+                              type="button"
+                              className="cm-prospect-btn"
+                              aria-label={`Prospectar comentaristas de ${row.hook || 'post'}`}
+                              title="Raspar comentários e cruzar com o banco de leads"
+                              disabled={isRunning(row.id)}
+                              onClick={() => onProspect(row)}
+                            >
+                              {isRunning(row.id) ? <RefreshCw size={13} className="spin" /> : <Play size={13} />}
+                              {isRunning(row.id) ? 'Rodando…' : 'Prospectar'}
+                            </button>
+                          )}
+                          {linkedinPostUrl(row) && (
+                            <a className="cm-open" href={linkedinPostUrl(row)} target="_blank" rel="noreferrer" aria-label={`Abrir ${row.hook || 'post'}`} title="Abrir post no LinkedIn">
+                              <ExternalLink size={14} />
+                            </a>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            aria-label={`Editar classificação de ${row.hook || 'post'}`}
+                            title="Editar tema, CTA e formato"
+                            onClick={() => onAction?.('edit', row)}
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Reclassificar ${row.hook || 'post'}`}
+                            title="Reclassificar com IA"
+                            onClick={() => onAction?.('classify', row)}
+                          >
+                            <Sparkles size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Histórico de métricas de ${row.hook || 'post'}`}
+                            title="Ver histórico de métricas"
+                            onClick={() => onAction?.('history', row)}
+                          >
+                            <History size={14} />
+                          </button>
+                          {row.post_url && (
+                            <a
+                              className="cm-open"
+                              href={row.post_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-label={`Abrir ${row.hook || 'post'}`}
+                            >
+                              <ExternalLink size={14} />
+                            </a>
+                          )}
+                        </>
                       )}
                     </div>
                   </td>

@@ -1109,15 +1109,23 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
 
   if (loading || !data) return <div className="cm-loading"><RefreshCw className="spin" size={20} /> Carregando…</div>;
 
-  // Página de Prospecção (aba própria no menu lateral, fora das Métricas): só a
-  // tabela de posts com o botão Prospectar e os números de leads/oportunidades.
-  // A lista/banco de leads (Fase 3) entra aqui embaixo depois.
+  // Página de Prospecção (Tela 1 do escopo): a lista de posts com o botão
+  // Prospectar e os números. A lista de leads fica na página própria "Leads ICP".
   if (mode === 'prospecting') {
     return <div className="content-metrics-workspace">
-      <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Comercial</span><h1>Prospecção</h1><p>Rode um post para raspar quem comentou, cruzar com o banco de leads e ver as oportunidades novas.</p></div><div className="cm-header-meta"><span>{data.linkedin.length} posts</span><Users size={16} /></div></header>
+      <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Comercial</span><h1>Prospecção</h1><p>Rode um post para raspar quem comentou, cruzar com o banco de leads e ver as oportunidades novas. Os qualificados aparecem na página Leads ICP.</p></div><div className="cm-header-meta"><span>{data.linkedin.length} posts</span><Users size={16} /></div></header>
       <SourceNotice data={data} />
       {operationMessage && <div className="cm-operation-message">{operationMessage}<button type="button" onClick={() => setOperationMessage('')}>Fechar</button></div>}
       <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} prospecting={prospectingByPost} runningIds={prospectingRunning} onProspect={handleProspect} onAction={() => {}} showProspecting />
+    </div>;
+  }
+
+  // Página Leads ICP (Tela 2 do escopo): o banco de leads qualificados, com
+  // mensagem, prospectado/ignorado e os antigos pelos filtros.
+  if (mode === 'leads') {
+    return <div className="content-metrics-workspace">
+      <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Comercial</span><h1>Leads ICP</h1><p>Quem comentou nos posts e passou (ou está esperando) o filtro de qualificação. Gere a mensagem, copie, mande no LinkedIn e marque como prospectado.</p></div><div className="cm-header-meta"><span>{(data.leads || []).length} leads no banco</span><Users size={16} /></div></header>
+      {operationMessage && <div className="cm-operation-message">{operationMessage}<button type="button" onClick={() => setOperationMessage('')}>Fechar</button></div>}
       <LeadsSection data={data} client={client} onNotice={setOperationMessage} onReload={reloadData} />
     </div>;
   }

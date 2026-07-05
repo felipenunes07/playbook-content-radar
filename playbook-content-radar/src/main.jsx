@@ -1134,7 +1134,13 @@ function App() {
                   className={view === 'prospecting' ? 'nav-link active' : 'nav-link'}
                   onClick={() => leaveMetrics('prospecting')}
                 >
-                  <Users size={16} /> Prospecção
+                  <Zap size={16} /> Prospecção
+                </button>
+                <button
+                  className={view === 'leads' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('leads')}
+                >
+                  <Users size={16} /> Leads ICP
                 </button>
                 <button
                   className={view === 'new' ? 'nav-link active' : 'nav-link'}
@@ -1271,6 +1277,11 @@ function App() {
           {view === 'prospecting' && user === 'Felipe' && (
             <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Carregando prospecção…</div>}>
               <ContentMetricsWorkspace client={supabase} mode="prospecting" />
+            </React.Suspense>
+          )}
+          {view === 'leads' && user === 'Felipe' && (
+            <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Carregando leads…</div>}>
+              <ContentMetricsWorkspace client={supabase} mode="leads" />
             </React.Suspense>
           )}
           {view === 'new' && user === 'Felipe' && (

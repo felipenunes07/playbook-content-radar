@@ -60,16 +60,17 @@ async function llmFetch(url: string, init: RequestInit, deadlineAt: number) {
   }
 }
 
-async function qualifyLead(payload: Record<string, unknown>, deadlineAt: number) {
+async function qualifyLead(payload: Record<string, unknown>, deadlineAt: number, rulesOverride?: string | null) {
   const url = Deno.env.get('CLASSIFICATION_API_URL') || 'https://api.openai.com/v1/chat/completions';
   const apiKey = Deno.env.get('CLASSIFICATION_API_KEY');
   const model = Deno.env.get('CLASSIFICATION_MODEL');
   if (!apiKey || !model) throw new Error('CLASSIFICATION_API_KEY e CLASSIFICATION_MODEL são obrigatórios');
   const minHeadcount = Number(Deno.env.get('PROSPECT_MIN_HEADCOUNT') || 200);
-  // Critérios editáveis sem deploy: o secret PROSPECT_ICP_RULES substitui o bloco
-  // de regras inteiro (Victor: "se vier pouca gente a gente baixa; se vier muito
-  // lixo, aperta"). O default segue o escopo formal de 2026-07-05 + ICP da Playbook.
-  const rules = Deno.env.get('PROSPECT_ICP_RULES') || `1. Cargo alto (aprova): founder, sócio, CEO, C-level, diretor, Head, gerente, liderança comercial/marketing/operações, Growth, RevOps, gerente de inovação. Rejeita: estagiário, estudante, analista júnior, SDR/vendedor baixo na hierarquia, assistente.
+  // Critérios editáveis sem deploy: prospect_settings.icp_rules (editável na UI,
+  // botão "Ver/editar ICP") > secret PROSPECT_ICP_RULES > default do escopo formal
+  // de 2026-07-05 + ICP da Playbook (Victor: "se vier pouca gente a gente baixa;
+  // se vier muito lixo, aperta").
+  const rules = rulesOverride || Deno.env.get('PROSPECT_ICP_RULES') || `1. Cargo alto (aprova): founder, sócio, CEO, C-level, diretor, Head, gerente, liderança comercial/marketing/operações, Growth, RevOps, gerente de inovação. Rejeita: estagiário, estudante, analista júnior, SDR/vendedor baixo na hierarquia, assistente.
 2. Área (aprova): marketing, vendas/comercial, operações, growth, receita/RevOps, tecnologia/produto, dono do negócio. Rejeita: financeiro, jurídico, RH. Rejeita também quem parece só querer aprender automação, autônomos/freelancers, negócios B2C locais sem time de vendas.
 3. Empresa atual com ${minHeadcount}+ colaboradores. Se employee_count vier null mas a empresa parecer claramente grande (banco, multinacional conhecida), pode aprovar citando isso no motivo.
 4. IMPORTANTE: se "currently_employed" for false, o lead está sem emprego atual — NUNCA aprove pela empresa antiga; status "rejeitado" com motivo explicando.
@@ -140,6 +141,10 @@ Deno.serve(async (request) => {
     const client = adminClient();
     const deadlineAt = collectorDeadline();
     runId = await startRun(client, 'prospect_enrich');
+
+    // Critérios do ICP editáveis pela UI (tabela singleton prospect_settings).
+    const { data: settings } = await client.from('prospect_settings').select('icp_rules').eq('id', true).maybeSingle();
+    const icpRules = settings?.icp_rules || null;
 
     const limit = Math.max(1, Math.min(20, Number(body.limit || 10)));
     const { data: pending, error: pendingError } = await client.from('leads')
@@ -267,7 +272,7 @@ Deno.serve(async (request) => {
         // Espaça as chamadas pro LLM (tier free do Gemini: ~10 req/min).
         if (llmCalls > 0) await wait(6500);
         llmCalls += 1;
-        const result = await qualifyLead(payload, deadlineAt);
+        const result = await qualifyLead(payload, deadlineAt, icpRules);
         const { error: updateError } = await client.from('leads').update({
           full_name: payload.name || lead.full_name,
           headline: payload.headline || lead.headline,
