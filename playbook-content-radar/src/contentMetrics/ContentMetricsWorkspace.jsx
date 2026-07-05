@@ -1041,40 +1041,56 @@ function LeadsSection({ data, client, onNotice, onReload }) {
 
   return (
     <section className="cm-table-section">
-      <div className="cm-section-heading">
+      {/* ── Toolbar: heading + criador + ações agrupadas ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '18px 18px 0' }}>
         <div>
           <span className="cm-eyebrow">Banco de leads</span>
-          <h2>Quem comentou e virou lead</h2>
+          <h2 style={{ fontSize: 14, letterSpacing: '-.015em', marginTop: 3 }}>Quem comentou e virou lead</h2>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="cm-creator-toggle compact" aria-label="Filtrar por criador" style={{ margin: 0 }}>
+            {[{ owner: '', label: 'Ambos', photo: null }, { owner: 'Victor Baggio', label: 'Victor', photo: victorPhoto }, { owner: 'Fernando Tedesco', label: 'Fernando', photo: fernandoPhoto }].map((c) => (
+              <button key={c.label} type="button" className={creatorFilter === c.owner ? 'active' : ''} onClick={() => { setCreatorFilter(c.owner); setPostFilter(''); }} aria-pressed={creatorFilter === c.owner}>
+                {c.photo ? <img src={c.photo} alt={c.label} /> : <span className="cm-avatar-stack"><img src={victorPhoto} alt="" /><img src={fernandoPhoto} alt="" /></span>}
+                <span>{c.label}</span>
+              </button>
+            ))}
+          </div>
+          <span style={{ width: 1, height: 28, background: '#e2e8f0', flexShrink: 0 }} />
           <button type="button" onClick={() => setShowIcpModal(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#334155', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
-            title="Ver e editar os critérios que o agente usa pra qualificar + a mensagem padrão">
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#334155', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'border-color .15s, background .15s' }}
+            title="Ver e editar os critérios que o agente usa pra qualificar + a mensagem padrão"
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#0a66c2'; e.currentTarget.style.background = '#f0f7fd'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#fff'; }}>
             <Settings size={13} /> Ver/editar ICP
           </button>
           {pendingEnrichment > 0 && !enriching && (
             <button type="button" onClick={runEnrich}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
-              title="Roda profile + empresa + agente de qualificação em todos os leads pendentes, em lotes">
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 8px rgba(10,102,194,.18)', transition: 'background .15s, box-shadow .15s' }}
+              title="Roda profile + empresa + agente de qualificação em todos os leads pendentes, em lotes"
+              onMouseEnter={e => { e.currentTarget.style.background = '#084e96'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#0a66c2'; }}>
               <RefreshCw size={13} />
-              {`Analisar fila (${integer.format(pendingEnrichment)} pendentes)`}
+              {`Analisar fila (${integer.format(pendingEnrichment)})`}
             </button>
           )}
           {enriching && (
             <button type="button" onClick={() => { stopEnrichRef.current = true; }}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: 8, padding: '7px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
               title="Termina o lote atual e para">
               Parar após este lote
             </button>
           )}
-          <small>{integer.format(visible.length)} leads</small>
+          <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', paddingLeft: 2 }}>{integer.format(visible.length)} leads</span>
         </div>
       </div>
+
+      {/* ── Progress banner ── */}
       {progress && (
         <div style={{
           background: progress.status === 'error' ? '#fef2f2' : progress.status === 'done' ? '#f0fdf4' : '#eff6ff',
           border: `1px solid ${progress.status === 'error' ? '#fecaca' : progress.status === 'done' ? '#bbf7d0' : '#bfdbfe'}`,
-          borderRadius: 10, padding: '12px 16px', marginBottom: 14,
+          borderRadius: 10, padding: '12px 16px', margin: '14px 18px 0',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600, color: progress.status === 'error' ? '#b91c1c' : progress.status === 'done' ? '#065f46' : '#1e3a8a' }}>
             {progress.status === 'running' && <RefreshCw size={15} className="spin" />}
@@ -1100,34 +1116,49 @@ function LeadsSection({ data, client, onNotice, onReload }) {
           )}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
-        <div className="cm-creator-toggle" aria-label="Filtrar por criador" style={{ margin: 0 }}>
-          {[{ owner: '', label: 'Ambos', photo: null }, { owner: 'Victor Baggio', label: 'Victor', photo: victorPhoto }, { owner: 'Fernando Tedesco', label: 'Fernando', photo: fernandoPhoto }].map((c) => (
-            <button key={c.label} type="button" className={creatorFilter === c.owner ? 'active' : ''} onClick={() => { setCreatorFilter(c.owner); setPostFilter(''); }} aria-pressed={creatorFilter === c.owner}>
-              {c.photo ? <img src={c.photo} alt={c.label} /> : <span className="cm-avatar-stack"><img src={victorPhoto} alt="" /><img src={fernandoPhoto} alt="" /></span>}
-              <span>{c.label}</span>
+
+      {/* ── Filtros: post + status chips ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px 18px 4px' }}>
+        {/* Post filter + limpar */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <PostPhotoFilter
+            options={postOptions.filter((p) => !creatorFilter || p.owner === creatorFilter)}
+            value={postFilter}
+            onChange={setPostFilter}
+          />
+          {(postFilter || creatorFilter) && (
+            <button type="button" onClick={() => { setPostFilter(''); setCreatorFilter(''); }}
+              style={{ background: 'transparent', border: 'none', color: '#0a66c2', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
+              Limpar filtros
             </button>
-          ))}
+          )}
         </div>
-        <PostPhotoFilter
-          options={postOptions.filter((p) => !creatorFilter || p.owner === creatorFilter)}
-          value={postFilter}
-          onChange={setPostFilter}
-        />
-        {(postFilter || creatorFilter) && (
-          <button type="button" onClick={() => { setPostFilter(''); setCreatorFilter(''); }}
-            style={{ background: 'transparent', border: 'none', color: '#0a66c2', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>
-            Limpar filtros
-          </button>
-        )}
-      </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-        {leadFilterChips.map((chip) => (
-          <button key={chip.id} type="button" onClick={() => setFilter(chip.id)}
-            style={{ border: '1px solid', borderColor: filter === chip.id ? '#0a66c2' : '#e2e8f0', background: filter === chip.id ? '#eff6ff' : '#fff', color: filter === chip.id ? '#0a66c2' : '#475569', borderRadius: 999, padding: '6px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
-            {chip.label} · {integer.format(counts[chip.id])}
-          </button>
-        ))}
+        {/* Linha 2: chips de status */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {leadFilterChips.map((chip) => {
+            const isActive = filter === chip.id;
+            const chipColors = {
+              qualified: { bg: '#e7f6ee', border: '#a3d9b1', color: '#057642', activeBg: '#057642', activeColor: '#fff' },
+              pending: { bg: '#fff9e6', border: '#fde4ad', color: '#92650e', activeBg: '#b47d11', activeColor: '#fff' },
+              disqualified: { bg: '#fef2f2', border: '#fecaca', color: '#b42318', activeBg: '#b42318', activeColor: '#fff' },
+              all: { bg: '#f8fafc', border: '#e2e8f0', color: '#475569', activeBg: '#334155', activeColor: '#fff' },
+            };
+            const c = chipColors[chip.id] || chipColors.all;
+            return (
+              <button key={chip.id} type="button" onClick={() => setFilter(chip.id)}
+                style={{
+                  border: `1px solid ${isActive ? c.activeBg : c.border}`,
+                  background: isActive ? c.activeBg : c.bg,
+                  color: isActive ? c.activeColor : c.color,
+                  borderRadius: 999, padding: '5px 13px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  transition: 'all .15s ease',
+                  boxShadow: isActive ? `0 2px 8px ${c.activeBg}33` : 'none',
+                }}>
+                {chip.label} · {integer.format(counts[chip.id])}
+              </button>
+            );
+          })}
+        </div>
       </div>
       {!visible.length ? (
         <div className="cm-empty">

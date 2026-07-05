@@ -42,6 +42,14 @@
 @media(max-width:1280px){.cm-executive-cards{grid-template-columns:repeat(3,1fr)}.cm-executive-card:nth-child(n+4){min-height:74px}.cm-creator-toggle{justify-content:flex-end}}
 @media(max-width:820px){.cm-executive-toolbar{align-items:flex-start;flex-direction:column}.cm-executive-toolbar.compact{align-items:stretch}.cm-creator-toggle{width:100%;display:grid;grid-template-columns:repeat(3,1fr)}.cm-creator-toggle button{justify-content:center;padding-right:8px}.cm-executive-cards{grid-template-columns:repeat(2,1fr)}.cm-executive-card strong{font-size:21px}.cm-chart-large{height:285px}}
 
+/* Compact creator toggle (used in Leads ICP toolbar) */
+.cm-creator-toggle.compact{gap:6px}
+.cm-creator-toggle.compact button{min-height:30px;padding:3px 9px 3px 3px;gap:6px;font-size:11px}
+.cm-creator-toggle.compact img{width:22px;height:22px}
+.cm-creator-toggle.compact .cm-avatar-stack{width:32px}
+.cm-creator-toggle.compact .cm-avatar-stack img{width:22px;height:22px;border-width:1.5px}
+.cm-creator-toggle.compact .cm-avatar-stack img+img{margin-left:-10px}
+
 .cm-growth-strip{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px}
 .cm-growth-chip{display:flex;flex-direction:column;gap:2px;min-width:150px;padding:10px 14px;border:1px solid #dce4eb;border-radius:10px;background:#f8fafc}
 .cm-growth-chip span{color:#64748b;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
