@@ -59,7 +59,9 @@ create index if not exists lead_comments_post_idx on public.lead_comments (post_
 create index if not exists lead_comments_lead_idx on public.lead_comments (lead_id);
 
 -- Estado de prospecção por lead. Separado de leads pra permitir vários ângulos
--- de abordagem no futuro (Fase 4). Preenchido a partir da Fase 3.
+-- de abordagem no futuro (Fase 4) — por ora 1 linha por lead (unique) pra permitir
+-- o upsert simples do lead-outreach; quando houver múltiplos ângulos, a unique
+-- muda pra (lead_id, angle).
 create table if not exists public.lead_outreach (
   id uuid primary key default gen_random_uuid(),
   lead_id uuid not null references public.leads(id) on delete cascade,
@@ -69,10 +71,9 @@ create table if not exists public.lead_outreach (
   channel text check (channel is null or channel in ('linkedin', 'whatsapp')),
   prospected_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (lead_id)
 );
-
-create index if not exists lead_outreach_lead_idx on public.lead_outreach (lead_id);
 
 -- 1 linha por clique no botão "Prospectar" de um post. Guarda as contagens que a
 -- tabela de posts mostra ("—" enquanto não roda). new_qualified só é preenchido na

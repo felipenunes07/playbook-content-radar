@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.prospect-post]
 verify_jwt = false
+
+[functions.enrich-leads]
+verify_jwt = false
+
+[functions.lead-outreach]
+verify_jwt = false

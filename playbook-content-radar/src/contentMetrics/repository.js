@@ -10,6 +10,9 @@ const empty = {
   runs: [],
   growth: [],
   prospecting: [],
+  leads: [],
+  leadOutreach: [],
+  leadComments: [],
 };
 
 function latestDate(rows, fallback) {
@@ -61,7 +64,7 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
     const linkedinResult = await supabase.from('v_latest_linkedin_post_metrics').select('*');
     if (linkedinResult.error) throw new Error(linkedinResult.error.message || 'Falha ao ler métricas do LinkedIn');
 
-    const [youtubeResult, instagramResult, accountsResult, importsResult, runsResult, accountMetricsResult, prospectingResult] = await Promise.all([
+    const [youtubeResult, instagramResult, accountsResult, importsResult, runsResult, accountMetricsResult, prospectingResult, leadsResult, leadOutreachResult, leadCommentsResult] = await Promise.all([
       supabase.from('v_latest_youtube_video_metrics').select('*'),
       supabase.from('v_latest_instagram_post_metrics').select('*'),
       supabase.from('content_accounts').select('*'),
@@ -69,6 +72,9 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
       supabase.from('collection_runs').select('*'),
       supabase.from('account_daily_metrics').select('*'),
       supabase.from('v_post_prospecting_stats').select('*'),
+      supabase.from('leads').select('*'),
+      supabase.from('lead_outreach').select('*'),
+      supabase.from('lead_comments').select('lead_id, post_id, comment_text, commented_at, created_at'),
     ]);
     const accounts = accountsResult.data || [];
     const growth = buildAccountGrowth(accountMetricsResult.data || [], accounts);
@@ -83,6 +89,11 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
       runs: runsResult.data || [],
       growth,
       prospecting: prospectingResult.data || [],
+      // Mais recentes primeiro (ordenado aqui, não no PostgREST, pra manter o
+      // contrato simples de select('*') que o restante do carregamento usa).
+      leads: (leadsResult.data || []).slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))),
+      leadOutreach: leadOutreachResult.data || [],
+      leadComments: leadCommentsResult.data || [],
       freshness: latestDate(linkedinResult.data || []),
       warning: [youtubeResult, accountsResult, importsResult, runsResult, accountMetricsResult, prospectingResult]
         .map((result) => result.error?.message)

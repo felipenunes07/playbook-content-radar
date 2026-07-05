@@ -698,6 +698,231 @@ function YoutubeSection({ data, videos, filters, setFilters, onSettings }) {
   return <><YoutubeFilters filters={filters} onChange={setFilters} videos={data.youtube} /><div className="cm-metric-strip"><div className="cm-metric"><span>Vídeos</span><strong>{totals.videos}</strong></div><div className="cm-metric"><span>Views</span><strong>{integer.format(totals.views)}</strong></div><div className="cm-metric"><span>Likes</span><strong>{integer.format(totals.likes)}</strong></div><div className="cm-metric"><span>Comentários</span><strong>{integer.format(totals.comments)}</strong></div><div className="cm-metric"><span>Engagement</span><strong>{integer.format(totals.engagement)}</strong></div><div className="cm-metric"><span>Taxa média</span><strong>{totals.engagementRate.toLocaleString('pt-BR')}%</strong></div></div><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Publicação</span><h2>Vídeos publicados por mês</h2></div><small>{trend.length} períodos</small></div><ContentTrendChart data={trend} metric="posts" color="#e52d27" /></section>{growthSection}<YoutubeVideosTable rows={[...videos].sort((a, b) => Number(b.views || 0) - Number(a.views || 0)).slice(0, 50)} title="Top vídeos por views" /></>;
 }
 
+// ————— Prospecção: banco de leads (Fase 3) —————
+// Lista quem comentou nos posts e virou lead. Default mostra os qualificados
+// (decisão da call de 04/07: "esses 700 eu não preciso ver" — os demais existem no
+// banco só pro de-para, mas dá pra inspecioná-los pelos filtros).
+
+const leadFilterChips = [
+  { id: 'qualified', label: 'Aprovados' },
+  { id: 'review', label: 'Revisar' },
+  { id: 'pending', label: 'Aguardando análise' },
+  { id: 'disqualified', label: 'Descartados' },
+  { id: 'all', label: 'Todos' },
+];
+
+const seniorityLabels = { 'c-level': 'C-Level', diretoria: 'Diretoria', gerencia: 'Gerência', coordenacao: 'Coordenação', operacional: 'Operacional', desconhecido: '—' };
+
+function MessageModal({ lead, message, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(message); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* clipboard bloqueado */ }
+  };
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: 16 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 22, width: 'min(560px, 100%)', boxShadow: '0 20px 50px rgba(15,23,42,0.25)' }} onClick={(e) => e.stopPropagation()}>
+        <span className="cm-eyebrow">Mensagem de 1º contato</span>
+        <h2 style={{ margin: '4px 0 12px', fontSize: 17 }}>{lead?.full_name || 'Lead'}</h2>
+        <textarea readOnly value={message} style={{ width: '100%', minHeight: 160, border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, fontSize: 13.5, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit', color: '#0f172a' }} />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+          <button type="button" onClick={onClose} style={{ background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Fechar</button>
+          <button type="button" onClick={copy} style={{ background: copied ? '#059669' : '#0a66c2', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{copied ? 'Copiado ✓' : 'Copiar mensagem'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LeadsSection({ data, client, onNotice, onReload }) {
+  const [filter, setFilter] = useState('qualified');
+  const [enriching, setEnriching] = useState(false);
+  const [busyLead, setBusyLead] = useState('');
+  const [modal, setModal] = useState(null); // { lead, message }
+  const [outreachOverrides, setOutreachOverrides] = useState({});
+
+  const leads = data?.leads || [];
+  const outreachByLead = useMemo(() => {
+    const map = {};
+    (data?.leadOutreach || []).forEach((o) => { map[o.lead_id] = o; });
+    return { ...map, ...outreachOverrides };
+  }, [data?.leadOutreach, outreachOverrides]);
+
+  const postHookById = useMemo(() => {
+    const map = {};
+    (data?.linkedin || []).forEach((post) => { if (post.id) map[post.id] = post.hook || post.content?.slice(0, 60) || ''; });
+    return map;
+  }, [data?.linkedin]);
+
+  const counts = useMemo(() => ({
+    qualified: leads.filter((l) => l.qualification_status === 'qualified').length,
+    review: leads.filter((l) => l.qualification_status === 'review').length,
+    pending: leads.filter((l) => l.qualification_status === 'pending').length,
+    disqualified: leads.filter((l) => l.qualification_status === 'disqualified').length,
+    all: leads.length,
+  }), [leads]);
+
+  // Comentário mais recente de cada lead (o "comentário feito" da lista do escopo).
+  const commentByLead = useMemo(() => {
+    const map = {};
+    (data?.leadComments || [])
+      .slice()
+      .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
+      .forEach((c) => { map[c.lead_id] = c; });
+    return map;
+  }, [data?.leadComments]);
+
+  const visible = useMemo(() => {
+    if (filter === 'all') return leads;
+    return leads.filter((l) => l.qualification_status === filter);
+  }, [leads, filter]);
+
+  const pendingEnrichment = leads.filter((l) => l.enrichment_status === 'pending').length;
+
+  const runEnrich = async () => {
+    if (!client?.functions?.invoke) { onNotice('Enriquecimento indisponível no modo offline.'); return; }
+    setEnriching(true);
+    try {
+      const { data: res, error } = await client.functions.invoke('enrich-leads', { body: { manual: true, limit: 10 } });
+      if (error) throw error;
+      if (!res?.success) throw new Error(res?.error || 'Falha no enriquecimento');
+      onNotice(`Lote enriquecido: ${res.processed} analisado(s), ${res.qualified} qualificado(s), ${res.prefiltered} cortado(s) no pré-filtro. Restam ${res.remaining} na fila.`);
+      await onReload?.();
+    } catch (e) {
+      onNotice(`Falha no enriquecimento: ${e?.message || e}`);
+    } finally {
+      setEnriching(false);
+    }
+  };
+
+  const generateMessage = async (lead) => {
+    if (!client?.functions?.invoke) { onNotice('Geração de mensagem indisponível no modo offline.'); return; }
+    const existing = outreachByLead[lead.id];
+    if (existing?.generated_message) { setModal({ lead, message: existing.generated_message }); return; }
+    setBusyLead(lead.id);
+    try {
+      const { data: res, error } = await client.functions.invoke('lead-outreach', { body: { manual: true, action: 'generate_message', leadId: lead.id } });
+      if (error) throw error;
+      if (!res?.success) throw new Error(res?.error || 'Falha ao gerar mensagem');
+      setOutreachOverrides((prev) => ({ ...prev, [lead.id]: { ...(outreachByLead[lead.id] || {}), lead_id: lead.id, generated_message: res.message, status: res.status || 'new' } }));
+      setModal({ lead, message: res.message });
+    } catch (e) {
+      onNotice(`Falha ao gerar mensagem: ${e?.message || e}`);
+    } finally {
+      setBusyLead('');
+    }
+  };
+
+  // Marca prospectado/ignorado (toggle: repetir volta pra "new"). Otimista na tela,
+  // desfaz se a API falhar.
+  const setOutreachStatus = async (lead, targetStatus) => {
+    if (!client?.functions?.invoke) { onNotice('Indisponível no modo offline.'); return; }
+    const current = outreachByLead[lead.id]?.status || 'new';
+    const nextStatus = current === targetStatus ? 'new' : targetStatus;
+    setOutreachOverrides((prev) => ({ ...prev, [lead.id]: { ...(outreachByLead[lead.id] || {}), lead_id: lead.id, status: nextStatus } }));
+    try {
+      const { data: res, error } = await client.functions.invoke('lead-outreach', { body: { manual: true, action: 'set_status', leadId: lead.id, status: nextStatus } });
+      if (error) throw error;
+      if (!res?.success) throw new Error(res?.error || 'Falha ao atualizar status');
+    } catch (e) {
+      setOutreachOverrides((prev) => ({ ...prev, [lead.id]: { ...(outreachByLead[lead.id] || {}), lead_id: lead.id, status: current } }));
+      onNotice(`Falha ao atualizar status: ${e?.message || e}`);
+    }
+  };
+
+  return (
+    <section className="cm-table-section">
+      <div className="cm-section-heading">
+        <div>
+          <span className="cm-eyebrow">Banco de leads</span>
+          <h2>Quem comentou e virou lead</h2>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {pendingEnrichment > 0 && (
+            <button type="button" onClick={runEnrich} disabled={enriching}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, cursor: enriching ? 'default' : 'pointer', opacity: enriching ? 0.7 : 1 }}
+              title="Roda profile + empresa + agente de qualificação num lote de 10 leads">
+              <RefreshCw size={13} className={enriching ? 'spin' : ''} />
+              {enriching ? 'Enriquecendo…' : `Analisar fila (${integer.format(pendingEnrichment)} pendentes)`}
+            </button>
+          )}
+          <small>{integer.format(visible.length)} leads</small>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        {leadFilterChips.map((chip) => (
+          <button key={chip.id} type="button" onClick={() => setFilter(chip.id)}
+            style={{ border: '1px solid', borderColor: filter === chip.id ? '#0a66c2' : '#e2e8f0', background: filter === chip.id ? '#eff6ff' : '#fff', color: filter === chip.id ? '#0a66c2' : '#475569', borderRadius: 999, padding: '6px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+            {chip.label} · {integer.format(counts[chip.id])}
+          </button>
+        ))}
+      </div>
+      {!visible.length ? (
+        <div className="cm-empty">
+          {counts.all === 0
+            ? 'Nenhum lead ainda. Rode "Prospectar" num post acima para raspar quem comentou.'
+            : 'Nenhum lead neste filtro.'}
+        </div>
+      ) : (
+        <div className="cm-table-wrap">
+          <table className="cm-table">
+            <thead><tr>
+              <th>Lead</th><th title="Score 0-100 do agente de qualificação">Score</th><th>Cargo</th><th>Empresa</th><th>Porte</th><th>Comentário feito</th><th>Post de origem</th><th title="Motivo da decisão + ângulo sugerido de abordagem">Motivo / ângulo</th><th>Mensagem</th><th style={{ textAlign: 'center' }}>Prospectado</th><th style={{ textAlign: 'center' }}>Ignorar</th>
+            </tr></thead>
+            <tbody>
+              {visible.map((lead) => {
+                const outreach = outreachByLead[lead.id];
+                const prospected = outreach?.status === 'prospected';
+                const ignored = outreach?.status === 'ignored';
+                const comment = commentByLead[lead.id];
+                return (
+                  <tr key={lead.id} style={(prospected || ignored) ? { opacity: 0.55 } : undefined}>
+                    <td>
+                      <strong>{lead.full_name || lead.public_identifier || '—'}</strong>
+                      {lead.profile_url && <a className="cm-open" href={lead.profile_url} target="_blank" rel="noreferrer" aria-label={`Abrir perfil de ${lead.full_name || 'lead'}`} style={{ marginLeft: 6, display: 'inline-flex', verticalAlign: 'middle' }}><ExternalLink size={13} /></a>}
+                      {ignored && <small style={{ display: 'block', color: '#94a3b8' }}>Ignorado</small>}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      {lead.score != null
+                        ? <strong style={{ color: lead.score >= 70 ? '#059669' : lead.score >= 40 ? '#d97706' : '#94a3b8' }}>{lead.score}</strong>
+                        : '—'}
+                    </td>
+                    <td style={{ maxWidth: 200 }}><span title={lead.headline || ''}>{lead.job_title || lead.headline || '—'}</span>{lead.area && lead.area !== 'desconhecido' && <small style={{ display: 'block', color: '#94a3b8' }}>{lead.area}{seniorityLabels[lead.seniority] && seniorityLabels[lead.seniority] !== '—' ? ` · ${seniorityLabels[lead.seniority]}` : ''}</small>}</td>
+                    <td>{lead.company_name || (lead.enrichment_status === 'enriched' ? 'Sem emprego atual' : '—')}</td>
+                    <td>{lead.company_size ? integer.format(lead.company_size) : '—'}</td>
+                    <td style={{ maxWidth: 220 }}><small style={{ color: '#475569' }} title={comment?.comment_text || ''}>{comment?.comment_text ? `“${String(comment.comment_text).slice(0, 90)}${String(comment.comment_text).length > 90 ? '…' : ''}”` : '—'}</small></td>
+                    <td style={{ maxWidth: 180 }}><small>{postHookById[comment?.post_id || lead.first_seen_post_id] || '—'}</small></td>
+                    <td style={{ maxWidth: 260 }}>
+                      <small style={{ color: '#64748b' }}>{lead.qualification_reason || (lead.enrichment_status === 'pending' ? 'Aguardando análise' : '—')}</small>
+                      {lead.suggested_angle && <small style={{ display: 'block', color: '#0a66c2', fontStyle: 'italic', marginTop: 3 }} title="Ângulo sugerido de abordagem">→ {lead.suggested_angle}</small>}
+                    </td>
+                    <td>
+                      <button type="button" onClick={() => generateMessage(lead)} disabled={busyLead === lead.id}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: outreach?.generated_message ? '#f1f5f9' : '#0a66c2', color: outreach?.generated_message ? '#334155' : '#fff', border: 'none', borderRadius: 7, padding: '6px 11px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        {busyLead === lead.id ? <RefreshCw size={12} className="spin" /> : <MessageSquare size={12} />}
+                        {busyLead === lead.id ? 'Gerando…' : outreach?.generated_message ? 'Ver mensagem' : 'Gerar mensagem'}
+                      </button>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <input type="checkbox" checked={prospected} onChange={() => setOutreachStatus(lead, 'prospected')} aria-label={`Marcar ${lead.full_name || 'lead'} como prospectado`} style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#059669' }} />
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button type="button" onClick={() => setOutreachStatus(lead, 'ignored')} aria-label={`${ignored ? 'Reativar' : 'Ignorar'} ${lead.full_name || 'lead'}`} title={ignored ? 'Reativar lead' : 'Ignorar lead (não prospectar)'}
+                        style={{ background: ignored ? '#fee2e2' : '#f1f5f9', color: ignored ? '#b91c1c' : '#64748b', border: 'none', borderRadius: 7, padding: '5px 10px', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>
+                        {ignored ? 'Reativar' : 'Ignorar'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {modal && <MessageModal lead={modal.lead} message={modal.message} onClose={() => setModal(null)} />}
+    </section>
+  );
+}
+
 function PostsSection({ filtered, allPosts, filters, setFilters, onAction, prospecting, runningIds, onProspect, showProspecting = false }) {
   return <><div className="cm-executive-toolbar compact"><CreatorToggle selectedOwner={filters.owner || ''} onChange={(owner) => setFilters({ ...filters, owner })} /></div><ContentFilters filters={filters} onChange={setFilters} posts={allPosts} compact advanced hideOwner /><OperationalPostsTable rows={rankContent(filtered, 'engagement_score', 250)} onAction={onAction} prospecting={prospecting} runningIds={runningIds} onProspect={onProspect} showProspecting={showProspecting} /></>;
 }
@@ -836,6 +1061,13 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     return [...linkedin, ...youtube, ...instagram];
   }, [data]);
 
+  // Recarrega tudo do Supabase sem resetar filtros — usado depois de prospectar/
+  // enriquecer pra trazer leads e contagens novas sem F5.
+  const reloadData = async () => {
+    const result = await loadContentMetrics({ supabase: client });
+    setData(result);
+  };
+
   // Números de prospecção por post: parte do que veio do banco (última execução de
   // cada post) e sobrepõe o resultado das execuções feitas nesta sessão.
   const prospectingByPost = useMemo(() => {
@@ -864,6 +1096,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
         },
       }));
       setOperationMessage(`Prospecção concluída: ${integer.format(res.totalLeads || 0)} leads, ${integer.format(res.opportunities || 0)} oportunidade(s) nova(s).`);
+      await reloadData().catch(() => {});
     } catch (e) {
       setOperationMessage(`Falha na prospecção: ${e?.message || e}`);
     } finally {
@@ -885,6 +1118,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       <SourceNotice data={data} />
       {operationMessage && <div className="cm-operation-message">{operationMessage}<button type="button" onClick={() => setOperationMessage('')}>Fechar</button></div>}
       <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} prospecting={prospectingByPost} runningIds={prospectingRunning} onProspect={handleProspect} onAction={() => {}} showProspecting />
+      <LeadsSection data={data} client={client} onNotice={setOperationMessage} onReload={reloadData} />
     </div>;
   }
 

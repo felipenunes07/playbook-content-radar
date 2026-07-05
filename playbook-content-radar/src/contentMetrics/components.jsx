@@ -179,9 +179,11 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('engagement_score')}>Score{getSortIcon('engagement_score')}</th>
                 <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('classification_status')}>Classificação{getSortIcon('classification_status')}</th>
                 {showProspecting && <>
+                  <th title="Status da última execução da prospecção deste post">Processo</th>
+                  <th title="Total de comentários extraídos na última prospecção">Coment. extraídos</th>
                   <th title="Comentaristas únicos raspados no post">Leads</th>
                   <th title="Leads novos (ainda não no banco) = oportunidades de prospecção">Oport.</th>
-                  <th title="Leads novos que passaram no filtro de qualificação (Fase 2)">Qualif.</th>
+                  <th title="Leads novos que passaram no filtro de qualificação (ICP)">Qualif.</th>
                 </>}
                 <th>Ações</th>
               </tr>
@@ -209,6 +211,16 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
                     <StatusPill status={row.classification_status || 'pending'} />
                   </td>
                   {showProspecting && <>
+                    <td style={{ textAlign: 'center' }}>
+                      {isRunning(row.id)
+                        ? <span className="cm-status pending">Rodando…</span>
+                        : prospecting[row.id]?.status
+                          ? <StatusPill status={prospecting[row.id].status} />
+                          : <span style={{ color: '#cbd5e1' }}>—</span>}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <ProspectValue value={prospecting[row.id]?.total_comments} running={isRunning(row.id)} />
+                    </td>
                     <td style={{ textAlign: 'center' }}>
                       <ProspectValue value={prospecting[row.id]?.total_leads} running={isRunning(row.id)} />
                     </td>

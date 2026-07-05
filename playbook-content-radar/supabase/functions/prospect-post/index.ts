@@ -41,7 +41,9 @@ function normalizeComment(item: Record<string, any>) {
     profileUrl: profileUrl ? String(profileUrl) : null,
     fullName: pick(author, ['name', 'fullName', 'displayName']),
     headline: pick(author, ['position', 'headline', 'occupation', 'subtitle']),
-    commentText: pick(item, ['commentText', 'text', 'comment', 'body']),
+    // harvestapi usa "commentary" (payload real conferido em 05/07); os demais são
+    // fallbacks pra troca futura de actor.
+    commentText: pick(item, ['commentary', 'commentText', 'text', 'comment', 'body']),
     commentUrn: pick(item, ['commentUrn', 'urn', 'id', 'commentId']),
     commentedAt: pick(item, ['createdAt', 'commentedAt', 'postedAt', 'date', 'time']),
   };
@@ -114,15 +116,23 @@ Deno.serve(async (request) => {
     }, deadlineAt);
 
     const rawItems = Array.isArray(items) ? items : [];
+
+    // Donos das contas monitoradas não são leads (Victor/Fernando respondem os
+    // próprios posts — apareceriam em toda extração).
+    const { data: ownAccounts } = await client.from('content_accounts').select('handle').eq('platform', 'linkedin');
+    const ownHandles = new Set((ownAccounts || []).map((a) => String(a.handle || '').toLowerCase()).filter(Boolean));
+
     // Deduplica os comentaristas do próprio post pela public_identifier (uma pessoa
     // pode comentar mais de uma vez). Guardamos o comentário mais recente por pessoa.
-    const byIdentifier = new Map<string, ReturnType<typeof normalizeComment>>();
+    const byIdentifier = new Map<string, ReturnType<typeof normalizeComment> & { raw?: Record<string, unknown> }>();
     let skipped = 0;
     for (const item of rawItems) {
       const c = normalizeComment(item);
       const key = c.publicIdentifier || c.profileUrl;
       if (!key) { skipped += 1; continue; }
-      byIdentifier.set(key, { ...c, publicIdentifier: c.publicIdentifier || extractPublicIdentifier(String(c.profileUrl)) });
+      const identifier = c.publicIdentifier || extractPublicIdentifier(String(c.profileUrl));
+      if (identifier && ownHandles.has(identifier)) continue;
+      byIdentifier.set(key, { ...c, publicIdentifier: identifier, raw: item });
     }
 
     const commenters = [...byIdentifier.entries()].map(([key, c]) => ({ key, ...c }));
@@ -168,6 +178,7 @@ Deno.serve(async (request) => {
           comment_text: c.commentText,
           comment_urn: c.commentUrn ? String(c.commentUrn) : null,
           commented_at: toTimestamp(c.commentedAt),
+          raw: (c as any).raw || {},
         };
       })
       .filter(Boolean);
@@ -177,12 +188,23 @@ Deno.serve(async (request) => {
       if (commentError) throw commentError;
     }
 
+    // new_qualified: num re-run o job novo não pode "apagar" o contador — recalcula
+    // dos leads já qualificados deste post; fica null enquanto houver análise pendente
+    // (o enrich-leads atualiza depois).
+    const { count: pendingCount } = await client.from('leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('first_seen_post_id', post.id).eq('enrichment_status', 'pending');
+    const { count: qualifiedCount } = await client.from('leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('first_seen_post_id', post.id).eq('qualification_status', 'qualified');
+
     const status = skipped ? 'partial' : 'success';
     await client.from('prospecting_jobs').update({
       status,
       total_comments: rawItems.length,
       total_leads: commenters.length,
       opportunities: newCommenters.length,
+      new_qualified: (pendingCount ?? 0) > 0 ? null : (qualifiedCount ?? 0),
       finished_at: new Date().toISOString(),
       error_message: skipped ? `${skipped} comentário(s) sem identificador de perfil descartado(s)` : null,
       raw: { skipped, actorId },
