@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Activity, BarChart3, Database, ExternalLink, FileClock, MessageSquare,
+  Activity, BarChart3, Database, ExternalLink, FileClock, FileText, Image as ImageIcon, MessageSquare,
   Play, RefreshCw, Settings, SlidersHorizontal, Users, Video,
 } from 'lucide-react';
 
@@ -783,12 +783,73 @@ function IcpSettingsModal({ settings, client, onClose, onNotice, onReload }) {
   );
 }
 
+// Miniatura pequena de um post (usada no dropdown de filtro por post).
+function PostMiniThumb({ post, size = 34 }) {
+  const [failed, setFailed] = useState(false);
+  const base = { width: size, height: size, borderRadius: 6, flexShrink: 0, objectFit: 'cover', border: '1px solid #e2e8f0' };
+  if (!failed && post?.media_url && post.media_type === 'image') {
+    return <img src={post.media_url} alt="" loading="lazy" onError={() => setFailed(true)} style={base} />;
+  }
+  if (!failed && post?.media_url && post.media_type === 'video') {
+    return <video src={`${post.media_url}#t=0.1`} muted playsInline preload="metadata" onError={() => setFailed(true)} style={base} />;
+  }
+  const Glyph = post?.format === 'video' || post?.media_type === 'video' ? Video : post?.format === 'text' ? FileText : ImageIcon;
+  return <span style={{ ...base, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#eef2f7', color: '#94a3b8' }}><Glyph size={16} /></span>;
+}
+
+// Filtro por post COM foto: um select nativo não mostra imagem, então é um dropdown
+// custom (botão + popover) com a miniatura + autor + hook de cada post que tem lead.
+function PostPhotoFilter({ options, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+  const selected = options.find((p) => p.id === value);
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-label="Filtrar por post"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: '1px solid #e2e8f0', borderRadius: 8, padding: '5px 10px', fontSize: 12.5, color: '#334155', background: '#fff', cursor: 'pointer', maxWidth: 360 }}>
+        {selected ? <PostMiniThumb post={selected} size={26} /> : null}
+        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 260 }}>
+          {selected ? String(selected.hook).slice(0, 46) : 'Post: todos'}
+        </span>
+        <span style={{ color: '#94a3b8' }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', zIndex: 50, top: '110%', left: 0, width: 420, maxHeight: 340, overflowY: 'auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, boxShadow: '0 12px 30px rgba(15,23,42,0.15)', padding: 6 }}>
+          <button type="button" onClick={() => { onChange(''); setOpen(false); }}
+            style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 10px', border: 'none', background: !value ? '#eff6ff' : 'transparent', borderRadius: 8, cursor: 'pointer', fontSize: 12.5, color: '#334155', textAlign: 'left' }}>
+            Todos os posts
+          </button>
+          {options.map((post) => (
+            <button key={post.id} type="button" onClick={() => { onChange(post.id); setOpen(false); }}
+              style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 10px', border: 'none', background: value === post.id ? '#eff6ff' : 'transparent', borderRadius: 8, cursor: 'pointer', textAlign: 'left' }}>
+              <PostMiniThumb post={post} />
+              <span style={{ minWidth: 0 }}>
+                <strong style={{ display: 'block', fontSize: 12.5, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{String(post.hook).slice(0, 60)}</strong>
+                <small style={{ color: '#94a3b8' }}>{post.owner ? post.owner.split(' ')[0] : '—'}</small>
+              </span>
+            </button>
+          ))}
+          {!options.length && <div style={{ padding: 12, fontSize: 12.5, color: '#94a3b8' }}>Nenhum post com lead ainda.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LeadsSection({ data, client, onNotice, onReload }) {
   const [filter, setFilter] = useState('qualified');
   const [postFilter, setPostFilter] = useState('');
   const [creatorFilter, setCreatorFilter] = useState('');
   const [enriching, setEnriching] = useState(false);
   const [progress, setProgress] = useState(null); // { done, total, qualified, status: 'running'|'done'|'error', message }
+  const [analyzingIds, setAnalyzingIds] = useState(() => new Set()); // leads no lote em análise agora
+  const [sortConfig, setSortConfig] = useState({ key: 'score', direction: 'desc' });
   const stopEnrichRef = React.useRef(false);
   const [busyLead, setBusyLead] = useState('');
   const [modal, setModal] = useState(null); // { lead, message }
@@ -805,7 +866,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
   const postsById = useMemo(() => {
     const map = {};
     (data?.linkedin || []).forEach((post) => {
-      if (post.id) map[post.id] = { hook: post.hook || post.content?.slice(0, 60) || '', owner: post.owner_name || '' };
+      if (post.id) map[post.id] = { hook: post.hook || post.content?.slice(0, 60) || '', owner: post.owner_name || '', media_url: post.media_url, media_type: post.media_type, format: post.format };
     });
     return map;
   }, [data?.linkedin]);
@@ -845,29 +906,68 @@ function LeadsSection({ data, client, onNotice, onReload }) {
     return [...seen.entries()].map(([id, post]) => ({ id, ...post }));
   }, [leads, commentByLead, postsById]);
 
+  // Valor de ordenação por coluna (o nome do lead, empresa etc. são texto; score e
+  // porte são número). Comentário/post usam o texto correspondente.
+  const sortValue = (lead, key) => {
+    switch (key) {
+      case 'full_name': return (lead.full_name || lead.public_identifier || '').toLowerCase();
+      case 'score': return lead.score == null ? -1 : lead.score;
+      case 'job_title': return (lead.job_title || lead.headline || '').toLowerCase();
+      case 'company_name': return (lead.company_name || '').toLowerCase();
+      case 'company_size': return lead.company_size == null ? -1 : lead.company_size;
+      case 'comment': return (commentByLead[lead.id]?.comment_text || '').toLowerCase();
+      case 'post': return (postHookById[leadPostId(lead)] || '').toLowerCase();
+      default: return '';
+    }
+  };
+
   const visible = useMemo(() => {
     let list = filter === 'all' ? leads : leads.filter((l) => (leadStatusSets[filter] || []).includes(l.qualification_status));
     if (postFilter) list = list.filter((l) => leadPostId(l) === postFilter);
     if (creatorFilter) list = list.filter((l) => postsById[leadPostId(l)]?.owner === creatorFilter);
-    return list;
-  }, [leads, filter, postFilter, creatorFilter, commentByLead, postsById]);
+    const sorted = [...list].sort((a, b) => {
+      const av = sortValue(a, sortConfig.key);
+      const bv = sortValue(b, sortConfig.key);
+      if (av < bv) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (av > bv) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [leads, filter, postFilter, creatorFilter, commentByLead, postsById, sortConfig]);
 
-  const pendingEnrichment = leads.filter((l) => l.enrichment_status === 'pending').length;
+  const requestSort = (key) => {
+    setSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc' }));
+  };
+  const sortArrow = (key) => (sortConfig.key !== key ? ' ↕' : sortConfig.direction === 'asc' ? ' ▲' : ' ▼');
 
-  // Analisa a fila INTEIRA: roda lotes de 5 (cada lote ~1min: scrape + IA com
-  // rate limit) até zerar, atualizando o painel de progresso a cada lote. Lotes
-  // pequenos evitam o timeout de gateway que fazia o clique "não terminar nunca".
+  // Fila pendente na ordem que o backend processa (mais antigos primeiro).
+  const pendingQueue = useMemo(() => (
+    leads
+      .filter((l) => l.enrichment_status === 'pending')
+      .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
+  ), [leads]);
+  const pendingEnrichment = pendingQueue.length;
+
+  // Analisa a fila INTEIRA em lotes até zerar. O backend processa os mais antigos
+  // primeiro, então a ordem do snapshot inicial da fila = ordem de processamento:
+  // usamos isso pra destacar na tabela exatamente quais leads estão sendo analisados
+  // agora. Lotes pequenos evitam o timeout de gateway que travava o clique.
+  const ENRICH_BATCH = 3;
   const runEnrich = async () => {
     if (!client?.functions?.invoke) { onNotice('Enriquecimento indisponível no modo offline.'); return; }
     stopEnrichRef.current = false;
     setEnriching(true);
-    const total = pendingEnrichment;
+    setFilter('pending'); // mostra os que vão ser analisados
+    const queue = pendingQueue; // snapshot estável na ordem de processamento
+    const total = queue.length;
     let done = 0;
     let qualifiedTotal = 0;
     setProgress({ status: 'running', done, total, qualified: qualifiedTotal });
+    setAnalyzingIds(new Set(queue.slice(0, ENRICH_BATCH).map((l) => l.id)));
+    let rateLimitStreak = 0;
     try {
-      for (let batch = 0; batch < 60; batch += 1) {
-        const { data: res, error } = await client.functions.invoke('enrich-leads', { body: { manual: true, limit: 5 } });
+      for (let batch = 0; batch < 200; batch += 1) {
+        const { data: res, error } = await client.functions.invoke('enrich-leads', { body: { manual: true, limit: ENRICH_BATCH } });
         if (error) throw error;
         if (res?.busy) throw new Error(res.error || 'Já existe uma análise em andamento.');
         if (!res?.success) throw new Error(res?.error || 'Falha no enriquecimento');
@@ -875,19 +975,31 @@ function LeadsSection({ data, client, onNotice, onReload }) {
         qualifiedTotal += res.qualified || 0;
         const remaining = res.remaining ?? 0;
         setProgress({ status: 'running', done, total: Math.max(total, done + remaining), qualified: qualifiedTotal });
+        setAnalyzingIds(new Set(queue.slice(done, done + ENRICH_BATCH).map((l) => l.id)));
         // Recarrega a cada lote: os leads analisados já aparecem na lista.
         await onReload?.().catch(() => {});
         if (remaining <= 0) break;
         if (stopEnrichRef.current) break;
         if ((res.errors || []).length && !res.processed && !res.rateLimited) throw new Error(res.errors[0]?.error || 'Lote falhou por completo');
-        // Rate limit da IA: espera a janela virar antes do próximo lote.
-        if (res.rateLimited) await new Promise((resolve) => setTimeout(resolve, 45000));
+        // Rate limit da IA: espera a janela virar. Se persistir (cota diária do
+        // provedor esgotada), para depois de 3 tentativas seguidas em vez de rodar
+        // pra sempre.
+        if (res.rateLimited) {
+          rateLimitStreak += 1;
+          if (rateLimitStreak >= 3) throw new Error('A IA está sem cota no momento (limite do provedor). Os leads restantes continuam pendentes — tente novamente mais tarde.');
+          setProgress({ status: 'running', done, total: Math.max(total, done + remaining), qualified: qualifiedTotal, note: 'IA em espera (limite de taxa) — retomando em instantes…' });
+          await new Promise((resolve) => setTimeout(resolve, 45000));
+        } else {
+          rateLimitStreak = 0;
+        }
       }
       setProgress({ status: 'done', done, total: done, qualified: qualifiedTotal });
+      setFilter('qualified'); // volta pros aprovados no fim
     } catch (e) {
       setProgress({ status: 'error', done, total, qualified: qualifiedTotal, message: String(e?.message || e) });
     } finally {
       setEnriching(false);
+      setAnalyzingIds(new Set());
       await onReload?.().catch(() => {});
     }
   };
@@ -978,27 +1090,30 @@ function LeadsSection({ data, client, onNotice, onReload }) {
               <div className="cm-progress-fill" style={{ width: `${progress.total ? Math.max(4, Math.round((progress.done / progress.total) * 100)) : 4}%`, height: '100%', borderRadius: 999 }} />
             </div>
           )}
+          {progress.status === 'running' && progress.note && (
+            <small style={{ display: 'block', marginTop: 6, color: '#b45309', fontWeight: 600 }}>{progress.note}</small>
+          )}
           {progress.status === 'running' && (
             <small style={{ display: 'block', marginTop: 6, color: '#3b5a90' }}>
-              Cada lead leva ~10s (scrape do perfil + empresa + análise da IA). A lista atualiza a cada lote de 5 — pode continuar navegando.
+              Cada lead leva de 15 a 40s (scrape do perfil + empresa + análise da IA). Os leads em análise agora estão destacados na lista abaixo — pode continuar navegando.
             </small>
           )}
         </div>
       )}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
-        <select value={creatorFilter} onChange={(e) => setCreatorFilter(e.target.value)} aria-label="Filtrar por criador"
-          style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 10px', fontSize: 12.5, color: '#334155', background: '#fff' }}>
-          <option value="">Criador: todos</option>
-          <option value="Victor Baggio">Victor</option>
-          <option value="Fernando Tedesco">Fernando</option>
-        </select>
-        <select value={postFilter} onChange={(e) => setPostFilter(e.target.value)} aria-label="Filtrar por post"
-          style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 10px', fontSize: 12.5, color: '#334155', background: '#fff', maxWidth: 380 }}>
-          <option value="">Post: todos</option>
-          {postOptions.map((post) => (
-            <option key={post.id} value={post.id}>{post.owner ? `${post.owner.split(' ')[0]} · ` : ''}{String(post.hook).slice(0, 70)}</option>
+        <div className="cm-creator-toggle" aria-label="Filtrar por criador" style={{ margin: 0 }}>
+          {[{ owner: '', label: 'Ambos', photo: null }, { owner: 'Victor Baggio', label: 'Victor', photo: victorPhoto }, { owner: 'Fernando Tedesco', label: 'Fernando', photo: fernandoPhoto }].map((c) => (
+            <button key={c.label} type="button" className={creatorFilter === c.owner ? 'active' : ''} onClick={() => { setCreatorFilter(c.owner); setPostFilter(''); }} aria-pressed={creatorFilter === c.owner}>
+              {c.photo ? <img src={c.photo} alt={c.label} /> : <span className="cm-avatar-stack"><img src={victorPhoto} alt="" /><img src={fernandoPhoto} alt="" /></span>}
+              <span>{c.label}</span>
+            </button>
           ))}
-        </select>
+        </div>
+        <PostPhotoFilter
+          options={postOptions.filter((p) => !creatorFilter || p.owner === creatorFilter)}
+          value={postFilter}
+          onChange={setPostFilter}
+        />
         {(postFilter || creatorFilter) && (
           <button type="button" onClick={() => { setPostFilter(''); setCreatorFilter(''); }}
             style={{ background: 'transparent', border: 'none', color: '#0a66c2', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}>
@@ -1024,7 +1139,14 @@ function LeadsSection({ data, client, onNotice, onReload }) {
         <div className="cm-table-wrap">
           <table className="cm-table">
             <thead><tr>
-              <th>Lead</th><th title="Score 0-100 do agente de qualificação">Score</th><th>Cargo</th><th>Empresa</th><th>Porte</th><th>Comentário feito</th><th>Post de origem</th><th title="Motivo da decisão + ângulo sugerido de abordagem">Motivo / ângulo</th><th>Mensagem</th><th style={{ textAlign: 'center' }}>Prospectado</th><th style={{ textAlign: 'center' }}>Ignorar</th>
+              <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('full_name')}>Lead{sortArrow('full_name')}</th>
+              <th style={{ cursor: 'pointer', userSelect: 'none' }} title="Score 0-100 do agente de qualificação" onClick={() => requestSort('score')}>Score{sortArrow('score')}</th>
+              <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('job_title')}>Cargo{sortArrow('job_title')}</th>
+              <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('company_name')}>Empresa{sortArrow('company_name')}</th>
+              <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('company_size')}>Porte{sortArrow('company_size')}</th>
+              <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('comment')}>Comentário feito{sortArrow('comment')}</th>
+              <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('post')}>Post de origem{sortArrow('post')}</th>
+              <th title="Motivo da decisão + ângulo sugerido de abordagem">Motivo / ângulo</th><th>Mensagem</th><th style={{ textAlign: 'center' }}>Prospectado</th><th style={{ textAlign: 'center' }}>Ignorar</th>
             </tr></thead>
             <tbody>
               {visible.map((lead) => {
@@ -1032,11 +1154,13 @@ function LeadsSection({ data, client, onNotice, onReload }) {
                 const prospected = outreach?.status === 'prospected';
                 const ignored = outreach?.status === 'ignored';
                 const comment = commentByLead[lead.id];
+                const analyzing = analyzingIds.has(lead.id);
                 return (
-                  <tr key={lead.id} style={(prospected || ignored) ? { opacity: 0.55 } : undefined}>
+                  <tr key={lead.id} className={analyzing ? 'cm-prospect-running-row' : undefined} style={(prospected || ignored) ? { opacity: 0.55 } : undefined}>
                     <td>
                       <strong>{lead.full_name || lead.public_identifier || '—'}</strong>
                       {lead.profile_url && <a className="cm-open" href={lead.profile_url} target="_blank" rel="noreferrer" aria-label={`Abrir perfil de ${lead.full_name || 'lead'}`} style={{ marginLeft: 6, display: 'inline-flex', verticalAlign: 'middle' }}><ExternalLink size={13} /></a>}
+                      {analyzing && <small style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 8, color: '#1d4ed8', fontWeight: 600 }}><RefreshCw size={11} className="spin" /> analisando…</small>}
                       {ignored && <small style={{ display: 'block', color: '#94a3b8' }}>Ignorado</small>}
                     </td>
                     <td style={{ textAlign: 'center' }}>
