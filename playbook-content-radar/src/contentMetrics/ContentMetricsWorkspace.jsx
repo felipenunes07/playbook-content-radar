@@ -733,11 +733,55 @@ function MessageModal({ lead, message, onClose }) {
   );
 }
 
+// Modal de configuração do ICP + mensagem padrão. O agente de qualificação usa
+// exatamente o texto de "Critérios" salvo aqui; a mensagem usa os placeholders
+// {nome}, {company} e {tema_post}. Salvar vale já pra próxima análise, sem deploy.
+function IcpSettingsModal({ settings, client, onClose, onNotice, onReload }) {
+  const [rules, setRules] = useState(settings?.icp_rules || '');
+  const [template, setTemplate] = useState(settings?.message_template || '');
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (!client?.functions?.invoke) { onNotice('Indisponível no modo offline.'); return; }
+    setSaving(true);
+    try {
+      const { data: res, error } = await client.functions.invoke('lead-outreach', { body: { manual: true, action: 'save_settings', icpRules: rules, messageTemplate: template } });
+      if (error) throw error;
+      if (!res?.success) throw new Error(res?.error || 'Falha ao salvar');
+      onNotice('ICP e mensagem salvos. Valem já pra próxima análise de leads.');
+      await onReload?.();
+      onClose();
+    } catch (e) {
+      onNotice(`Falha ao salvar configurações: ${e?.message || e}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const fieldStyle = { width: '100%', border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, fontSize: 13, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit', color: '#0f172a' };
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: 16 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 22, width: 'min(680px, 100%)', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 50px rgba(15,23,42,0.25)' }} onClick={(e) => e.stopPropagation()}>
+        <span className="cm-eyebrow">Configuração da prospecção</span>
+        <h2 style={{ margin: '4px 0 4px', fontSize: 17 }}>ICP — critérios de qualificação</h2>
+        <p style={{ margin: '0 0 10px', fontSize: 12.5, color: '#64748b' }}>É este texto, literalmente, que o agente de IA usa pra aprovar/rejeitar/revisar cada lead. Edite à vontade (ex.: mudar o corte de 200+ colaboradores) — vale na próxima análise.</p>
+        <textarea value={rules} onChange={(e) => setRules(e.target.value)} rows={11} style={fieldStyle} />
+        <h2 style={{ margin: '18px 0 4px', fontSize: 17 }}>Mensagem padrão de 1º contato</h2>
+        <p style={{ margin: '0 0 10px', fontSize: 12.5, color: '#64748b' }}>Enviada exatamente como está, preenchendo <code>{'{nome}'}</code>, <code>{'{company}'}</code> e <code>{'{tema_post}'}</code>. Se ficar vazia, a IA improvisa uma mensagem contextual.</p>
+        <textarea value={template} onChange={(e) => setTemplate(e.target.value)} rows={8} style={fieldStyle} />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
+          <button type="button" onClick={onClose} style={{ background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+          <button type="button" onClick={save} disabled={saving} style={{ background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Salvando…' : 'Salvar'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LeadsSection({ data, client, onNotice, onReload }) {
   const [filter, setFilter] = useState('qualified');
   const [enriching, setEnriching] = useState(false);
   const [busyLead, setBusyLead] = useState('');
   const [modal, setModal] = useState(null); // { lead, message }
+  const [showIcpModal, setShowIcpModal] = useState(false);
   const [outreachOverrides, setOutreachOverrides] = useState({});
 
   const leads = data?.leads || [];
@@ -837,6 +881,11 @@ function LeadsSection({ data, client, onNotice, onReload }) {
           <h2>Quem comentou e virou lead</h2>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button type="button" onClick={() => setShowIcpModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#334155', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+            title="Ver e editar os critérios que o agente usa pra qualificar + a mensagem padrão">
+            <Settings size={13} /> Ver/editar ICP
+          </button>
           {pendingEnrichment > 0 && (
             <button type="button" onClick={runEnrich} disabled={enriching}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, cursor: enriching ? 'default' : 'pointer', opacity: enriching ? 0.7 : 1 }}
@@ -919,6 +968,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
         </div>
       )}
       {modal && <MessageModal lead={modal.lead} message={modal.message} onClose={() => setModal(null)} />}
+      {showIcpModal && <IcpSettingsModal settings={data?.prospectSettings} client={client} onClose={() => setShowIcpModal(false)} onNotice={onNotice} onReload={onReload} />}
     </section>
   );
 }
