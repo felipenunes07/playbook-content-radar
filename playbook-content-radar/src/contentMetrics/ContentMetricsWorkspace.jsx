@@ -846,7 +846,20 @@ function PostMiniThumb({ post, size = 34 }) {
 
 // Filtro por post COM foto: um select nativo não mostra imagem, então é um dropdown
 // custom (botão + popover) com a miniatura + autor + hook de cada post que tem lead.
-function PostPhotoFilter({ options, value, onChange }) {
+// Rótulo de progresso de análise de um post: "12/12 analisados" (verde quando
+// terminou) ou "8/12 analisados · faltam 4". Retorna null se não houver contagem.
+function PostAnalysisTag({ count }) {
+  if (!count || !count.total) return null;
+  const analyzed = count.total - count.pending;
+  const done = count.pending === 0;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700, color: done ? '#057642' : '#b45309', whiteSpace: 'nowrap' }}>
+      {done ? '✓ ' : ''}{analyzed}/{count.total} analisados{done ? '' : ` · faltam ${count.pending}`}
+    </span>
+  );
+}
+
+function PostPhotoFilter({ options, value, onChange, counts = {} }) {
   const [open, setOpen] = useState(false);
   const ref = React.useRef(null);
   useEffect(() => {
@@ -859,15 +872,16 @@ function PostPhotoFilter({ options, value, onChange }) {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button type="button" onClick={() => setOpen((v) => !v)} aria-label="Filtrar por post"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: '1px solid #e2e8f0', borderRadius: 8, padding: '5px 10px', fontSize: 12.5, color: '#334155', background: '#fff', cursor: 'pointer', maxWidth: 360 }}>
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: '1px solid #e2e8f0', borderRadius: 8, padding: '5px 10px', fontSize: 12.5, color: '#334155', background: '#fff', cursor: 'pointer', maxWidth: 420 }}>
         {selected ? <PostMiniThumb post={selected} size={26} /> : null}
-        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 260 }}>
+        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 }}>
           {selected ? String(selected.hook).slice(0, 46) : 'Post: todos'}
         </span>
+        {selected && <PostAnalysisTag count={counts[selected.id]} />}
         <span style={{ color: '#94a3b8' }}>▾</span>
       </button>
       {open && (
-        <div style={{ position: 'absolute', zIndex: 50, top: '110%', left: 0, width: 420, maxHeight: 340, overflowY: 'auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, boxShadow: '0 12px 30px rgba(15,23,42,0.15)', padding: 6 }}>
+        <div style={{ position: 'absolute', zIndex: 50, top: '110%', left: 0, width: 440, maxHeight: 340, overflowY: 'auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, boxShadow: '0 12px 30px rgba(15,23,42,0.15)', padding: 6 }}>
           <button type="button" onClick={() => { onChange(''); setOpen(false); }}
             style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 10px', border: 'none', background: !value ? '#eff6ff' : 'transparent', borderRadius: 8, cursor: 'pointer', fontSize: 12.5, color: '#334155', textAlign: 'left' }}>
             Todos os posts
@@ -876,9 +890,12 @@ function PostPhotoFilter({ options, value, onChange }) {
             <button key={post.id} type="button" onClick={() => { onChange(post.id); setOpen(false); }}
               style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '8px 10px', border: 'none', background: value === post.id ? '#eff6ff' : 'transparent', borderRadius: 8, cursor: 'pointer', textAlign: 'left' }}>
               <PostMiniThumb post={post} />
-              <span style={{ minWidth: 0 }}>
+              <span style={{ minWidth: 0, flex: 1 }}>
                 <strong style={{ display: 'block', fontSize: 12.5, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{String(post.hook).slice(0, 60)}</strong>
-                <small style={{ color: '#94a3b8' }}>{post.owner ? post.owner.split(' ')[0] : '—'}</small>
+                <small style={{ display: 'flex', gap: 6, alignItems: 'center', color: '#94a3b8' }}>
+                  {post.owner ? post.owner.split(' ')[0] : '—'}
+                  <PostAnalysisTag count={counts[post.id]} />
+                </small>
               </span>
             </button>
           ))}
@@ -942,6 +959,20 @@ function LeadsSection({ data, client, onNotice, onReload }) {
 
   // Post de origem de um lead: o comentário mais recente ganha do first_seen.
   const leadPostId = (lead) => commentByLead[lead.id]?.post_id || lead.first_seen_post_id;
+
+  // Quantos leads cada post tem e quantos ainda faltam analisar (enrichment
+  // pendente). "analisado" = já passou pelo enriquecimento (enriched/skipped/error).
+  const postCounts = useMemo(() => {
+    const map = {};
+    leads.forEach((lead) => {
+      const postId = leadPostId(lead);
+      if (!postId) return;
+      if (!map[postId]) map[postId] = { total: 0, pending: 0 };
+      map[postId].total += 1;
+      if (lead.enrichment_status === 'pending') map[postId].pending += 1;
+    });
+    return map;
+  }, [leads, commentByLead]);
 
   // Opções do filtro por post: só posts que têm lead.
   const postOptions = useMemo(() => {
@@ -1159,6 +1190,12 @@ function LeadsSection({ data, client, onNotice, onReload }) {
               Parar após este lote
             </button>
           )}
+          {/* Filtro ativo, nada pendente: o post/criador já foi todo analisado. */}
+          {pendingEnrichment === 0 && !enriching && hasQueueFilter && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#e7f6ee', color: '#057642', border: '1px solid #a3d9b1', borderRadius: 8, padding: '7px 13px', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              <Check size={13} /> {postFilter ? 'Post já analisado' : 'Filtro já analisado'}
+            </span>
+          )}
           <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', paddingLeft: 2 }}>{integer.format(visible.length)} leads</span>
         </div>
       </div>
@@ -1203,6 +1240,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
             options={postOptions.filter((p) => !creatorFilter || p.owner === creatorFilter)}
             value={postFilter}
             onChange={setPostFilter}
+            counts={postCounts}
           />
           {(postFilter || creatorFilter) && (
             <button type="button" onClick={() => { setPostFilter(''); setCreatorFilter(''); }}
