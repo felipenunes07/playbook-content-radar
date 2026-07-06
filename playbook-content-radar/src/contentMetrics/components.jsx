@@ -148,8 +148,8 @@ const prospectLegend = [
   ['Coment.', 'Total de comentários extraídos do post na última prospecção.'],
   ['Leads', 'Pessoas únicas que comentaram (a mesma pessoa comentando 2x conta 1).'],
   ['Já no banco', 'Dessas pessoas, quantas já existiam no banco (comentaram em outro post antes). Não viram lead duplicado — só registramos que comentaram aqui também.'],
-  ['Novos', 'Pessoas novas cadastradas no banco a partir deste post.'],
-  ['Aprovados ICP', 'Dos leads deste post, quantos passaram no filtro de qualificação (cargo alto + área comercial + porte da empresa). Fica "—" enquanto houver análise pendente.'],
+  ['Novos', 'Pessoas novas cadastradas no banco NA ÚLTIMA VEZ que rodou este post. Se rodar de novo e ninguém novo comentou, este número vira 0 — é normal, não é bug.'],
+  ['Aprovados ICP', 'Diferente de "Novos": este número NÃO é da última rodada, é o total acumulado — todos os leads que já nasceram deste post (em qualquer rodada) e passaram no ICP até agora. Por isso pode mostrar 6 aprovados mesmo com 0 novos. Fica "—" enquanto houver análise pendente desse post.'],
 ];
 
 export function OperationalPostsTable({ rows, onAction, prospecting = {}, runningIds, onProspect, showProspecting = false }) {

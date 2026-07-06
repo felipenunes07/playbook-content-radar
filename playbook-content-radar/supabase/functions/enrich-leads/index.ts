@@ -45,6 +45,29 @@ function currentExperience(profile: Record<string, any>) {
 }
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const GEMINI_SAFE_BATCH_SIZE = 2;
+const GEMINI_RETRY_AFTER_SECONDS = 75;
+const GEMINI_ESTIMATED_SECONDS_PER_LEAD = 24;
+
+function retryAfterSecondsFromBody(body: Record<string, any>) {
+  const details = Array.isArray(body?.error?.details) ? body.error.details : [];
+  for (const detail of details) {
+    const retryDelay = detail?.retryDelay || detail?.retry_delay;
+    const seconds = String(retryDelay || '').match(/(\d+(?:\.\d+)?)s/)?.[1];
+    if (seconds) return Math.max(GEMINI_RETRY_AFTER_SECONDS, Math.ceil(Number(seconds)));
+  }
+  return GEMINI_RETRY_AFTER_SECONDS;
+}
+
+class RateLimitError extends Error {
+  retryAfterSeconds: number;
+
+  constructor(message: string, retryAfterSeconds = GEMINI_RETRY_AFTER_SECONDS) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
 
 // O tier free do Gemini limita ~10 req/min: 429 é esperado em lotes. Uma nova
 // tentativa com espera resolve; sem ela o lead ia pra 'error' à toa (aconteceu no
@@ -90,7 +113,10 @@ ${JSON.stringify(payload)}`;
     body: JSON.stringify({ model, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
   }, deadlineAt);
   const body = await response.json();
-  if (!response.ok) throw new Error(body?.error?.message || `Classification API ${response.status}`);
+  if (response.status === 429) {
+    throw new RateLimitError(body?.error?.message || 'Classification API 429', retryAfterSecondsFromBody(body));
+  }
+  if (!response.ok) throw new Error(`${body?.error?.message || 'Classification API'} (${response.status})`);
   const content = body.choices?.[0]?.message?.content || body.output_text;
   if (!content) throw new Error('Modelo não retornou conteúdo');
   const parsed = JSON.parse(String(content).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
@@ -253,6 +279,12 @@ Deno.serve(async (request) => {
     let qualified = 0;
     let llmCalls = 0;
     let rateLimited = false;
+    // Metadados de ritmo pro front montar a estimativa/espera (Task 2 do plano
+    // safe-lead-analysis-queue): o Gemini free não manda Retry-After utilizável,
+    // então usamos uma janela conservadora fixa em vez de tentar parsear o header.
+    let retryAfterSeconds = GEMINI_RETRY_AFTER_SECONDS;
+    const secondsPerLeadEstimate = GEMINI_ESTIMATED_SECONDS_PER_LEAD;
+    const recommendedBatchSize = GEMINI_SAFE_BATCH_SIZE;
     const errors: Array<{ lead: string; error: string }> = [];
     const affectedPosts = new Set<string>();
     for (const lead of toEnrich) {
@@ -321,8 +353,9 @@ Deno.serve(async (request) => {
         const message = errorMessage(leadError);
         // Rate limit do LLM não é culpa do lead: volta pra fila (pending) e encerra
         // o lote — o próximo lote tenta de novo quando a janela de rate limit virar.
-        if (message.includes('429')) {
+        if (leadError instanceof RateLimitError || message.includes('429') || /RESOURCE_EXHAUSTED|quota|rate/i.test(message)) {
           rateLimited = true;
+          retryAfterSeconds = leadError instanceof RateLimitError ? leadError.retryAfterSeconds : GEMINI_RETRY_AFTER_SECONDS;
           await client.from('leads').update({ enrichment_status: 'pending', enrichment_error: null }).eq('id', lead.id);
           break;
         }
@@ -353,6 +386,9 @@ Deno.serve(async (request) => {
       prefiltered: junior.length,
       qualified,
       rateLimited,
+      retryAfterSeconds: rateLimited ? retryAfterSeconds : GEMINI_RETRY_AFTER_SECONDS,
+      recommendedBatchSize,
+      estimatedSecondsPerLead: secondsPerLeadEstimate,
       errors,
       remaining: remainingCount ?? 0,
     });

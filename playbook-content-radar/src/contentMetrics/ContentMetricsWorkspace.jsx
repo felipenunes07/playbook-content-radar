@@ -74,6 +74,42 @@ import './contentMetrics.css';
 const integer = new Intl.NumberFormat('pt-BR');
 const decimal = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 });
 
+const LEAD_ANALYSIS_DEFAULT_BATCH = 2;
+const LEAD_ANALYSIS_SECONDS_PER_LEAD = 24;
+const LEAD_ANALYSIS_RETRY_SECONDS = 75;
+
+function formatDuration(seconds) {
+  const total = Math.max(0, Math.ceil(Number(seconds) || 0));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.ceil((total % 3600) / 60);
+  if (hours) return `${hours}h ${String(minutes).padStart(2, '0')}min`;
+  return `${Math.max(1, minutes)}min`;
+}
+
+export function buildLeadAnalysisPlan({ pending = 0, batchSize = LEAD_ANALYSIS_DEFAULT_BATCH, secondsPerLead = LEAD_ANALYSIS_SECONDS_PER_LEAD, retryAfterSeconds = LEAD_ANALYSIS_RETRY_SECONDS } = {}) {
+  const safePending = Math.max(0, Math.trunc(Number(pending) || 0));
+  const safeBatch = Math.max(1, Math.min(5, Math.trunc(Number(batchSize) || LEAD_ANALYSIS_DEFAULT_BATCH)));
+  const safeSecondsPerLead = Math.max(8, Math.trunc(Number(secondsPerLead) || LEAD_ANALYSIS_SECONDS_PER_LEAD));
+  const safeRetry = Math.max(30, Math.trunc(Number(retryAfterSeconds) || LEAD_ANALYSIS_RETRY_SECONDS));
+  const estimatedSeconds = safePending * safeSecondsPerLead;
+  return {
+    batchSize: safeBatch,
+    retryAfterSeconds: safeRetry,
+    secondsPerLead: safeSecondsPerLead,
+    estimatedSeconds,
+    etaLabel: formatDuration(estimatedSeconds),
+  };
+}
+
+export async function waitForLeadAnalysisRetry(seconds, stopRef, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))) {
+  const total = Math.max(0, Math.ceil(Number(seconds) || 0));
+  for (let elapsed = 0; elapsed < total; elapsed += 1) {
+    if (stopRef?.current) return 'stopped';
+    await sleep(1000);
+  }
+  return stopRef?.current ? 'stopped' : 'elapsed';
+}
+
 const creators = [
   { id: '', label: 'Ambos', owner: '', photo: null, color: '#111827' },
   { id: 'victor', label: 'Victor', owner: 'Victor Baggio', photo: victorPhoto, color: '#0a66c2' },
@@ -947,12 +983,12 @@ function LeadsSection({ data, client, onNotice, onReload }) {
       .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
   ), [leads]);
   const pendingEnrichment = pendingQueue.length;
+  const analysisPlan = useMemo(() => buildLeadAnalysisPlan({ pending: pendingEnrichment }), [pendingEnrichment]);
 
   // Analisa a fila INTEIRA em lotes até zerar. O backend processa os mais antigos
   // primeiro, então a ordem do snapshot inicial da fila = ordem de processamento:
   // usamos isso pra destacar na tabela exatamente quais leads estão sendo analisados
   // agora. Lotes pequenos evitam o timeout de gateway que travava o clique.
-  const ENRICH_BATCH = 3;
   const runEnrich = async () => {
     if (!client?.functions?.invoke) { onNotice('Enriquecimento indisponível no modo offline.'); return; }
     stopEnrichRef.current = false;
@@ -960,37 +996,43 @@ function LeadsSection({ data, client, onNotice, onReload }) {
     setFilter('pending'); // mostra os que vão ser analisados
     const queue = pendingQueue; // snapshot estável na ordem de processamento
     const total = queue.length;
+    const plan = buildLeadAnalysisPlan({ pending: total });
     let done = 0;
     let qualifiedTotal = 0;
-    setProgress({ status: 'running', done, total, qualified: qualifiedTotal });
-    setAnalyzingIds(new Set(queue.slice(0, ENRICH_BATCH).map((l) => l.id)));
-    let rateLimitStreak = 0;
+    setProgress({ status: 'running', done, total, qualified: qualifiedTotal, etaLabel: plan.etaLabel, retryAfterSeconds: plan.retryAfterSeconds });
+    setAnalyzingIds(new Set(queue.slice(0, plan.batchSize).map((l) => l.id)));
     try {
-      for (let batch = 0; batch < 200; batch += 1) {
-        const { data: res, error } = await client.functions.invoke('enrich-leads', { body: { manual: true, limit: ENRICH_BATCH } });
+      for (let batch = 0; batch < 500; batch += 1) {
+        const { data: res, error } = await client.functions.invoke('enrich-leads', { body: { manual: true, limit: plan.batchSize } });
         if (error) throw error;
         if (res?.busy) throw new Error(res.error || 'Já existe uma análise em andamento.');
         if (!res?.success) throw new Error(res?.error || 'Falha no enriquecimento');
         done += (res.processed || 0) + (res.prefiltered || 0);
         qualifiedTotal += res.qualified || 0;
         const remaining = res.remaining ?? 0;
-        setProgress({ status: 'running', done, total: Math.max(total, done + remaining), qualified: qualifiedTotal });
-        setAnalyzingIds(new Set(queue.slice(done, done + ENRICH_BATCH).map((l) => l.id)));
+        const nextPlan = buildLeadAnalysisPlan({
+          pending: remaining,
+          batchSize: res.recommendedBatchSize || plan.batchSize,
+          secondsPerLead: res.estimatedSecondsPerLead || plan.secondsPerLead,
+          retryAfterSeconds: res.retryAfterSeconds || plan.retryAfterSeconds,
+        });
+        setProgress({ status: 'running', done, total: Math.max(total, done + remaining), qualified: qualifiedTotal, etaLabel: nextPlan.etaLabel, retryAfterSeconds: nextPlan.retryAfterSeconds });
+        setAnalyzingIds(new Set(queue.slice(done, done + nextPlan.batchSize).map((l) => l.id)));
         // Recarrega a cada lote: os leads analisados já aparecem na lista.
         await onReload?.().catch(() => {});
         if (remaining <= 0) break;
         if (stopEnrichRef.current) break;
         if ((res.errors || []).length && !res.processed && !res.rateLimited) throw new Error(res.errors[0]?.error || 'Lote falhou por completo');
-        // Rate limit da IA: espera a janela virar. Se persistir (cota diária do
-        // provedor esgotada), para depois de 3 tentativas seguidas em vez de rodar
-        // pra sempre.
+        // Rate limit da IA: espera a janela virar sem culpar o lead nem exigir
+        // novo clique do usuário.
         if (res.rateLimited) {
-          rateLimitStreak += 1;
-          if (rateLimitStreak >= 3) throw new Error('A IA está sem cota no momento (limite do provedor). Os leads restantes continuam pendentes — tente novamente mais tarde.');
-          setProgress({ status: 'running', done, total: Math.max(total, done + remaining), qualified: qualifiedTotal, note: 'IA em espera (limite de taxa) — retomando em instantes…' });
-          await new Promise((resolve) => setTimeout(resolve, 45000));
-        } else {
-          rateLimitStreak = 0;
+          const waitSeconds = nextPlan.retryAfterSeconds;
+          setProgress({ status: 'running', done, total: Math.max(total, done + remaining), qualified: qualifiedTotal, note: `IA em espera (limite de taxa) — retomando em até ${waitSeconds}s. Pode clicar em "Parar" a qualquer momento.` });
+          // waitForLeadAnalysisRetry checa stopEnrichRef a cada segundo, então
+          // "Parar após este lote" interrompe a espera na hora em vez de travar
+          // até o timer de 45s+ acabar (era o bug reportado em 05/07).
+          const outcome = await waitForLeadAnalysisRetry(waitSeconds, stopEnrichRef);
+          if (outcome === 'stopped') break;
         }
       }
       setProgress({ status: 'done', done, total: done, qualified: qualifiedTotal });
@@ -1067,11 +1109,11 @@ function LeadsSection({ data, client, onNotice, onReload }) {
           {pendingEnrichment > 0 && !enriching && (
             <button type="button" onClick={runEnrich}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 8px rgba(10,102,194,.18)', transition: 'background .15s, box-shadow .15s' }}
-              title="Roda profile + empresa + agente de qualificação em todos os leads pendentes, em lotes"
+              title={`Roda profile + empresa + agente de qualificação em todos os leads pendentes, em lotes. Estimativa: ~${analysisPlan.etaLabel}.`}
               onMouseEnter={e => { e.currentTarget.style.background = '#084e96'; }}
               onMouseLeave={e => { e.currentTarget.style.background = '#0a66c2'; }}>
               <RefreshCw size={13} />
-              {`Analisar fila (${integer.format(pendingEnrichment)})`}
+              {`Analisar fila (${integer.format(pendingEnrichment)}) · ~${analysisPlan.etaLabel}`}
             </button>
           )}
           {enriching && (
@@ -1094,7 +1136,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 600, color: progress.status === 'error' ? '#b91c1c' : progress.status === 'done' ? '#065f46' : '#1e3a8a' }}>
             {progress.status === 'running' && <RefreshCw size={15} className="spin" />}
-            {progress.status === 'running' && `Analisando leads… ${integer.format(progress.done)} de ${integer.format(progress.total)} concluídos · ${integer.format(progress.qualified)} aprovados até agora`}
+            {progress.status === 'running' && `Analisando leads… ${integer.format(progress.done)} de ${integer.format(progress.total)} concluídos · ${integer.format(progress.qualified)} aprovados até agora${progress.etaLabel ? ` · faltam ~${progress.etaLabel}` : ''}`}
             {progress.status === 'done' && `Análise concluída: ${integer.format(progress.done)} leads analisados, ${integer.format(progress.qualified)} aprovados no ICP.`}
             {progress.status === 'error' && `Análise parou com erro após ${integer.format(progress.done)} leads: ${progress.message}`}
             <button type="button" onClick={() => setProgress(null)} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 12, textDecoration: 'underline' }}>
@@ -1111,7 +1153,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
           )}
           {progress.status === 'running' && (
             <small style={{ display: 'block', marginTop: 6, color: '#3b5a90' }}>
-              Cada lead leva de 15 a 40s (scrape do perfil + empresa + análise da IA). Os leads em análise agora estão destacados na lista abaixo — pode continuar navegando.
+              Ritmo seguro: {analysisPlan.batchSize} lead(s) por lote, com pausa automática quando o Gemini devolve limite de taxa. Os leads em análise agora estão destacados na lista abaixo — pode continuar navegando.
             </small>
           )}
         </div>
@@ -1390,6 +1432,36 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     return { ...map, ...prospectOverrides };
   }, [data?.prospecting, prospectOverrides]);
 
+  const runLeadAnalysisFromProspecting = async (initialPending = 0) => {
+    const plan = buildLeadAnalysisPlan({ pending: Math.max(1, initialPending) });
+    let done = 0;
+    let qualified = 0;
+    for (let batch = 0; batch < 500; batch += 1) {
+      const { data: res, error } = await client.functions.invoke('enrich-leads', { body: { manual: true, limit: plan.batchSize } });
+      if (error) throw error;
+      if (res?.busy) { setOperationMessage(res.error || 'Ja existe uma analise de leads em andamento.'); return; }
+      if (!res?.success) throw new Error(res?.error || 'Falha na analise de leads');
+      done += (res.processed || 0) + (res.prefiltered || 0);
+      qualified += res.qualified || 0;
+      const remaining = res.remaining ?? 0;
+      const nextPlan = buildLeadAnalysisPlan({
+        pending: remaining,
+        batchSize: res.recommendedBatchSize || plan.batchSize,
+        secondsPerLead: res.estimatedSecondsPerLead || plan.secondsPerLead,
+        retryAfterSeconds: res.retryAfterSeconds || plan.retryAfterSeconds,
+      });
+      setOperationMessage(`Analisando leads automaticamente: ${integer.format(done)} concluidos, ${integer.format(qualified)} aprovados. Restam ${integer.format(remaining)} - ETA ~${nextPlan.etaLabel}.`);
+      await reloadData().catch(() => {});
+      if (remaining <= 0) break;
+      if ((res.errors || []).length && !res.processed && !res.rateLimited) throw new Error(res.errors[0]?.error || 'Lote falhou por completo');
+      if (res.rateLimited) {
+        setOperationMessage(`IA em espera por limite de taxa. Retomando em cerca de ${formatDuration(nextPlan.retryAfterSeconds)}. Restam ${integer.format(remaining)} leads.`);
+        await waitForLeadAnalysisRetry(nextPlan.retryAfterSeconds, { current: false });
+      }
+    }
+    setOperationMessage(`Analise automatica concluida: ${integer.format(done)} leads analisados, ${integer.format(qualified)} aprovados no ICP.`);
+  };
+
   const handleProspect = async (post) => {
     if (!client?.functions?.invoke) { setOperationMessage('Prospecção indisponível no modo offline. Publique as Edge Functions e conecte o Supabase.'); return; }
     setProspectingRunning((prev) => new Set(prev).add(post.id));
@@ -1409,8 +1481,9 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
           new_qualified: null,
         },
       }));
-      setOperationMessage(`Prospecção concluída: ${integer.format(res.totalLeads || 0)} leads, ${integer.format(res.opportunities || 0)} oportunidade(s) nova(s).`);
+      setOperationMessage(`Prospecção concluída: ${integer.format(res.totalLeads || 0)} leads, ${integer.format(res.opportunities || 0)} oportunidade(s) nova(s). Iniciando análise ICP automaticamente.`);
       await reloadData().catch(() => {});
+      await runLeadAnalysisFromProspecting(res.opportunities || res.totalLeads || 0);
     } catch (e) {
       setOperationMessage(`Falha na prospecção: ${e?.message || e}`);
     } finally {

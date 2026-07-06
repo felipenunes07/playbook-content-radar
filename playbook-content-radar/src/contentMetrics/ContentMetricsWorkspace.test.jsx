@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import ContentMetricsWorkspace from './ContentMetricsWorkspace.jsx';
+import ContentMetricsWorkspace, { buildLeadAnalysisPlan, waitForLeadAnalysisRetry } from './ContentMetricsWorkspace.jsx';
 
 const data = {
   source: 'local_snapshot',
@@ -23,6 +23,20 @@ const data = {
 afterEach(cleanup);
 
 describe('ContentMetricsWorkspace', () => {
+  it('estimates a conservative lead analysis plan from Gemini pacing and pending count', () => {
+    expect(buildLeadAnalysisPlan({ pending: 151, batchSize: 2, secondsPerLead: 24, retryAfterSeconds: 75 })).toMatchObject({
+      batchSize: 2,
+      retryAfterSeconds: 75,
+      estimatedSeconds: 3624,
+      etaLabel: '1h 01min',
+    });
+  });
+
+  it('lets the stop button interrupt a rate-limit wait instead of sleeping until the timeout ends', async () => {
+    const stopRef = { current: true };
+    await expect(waitForLeadAnalysisRetry(60, stopRef, () => new Promise((resolve) => setTimeout(resolve, 1)))).resolves.toBe('stopped');
+  });
+
   it('shows the real historical snapshot, filters and overview rankings', async () => {
     render(<ContentMetricsWorkspace initialData={data} initialSection="overview" />);
 
@@ -123,5 +137,4 @@ describe('ContentMetricsWorkspace', () => {
     expect(screen.getByRole('heading', { name: 'Vídeos publicados por mês' })).toBeInTheDocument();
   });
 });
-
 
