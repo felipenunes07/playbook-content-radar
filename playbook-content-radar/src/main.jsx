@@ -6,7 +6,7 @@ import {
   Search, Download, Trash2, AlertCircle, MessageSquare, FileText,
   CheckCircle2, XCircle, AlertTriangle, ArrowLeft, Archive,
   ThumbsUp, ThumbsDown, Lightbulb, MoreHorizontal, Calendar,
-  TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock, Users
+  TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock, Users, Target
 } from 'lucide-react';
 import './styles.css';
 import { createClient } from '@supabase/supabase-js';
@@ -1113,6 +1113,12 @@ function App() {
                 >
                   <Calendar size={16} /> Calendário Editorial
                 </button>
+                <button
+                  className={view === 'goals' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => setView('goals')}
+                >
+                  <Target size={16} /> Metas
+                </button>
               </>
             )}
 
@@ -1284,6 +1290,11 @@ function App() {
               <ContentMetricsWorkspace client={supabase} mode="leads" />
             </React.Suspense>
           )}
+          {view === 'goals' && (
+            <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Carregando metas…</div>}>
+              <ContentMetricsWorkspace client={supabase} mode="goals" />
+            </React.Suspense>
+          )}
           {view === 'new' && user === 'Felipe' && (
             <NewIdeaView
               updateState={updateState}
@@ -1364,6 +1375,15 @@ function App() {
               >
                 <Calendar size={18} />
                 <span>Agenda</span>
+              </button>
+
+              <button
+                type="button"
+                className={view === 'goals' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => setView('goals')}
+              >
+                <Target size={18} />
+                <span>Metas</span>
               </button>
 
               <button

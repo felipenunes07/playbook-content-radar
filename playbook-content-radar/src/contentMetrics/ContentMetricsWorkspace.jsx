@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, BarChart3, Database, ExternalLink, FileClock, FileText, Image as ImageIcon, MessageSquare,
@@ -1308,31 +1308,22 @@ function VideosSection({ data, onSettings }) {
 }
 
 // ─── Metas / Objetivos de crescimento ──────────────────────────────────────
-// As metas são definidas pelo Felipe e ficam salvas no navegador (localStorage).
-// Não há tabela no Supabase pra isso: é um número-alvo por rede que só o admin usa.
-const GOALS_STORAGE_KEY = 'playbook-content-goals-v1';
-
+// As metas ficam na tabela `content_goals` do Supabase (não no navegador): assim
+// tanto o Felipe quanto o Victor conseguem abrir o app e editar a mesma meta.
 const GOAL_PLATFORMS = [
   { id: 'linkedin', label: 'LinkedIn', metric: 'followers', unit: 'seguidores', Icon: LinkedInIcon, color: '#0a66c2', emoji: '🔵' },
   { id: 'youtube', label: 'YouTube', metric: 'subscribers', unit: 'inscritos', Icon: YouTubeIcon, color: '#e52d27', emoji: '🔴' },
   { id: 'instagram', label: 'Instagram', metric: 'followers', unit: 'seguidores', Icon: InstagramGlyph, color: '#c13584', emoji: '🟣' },
 ];
 
-function loadGoals() {
-  try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(GOALS_STORAGE_KEY) : null;
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveGoals(goals) {
-  try {
-    if (typeof localStorage !== 'undefined') localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(goals));
-  } catch {
-    /* localStorage indisponível (aba privada) — silencioso */
-  }
+// Converte as linhas de `content_goals` (platform, owner_name, month_key, target)
+// num mapa { "linkedin:Victor Baggio:2026-07": 22000 } fácil de consultar na UI.
+function goalsMapFromRows(rows) {
+  const map = {};
+  (rows || []).forEach((g) => {
+    map[goalKey(g.platform, g.owner_name, g.month_key)] = g.target;
+  });
+  return map;
 }
 
 function firstName(name) {
@@ -1433,8 +1424,16 @@ export function buildGoalsWhatsappMessage(platformSummaries, goals, period = 'da
   return lines.join('\n').trim();
 }
 
-function MetasSection({ data }) {
-  const [goals, setGoals] = useState(loadGoals);
+function MetasSection({ data, client }) {
+  // Metas vêm do Supabase (data.goals). Mantemos overrides locais só para o
+  // input responder na hora — a gravação real é debounced (600ms) pra não
+  // disparar um upsert a cada tecla digitada.
+  const baseGoals = useMemo(() => goalsMapFromRows(data.goals), [data.goals]);
+  const [goalOverrides, setGoalOverrides] = useState({});
+  const goals = useMemo(() => ({ ...baseGoals, ...goalOverrides }), [baseGoals, goalOverrides]);
+  const [savedKeys, setSavedKeys] = useState({});
+  const [saveError, setSaveError] = useState('');
+  const saveTimers = useRef({});
   const [copied, setCopied] = useState(false);
 
   const [period, setPeriod] = useState('daily');
@@ -1451,10 +1450,29 @@ function MetasSection({ data }) {
   const [draft, setDraft] = useState(message);
   useEffect(() => { setDraft(message); }, [message]);
 
-  const updateGoal = (key, value) => {
-    const next = { ...goals, [key]: value === '' ? '' : Math.max(0, Math.trunc(Number(value) || 0)) };
-    setGoals(next);
-    saveGoals(next);
+  const persistGoal = async (key, platformId, owner, target) => {
+    if (!client?.from) { setSaveError('Conecte o Supabase para salvar metas.'); return; }
+    setSaveError('');
+    const result = target == null
+      ? await client.from('content_goals').delete().eq('platform', platformId).eq('owner_name', owner).eq('month_key', mKey)
+      : await client.from('content_goals').upsert(
+          { platform: platformId, owner_name: owner, month_key: mKey, target },
+          { onConflict: 'platform,owner_name,month_key' },
+        );
+    if (result.error) {
+      setSaveError(`Falha ao salvar meta: ${result.error.message}`);
+      return;
+    }
+    setSavedKeys((prev) => ({ ...prev, [key]: true }));
+    setTimeout(() => setSavedKeys((prev) => ({ ...prev, [key]: false })), 1800);
+  };
+
+  const updateGoal = (platformId, owner, value) => {
+    const key = goalKey(platformId, owner, mKey);
+    const target = value === '' ? null : Math.max(0, Math.trunc(Number(value) || 0));
+    setGoalOverrides((prev) => ({ ...prev, [key]: target === null ? '' : target }));
+    clearTimeout(saveTimers.current[key]);
+    saveTimers.current[key] = setTimeout(() => persistGoal(key, platformId, owner, target), 600);
   };
 
   const copyMessage = async () => {
@@ -1490,7 +1508,8 @@ function MetasSection({ data }) {
       <div className="cm-metas-toolbar">
         <div>
           <span className="cm-eyebrow">Metas do mês · {mLabel}</span>
-          <p>Meta de cada pessoa por rede (chegar ao número até o fim do mês). A variação exibida é {period === 'weekly' ? 'dos últimos 7 dias' : 'desde a coleta anterior'}.</p>
+          <p>Meta de cada pessoa por rede (chegar ao número até o fim do mês). A variação exibida é {period === 'weekly' ? 'dos últimos 7 dias' : 'desde a coleta anterior'}. Salva sozinho — sem botão — e fica no banco, então Felipe e Victor veem e editam a mesma meta.</p>
+          {saveError && <p className="cm-goal-error">{saveError}</p>}
         </div>
         {periodToggle}
       </div>
@@ -1521,13 +1540,13 @@ function MetasSection({ data }) {
                       {delta != null && <em className={`cm-delta ${deltaClass(delta)}`}>{formatDeltaSuffix(delta).trim()}</em>}
                     </div>
                     <label className="cm-goal-input">
-                      <span>Meta {mLabel}</span>
+                      <span>Meta {mLabel}{savedKeys[key] && <em className="cm-goal-saved">Salvo ✓</em>}</span>
                       <input
                         type="number"
                         min="0"
                         inputMode="numeric"
                         value={rawGoal ?? ''}
-                        onChange={(e) => updateGoal(key, e.target.value)}
+                        onChange={(e) => updateGoal(platform.id, o.owner, e.target.value)}
                         placeholder="Defina a meta"
                       />
                     </label>
@@ -1831,6 +1850,16 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     </div>;
   }
 
+  // Página Metas (acesso enxuto, sem o restante do dashboard): usada tanto pelo
+  // Felipe quanto pelo Victor/Fernando pra definir e acompanhar a meta do mês.
+  if (mode === 'goals') {
+    return <div className="content-metrics-workspace">
+      <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Crescimento</span><h1>Metas</h1><p>Defina a meta do mês para cada rede e acompanhe se está no caminho certo.</p></div><div className="cm-header-meta"><Target size={16} /></div></header>
+      {operationMessage && <div className="cm-operation-message">{operationMessage}<button type="button" onClick={() => setOperationMessage('')}>Fechar</button></div>}
+      <MetasSection data={data} client={client} />
+    </div>;
+  }
+
   // Página Leads ICP (Tela 2 do escopo): o banco de leads qualificados, com
   // mensagem, prospectado/ignorado e os antigos pelos filtros.
   if (mode === 'leads') {
@@ -1852,7 +1881,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       {section === 'linkedin' && <LinkedinAnalysis filtered={filtered} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'youtube' && <YoutubeSection data={data} videos={filteredYoutube} filters={youtubeFilters} setFilters={setYoutubeFilters} onSettings={() => navigate('settings')} />}
       {section === 'instagram' && <InstagramSection data={data} filtered={filteredInstagram} allPosts={data.instagram} filters={instagramFilters} setFilters={setInstagramFilters} onSettings={() => navigate('settings')} client={client} />}
-      {section === 'metas' && <MetasSection data={data} />}
+      {section === 'metas' && <MetasSection data={data} client={client} />}
       {section === 'posts' && <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} onAction={(action) => setOperationMessage(action === 'history' ? 'O histórico completo ficará disponível assim que os snapshots diários forem publicados no Supabase.' : 'Essa ação usa a API administrativa protegida. Publique o schema e autentique o operador antes de alterar dados.')} />}
       {section === 'videos' && <VideosSection data={data} onSettings={() => navigate('settings')} />}
       {section === 'accounts' && <AccountsSection data={data} />}
