@@ -2,6 +2,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { collectorDeadline, remainingMs, runActor } from '../_shared/apify.ts';
 import { errorMessage } from '../_shared/content.ts';
 import { adminClient, corsHeaders, finishRun, json, startRun } from '../_shared/server.ts';
+import { llmHeaders, LlmProvider, parseLlmJson, requireClassificationProviders, withLlmFallback } from '../_shared/llm.ts';
 
 // Fase 2 da prospecção: pega leads com enrichment_status='pending', enriquece com
 // profile (apimaestro, em lote) + company (harvestapi, em lote) e passa um payload
@@ -83,11 +84,46 @@ async function llmFetch(url: string, init: RequestInit, deadlineAt: number) {
   }
 }
 
+// Faz a chamada de qualificação num provedor. 429/5xx viram RateLimitError; quando
+// é o ÚLTIMO provedor, isso volta o lead pra fila (o principal cai no reserva antes).
+async function qualifyWithProvider(provider: LlmProvider, prompt: string, deadlineAt: number) {
+  const response = await llmFetch(provider.url, {
+    method: 'POST',
+    headers: llmHeaders(provider),
+    body: JSON.stringify({ model: provider.model, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
+  }, deadlineAt);
+  const body = await response.json();
+  if (response.status === 429) {
+    throw new RateLimitError(body?.error?.message || 'Classification API 429', retryAfterSecondsFromBody(body));
+  }
+  // 5xx do provedor (503 overloaded / 500 / UNAVAILABLE) é transitório, não é erro do
+  // lead: trata como rate limit pra o lead voltar pra fila e o fluxo esperar+seguir
+  // em vez de queimar o lead como 'error'. O importante é terminar a lista.
+  if (response.status >= 500) {
+    throw new RateLimitError(body?.error?.message || `Classification API ${response.status}`, retryAfterSecondsFromBody(body));
+  }
+  if (!response.ok) throw new Error(`${body?.error?.message || 'Classification API'} (${response.status})`);
+  const parsed = parseLlmJson(body);
+  // aprovado/rejeitado → qualified/disqualified. "revisar" foi extinto a pedido do
+  // Felipe (05/07): limítrofe vira aprovado e o Victor decide na lista — se algum
+  // modelo antigo devolver "revisar", cai em qualified.
+  const statusMap: Record<string, string> = { aprovado: 'qualified', rejeitado: 'disqualified', revisar: 'qualified' };
+  const status = statusMap[String(parsed.status || '').toLowerCase()] || (parsed.qualified === true ? 'qualified' : 'disqualified');
+  const score = Number(parsed.score);
+  return {
+    status,
+    qualified: status === 'qualified',
+    score: Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : null,
+    job_title: parsed.job_title ? String(parsed.job_title).slice(0, 200) : null,
+    seniority: parsed.seniority ? String(parsed.seniority).slice(0, 50) : null,
+    area: parsed.area ? String(parsed.area).slice(0, 50) : null,
+    reason: parsed.reason ? String(parsed.reason).slice(0, 500) : null,
+    suggested_angle: parsed.suggested_angle ? String(parsed.suggested_angle).slice(0, 500) : null,
+  };
+}
+
 async function qualifyLead(payload: Record<string, unknown>, deadlineAt: number, rulesOverride?: string | null) {
-  const url = Deno.env.get('CLASSIFICATION_API_URL') || 'https://api.openai.com/v1/chat/completions';
-  const apiKey = Deno.env.get('CLASSIFICATION_API_KEY');
-  const model = Deno.env.get('CLASSIFICATION_MODEL');
-  if (!apiKey || !model) throw new Error('CLASSIFICATION_API_KEY e CLASSIFICATION_MODEL são obrigatórios');
+  const providers = requireClassificationProviders();
   const minHeadcount = Number(Deno.env.get('PROSPECT_MIN_HEADCOUNT') || 200);
   // Critérios editáveis sem deploy: prospect_settings.icp_rules (editável na UI,
   // botão "Ver/editar ICP") > secret PROSPECT_ICP_RULES > default do escopo formal
@@ -107,41 +143,11 @@ ${rules}
 
 Lead:
 ${JSON.stringify(payload)}`;
-  const response = await llmFetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
-  }, deadlineAt);
-  const body = await response.json();
-  if (response.status === 429) {
-    throw new RateLimitError(body?.error?.message || 'Classification API 429', retryAfterSecondsFromBody(body));
-  }
-  // 5xx do Google (503 overloaded / 500 / UNAVAILABLE) é transitório, não é erro do
-  // lead: trata como rate limit pra o lead voltar pra fila e o fluxo esperar+seguir
-  // em vez de queimar o lead como 'error'. O importante é terminar a lista.
-  if (response.status >= 500) {
-    throw new RateLimitError(body?.error?.message || `Classification API ${response.status}`, retryAfterSecondsFromBody(body));
-  }
-  if (!response.ok) throw new Error(`${body?.error?.message || 'Classification API'} (${response.status})`);
-  const content = body.choices?.[0]?.message?.content || body.output_text;
-  if (!content) throw new Error('Modelo não retornou conteúdo');
-  const parsed = JSON.parse(String(content).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
-  // aprovado/rejeitado → qualified/disqualified. "revisar" foi extinto a pedido do
-  // Felipe (05/07): limítrofe vira aprovado e o Victor decide na lista — se algum
-  // modelo antigo devolver "revisar", cai em qualified.
-  const statusMap: Record<string, string> = { aprovado: 'qualified', rejeitado: 'disqualified', revisar: 'qualified' };
-  const status = statusMap[String(parsed.status || '').toLowerCase()] || (parsed.qualified === true ? 'qualified' : 'disqualified');
-  const score = Number(parsed.score);
-  return {
-    status,
-    qualified: status === 'qualified',
-    score: Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : null,
-    job_title: parsed.job_title ? String(parsed.job_title).slice(0, 200) : null,
-    seniority: parsed.seniority ? String(parsed.seniority).slice(0, 50) : null,
-    area: parsed.area ? String(parsed.area).slice(0, 50) : null,
-    reason: parsed.reason ? String(parsed.reason).slice(0, 500) : null,
-    suggested_angle: parsed.suggested_angle ? String(parsed.suggested_angle).slice(0, 500) : null,
-  };
+  return withLlmFallback(
+    providers,
+    (provider) => qualifyWithProvider(provider, prompt, deadlineAt),
+    (provider, error) => console.warn(`Qualificação: provedor ${provider.label} falhou (${errorMessage(error)}), tentando reserva.`),
+  );
 }
 
 // Recalcula "novos qualificados" dos posts afetados: conta leads qualificados que

@@ -1,6 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { errorMessage } from '../_shared/content.ts';
 import { adminClient, corsHeaders, json } from '../_shared/server.ts';
+import { llmHeaders, parseLlmJson, requireClassificationProviders, withLlmFallback } from '../_shared/llm.ts';
 
 // Fase 3 da prospecção: ações sobre um lead a partir da lista do dashboard.
 //   { action: 'generate_message', leadId }  → gera a mensagem de 1º contato (LLM)
@@ -33,10 +34,7 @@ function fillTemplate(template: string, lead: Record<string, any>, post: Record<
 }
 
 async function generateMessage(lead: Record<string, any>, post: Record<string, any> | null, commentText: string | null) {
-  const url = Deno.env.get('CLASSIFICATION_API_URL') || 'https://api.openai.com/v1/chat/completions';
-  const apiKey = Deno.env.get('CLASSIFICATION_API_KEY');
-  const model = Deno.env.get('CLASSIFICATION_MODEL');
-  if (!apiKey || !model) throw new Error('CLASSIFICATION_API_KEY e CLASSIFICATION_MODEL são obrigatórios');
+  const providers = requireClassificationProviders();
   const angle = Deno.env.get('PROSPECT_MESSAGE_ANGLE') || DEFAULT_ANGLE;
 
   const context = {
@@ -57,26 +55,25 @@ A mensagem deve ser em pt-BR, pronta pra colar no LinkedIn, sem placeholders —
 Dados:
 ${JSON.stringify(context)}`;
 
-  // Tier free do Gemini limita ~10 req/min — num 429 espera e tenta de novo antes
-  // de devolver erro pro usuário.
-  let response!: Response;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, temperature: 0.7, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
-    });
-    if (response.status !== 429 && response.status < 500) break;
-    if (attempt < 2) { await response.body?.cancel(); await new Promise((resolve) => setTimeout(resolve, 15000 * (attempt + 1))); }
-  }
-  const body = await response.json();
-  if (!response.ok) throw new Error(body?.error?.message || `Classification API ${response.status}`);
-  const content = body.choices?.[0]?.message?.content || body.output_text;
-  if (!content) throw new Error('Modelo não retornou conteúdo');
-  const parsed = JSON.parse(String(content).replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
-  const message = String(parsed.message || '').trim();
-  if (!message) throw new Error('Modelo retornou mensagem vazia');
-  return message;
+  return withLlmFallback(providers, async (provider) => {
+    // Num 429/5xx espera e tenta de novo no mesmo provedor antes de cair no reserva.
+    let response!: Response;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      response = await fetch(provider.url, {
+        method: 'POST',
+        headers: llmHeaders(provider),
+        body: JSON.stringify({ model: provider.model, temperature: 0.7, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
+      });
+      if (response.status !== 429 && response.status < 500) break;
+      if (attempt < 2) { await response.body?.cancel(); await new Promise((resolve) => setTimeout(resolve, 15000 * (attempt + 1))); }
+    }
+    const body = await response.json();
+    if (!response.ok) throw new Error(body?.error?.message || `Classification API ${response.status}`);
+    const parsed = parseLlmJson(body);
+    const message = String(parsed.message || '').trim();
+    if (!message) throw new Error('Modelo retornou mensagem vazia');
+    return message;
+  }, (provider, error) => console.warn(`Mensagem: provedor ${provider.label} falhou (${errorMessage(error)}), tentando próximo.`));
 }
 
 Deno.serve(async (request) => {

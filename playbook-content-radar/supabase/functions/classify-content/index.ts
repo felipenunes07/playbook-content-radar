@@ -1,6 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { COMMERCIAL_INTENTS, errorMessage, FUNNEL_STAGES, PILLARS, THEMES, validateClassification } from '../_shared/content.ts';
 import { adminClient, corsHeaders, finishRun, json, requireCollectorSecret, startRun } from '../_shared/server.ts';
+import { llmHeaders, requireClassificationProviders, withLlmFallback } from '../_shared/llm.ts';
 
 function parseModelJson(response: Record<string, any>) {
   if (response.theme) return response;
@@ -10,19 +11,18 @@ function parseModelJson(response: Record<string, any>) {
 }
 
 async function classify(content: string, author: string, format: string) {
-  const url = Deno.env.get('CLASSIFICATION_API_URL') || 'https://api.openai.com/v1/chat/completions';
-  const apiKey = Deno.env.get('CLASSIFICATION_API_KEY');
-  const model = Deno.env.get('CLASSIFICATION_MODEL');
-  if (!apiKey || !model) throw new Error('CLASSIFICATION_API_KEY e CLASSIFICATION_MODEL são obrigatórios');
+  const providers = requireClassificationProviders();
   const prompt = `Classifique este conteúdo da Playbook Lab. Retorne somente JSON válido com theme, content_pillar, cta_keyword, funnel_stage e commercial_intent.\n\nValores permitidos:\ntheme: ${THEMES.join(', ')}\ncontent_pillar: ${PILLARS.join(', ')}\nfunnel_stage: ${FUNNEL_STAGES.join(', ')}\ncommercial_intent: ${COMMERCIAL_INTENTS.join(', ')}\n\nAutor: ${author}\nFormato: ${format}\nConteúdo:\n${content.slice(0, 12000)}`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
-  });
-  const body = await response.json();
-  if (!response.ok) throw new Error(body?.error?.message || `Classification API ${response.status}`);
-  return validateClassification(parseModelJson(body));
+  return withLlmFallback(providers, async (provider) => {
+    const response = await fetch(provider.url, {
+      method: 'POST',
+      headers: llmHeaders(provider),
+      body: JSON.stringify({ model: provider.model, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] }),
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body?.error?.message || `Classification API ${response.status}`);
+    return validateClassification(parseModelJson(body));
+  }, (provider, error) => console.warn(`Classificação: provedor ${provider.label} falhou (${errorMessage(error)}), tentando próximo.`));
 }
 
 Deno.serve(async (request) => {
