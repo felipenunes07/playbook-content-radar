@@ -993,7 +993,19 @@ function LeadsSection({ data, client, onNotice, onReload }) {
       .filter((l) => l.enrichment_status === 'pending')
       .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
   ), [leads]);
-  const pendingEnrichment = pendingQueue.length;
+  // Se há filtro de post/criador ativo, a fila a analisar é só a daquele recorte —
+  // o botão "Analisar fila" processa exatamente o que está filtrado na tela. Sem
+  // filtro, é a fila inteira (comportamento de antes).
+  const hasQueueFilter = Boolean(postFilter || creatorFilter);
+  const filteredPendingQueue = useMemo(() => {
+    if (!hasQueueFilter) return pendingQueue;
+    return pendingQueue.filter((l) => {
+      if (postFilter && leadPostId(l) !== postFilter) return false;
+      if (creatorFilter && postsById[leadPostId(l)]?.owner !== creatorFilter) return false;
+      return true;
+    });
+  }, [pendingQueue, hasQueueFilter, postFilter, creatorFilter, commentByLead, postsById]);
+  const pendingEnrichment = filteredPendingQueue.length;
   const analysisPlan = useMemo(() => buildLeadAnalysisPlan({ pending: pendingEnrichment }), [pendingEnrichment]);
 
   // Analisa a fila INTEIRA em lotes até zerar. O backend processa os mais antigos
@@ -1005,8 +1017,11 @@ function LeadsSection({ data, client, onNotice, onReload }) {
     stopEnrichRef.current = false;
     setEnriching(true);
     setFilter('pending'); // mostra os que vão ser analisados
-    const queue = pendingQueue; // snapshot estável na ordem de processamento
+    const queue = filteredPendingQueue; // snapshot estável na ordem de processamento (respeita o filtro de post)
     const total = queue.length;
+    // Quando há filtro ativo, restringe a análise aos leads daquele post. Snapshot
+    // dos ids no início: o backend processa esse subconjunto lote a lote.
+    const scopedLeadIds = hasQueueFilter ? queue.map((l) => l.id) : null;
     const plan = buildLeadAnalysisPlan({ pending: total });
     let done = 0;
     let qualifiedTotal = 0;
@@ -1018,7 +1033,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
       // limitar/erra, a espera só cresce (computeRateLimitBackoff). O cap alto do
       // for é só uma trava de segurança contra loop patológico.
       for (let batch = 0; batch < 5000; batch += 1) {
-        const { data: res, error } = await client.functions.invoke('enrich-leads', { body: { manual: true, limit: plan.batchSize } });
+        const { data: res, error } = await client.functions.invoke('enrich-leads', { body: { manual: true, limit: plan.batchSize, ...(scopedLeadIds ? { leadIds: scopedLeadIds } : {}) } });
         if (error) throw error;
         if (res?.busy) throw new Error(res.error || 'Já existe uma análise em andamento.');
         if (!res?.success) throw new Error(res?.error || 'Falha no enriquecimento');
@@ -1128,11 +1143,13 @@ function LeadsSection({ data, client, onNotice, onReload }) {
           {pendingEnrichment > 0 && !enriching && (
             <button type="button" onClick={runEnrich}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 8px rgba(10,102,194,.18)', transition: 'background .15s, box-shadow .15s' }}
-              title={`Roda profile + empresa + agente de qualificação em todos os leads pendentes, em lotes. Estimativa: ~${analysisPlan.etaLabel}.`}
+              title={hasQueueFilter
+                ? `Roda profile + empresa + agente de qualificação só nos leads pendentes do filtro atual (post/criador), em lotes. Estimativa: ~${analysisPlan.etaLabel}.`
+                : `Roda profile + empresa + agente de qualificação em todos os leads pendentes, em lotes. Estimativa: ~${analysisPlan.etaLabel}.`}
               onMouseEnter={e => { e.currentTarget.style.background = '#084e96'; }}
               onMouseLeave={e => { e.currentTarget.style.background = '#0a66c2'; }}>
               <RefreshCw size={13} />
-              {`Analisar fila (${integer.format(pendingEnrichment)}) · ~${analysisPlan.etaLabel}`}
+              {`${hasQueueFilter ? 'Analisar filtro' : 'Analisar fila'} (${integer.format(pendingEnrichment)}) · ~${analysisPlan.etaLabel}`}
             </button>
           )}
           {enriching && (

@@ -201,11 +201,19 @@ Deno.serve(async (request) => {
     const icpRules = settings?.icp_rules || null;
 
     const limit = Math.max(1, Math.min(20, Number(body.limit || 10)));
-    const { data: pending, error: pendingError } = await client.from('leads')
+    // Escopo opcional: quando o front filtra por um post, manda os leadIds daquele
+    // post e a análise processa (e conta o "remaining") só esse subconjunto. Sem
+    // leadIds, roda a fila inteira como antes.
+    const leadIds = Array.isArray(body.leadIds)
+      ? body.leadIds.filter((id: unknown): id is string => typeof id === 'string').slice(0, 5000)
+      : null;
+    let pendingQuery = client.from('leads')
       .select('id, public_identifier, profile_url, full_name, headline, first_seen_post_id')
       .eq('enrichment_status', 'pending')
       .order('created_at', { ascending: true })
       .limit(limit);
+    if (leadIds) pendingQuery = pendingQuery.in('id', leadIds);
+    const { data: pending, error: pendingError } = await pendingQuery;
     if (pendingError) throw pendingError;
     const leads = pending || [];
 
@@ -380,8 +388,10 @@ Deno.serve(async (request) => {
     for (const lead of junior) if (lead.first_seen_post_id) affectedPosts.add(lead.first_seen_post_id);
     await refreshJobQualifiedCounts(client, [...affectedPosts]);
 
-    const { count: remainingCount } = await client.from('leads')
+    let remainingQuery = client.from('leads')
       .select('id', { count: 'exact', head: true }).eq('enrichment_status', 'pending');
+    if (leadIds) remainingQuery = remainingQuery.in('id', leadIds);
+    const { count: remainingCount } = await remainingQuery;
 
     const status = errors.length ? (processed ? 'partial' : 'failed') : 'success';
     await finishRun(client, runId, {
