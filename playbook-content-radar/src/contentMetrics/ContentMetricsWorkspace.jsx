@@ -1315,7 +1315,7 @@ const GOALS_STORAGE_KEY = 'playbook-content-goals-v1';
 const GOAL_PLATFORMS = [
   { id: 'linkedin', label: 'LinkedIn', metric: 'followers', unit: 'seguidores', Icon: LinkedInIcon, color: '#0a66c2', emoji: '🔵' },
   { id: 'youtube', label: 'YouTube', metric: 'subscribers', unit: 'inscritos', Icon: YouTubeIcon, color: '#e52d27', emoji: '🔴' },
-  { id: 'instagram', label: 'Instagram', metric: 'followers', unit: 'seguidores', Icon: InstagramGlyph, color: '#c13584', emoji: '🔴' },
+  { id: 'instagram', label: 'Instagram', metric: 'followers', unit: 'seguidores', Icon: InstagramGlyph, color: '#c13584', emoji: '🟣' },
 ];
 
 function loadGoals() {
