@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import ContentMetricsWorkspace, { buildLeadAnalysisPlan, waitForLeadAnalysisRetry } from './ContentMetricsWorkspace.jsx';
+import ContentMetricsWorkspace, { buildLeadAnalysisPlan, waitForLeadAnalysisRetry, computeRateLimitBackoff } from './ContentMetricsWorkspace.jsx';
 
 const data = {
   source: 'local_snapshot',
@@ -35,6 +35,14 @@ describe('ContentMetricsWorkspace', () => {
   it('lets the stop button interrupt a rate-limit wait instead of sleeping until the timeout ends', async () => {
     const stopRef = { current: true };
     await expect(waitForLeadAnalysisRetry(60, stopRef, () => new Promise((resolve) => setTimeout(resolve, 1)))).resolves.toBe('stopped');
+  });
+
+  it('grows the wait on each consecutive Google rate-limit but never aborts, capping at 10min', () => {
+    expect(computeRateLimitBackoff(1, 75)).toBe(75);
+    expect(computeRateLimitBackoff(2, 75)).toBe(120);
+    // Sobe a cada erro consecutivo e satura no teto — a fila continua, só desacelera.
+    expect(computeRateLimitBackoff(20, 75)).toBe(600);
+    expect(computeRateLimitBackoff(100, 75)).toBe(600);
   });
 
   it('shows the real historical snapshot, filters and overview rankings', async () => {

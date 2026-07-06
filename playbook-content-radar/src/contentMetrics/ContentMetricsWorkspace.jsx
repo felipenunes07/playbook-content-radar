@@ -110,6 +110,17 @@ export async function waitForLeadAnalysisRetry(seconds, stopRef, sleep = (ms) =>
   return stopRef?.current ? 'stopped' : 'elapsed';
 }
 
+// Espera progressiva quando o Google limita/erra: a cada erro consecutivo o tempo
+// cresce (~1.6×), com teto de 10 min. NÃO aborta a fila — o pedido do Felipe é
+// "se der erro do Google, colocar um tempo maior pra continuar; o importante é
+// terminar a lista". Só o botão "Parar" interrompe.
+export function computeRateLimitBackoff(streak, baseSeconds = 75, capSeconds = 600) {
+  const safeStreak = Math.max(1, Math.trunc(Number(streak) || 1));
+  const safeBase = Math.max(15, Math.trunc(Number(baseSeconds) || 75));
+  const grown = Math.round(safeBase * Math.pow(1.6, safeStreak - 1));
+  return Math.min(grown, Math.max(safeBase, Math.trunc(Number(capSeconds) || 600)));
+}
+
 const creators = [
   { id: '', label: 'Ambos', owner: '', photo: null, color: '#111827' },
   { id: 'victor', label: 'Victor', owner: 'Victor Baggio', photo: victorPhoto, color: '#0a66c2' },
@@ -999,10 +1010,14 @@ function LeadsSection({ data, client, onNotice, onReload }) {
     const plan = buildLeadAnalysisPlan({ pending: total });
     let done = 0;
     let qualifiedTotal = 0;
+    let rateLimitStreak = 0;
     setProgress({ status: 'running', done, total, qualified: qualifiedTotal, etaLabel: plan.etaLabel, retryAfterSeconds: plan.retryAfterSeconds });
     setAnalyzingIds(new Set(queue.slice(0, plan.batchSize).map((l) => l.id)));
     try {
-      for (let batch = 0; batch < 500; batch += 1) {
+      // Sem teto de tentativas: a fila roda até zerar ou até o "Parar". Se o Google
+      // limitar/erra, a espera só cresce (computeRateLimitBackoff). O cap alto do
+      // for é só uma trava de segurança contra loop patológico.
+      for (let batch = 0; batch < 5000; batch += 1) {
         const { data: res, error } = await client.functions.invoke('enrich-leads', { body: { manual: true, limit: plan.batchSize } });
         if (error) throw error;
         if (res?.busy) throw new Error(res.error || 'Já existe uma análise em andamento.');
@@ -1023,16 +1038,20 @@ function LeadsSection({ data, client, onNotice, onReload }) {
         if (remaining <= 0) break;
         if (stopEnrichRef.current) break;
         if ((res.errors || []).length && !res.processed && !res.rateLimited) throw new Error(res.errors[0]?.error || 'Lote falhou por completo');
-        // Rate limit da IA: espera a janela virar sem culpar o lead nem exigir
-        // novo clique do usuário.
+        // Google limitou/erra (429/503/cota): NÃO aborta a fila. A cada erro
+        // consecutivo a espera cresce (computeRateLimitBackoff) — "colocar um tempo
+        // maior pra continuar; o importante é terminar a lista". Só o "Parar" corta.
         if (res.rateLimited) {
-          const waitSeconds = nextPlan.retryAfterSeconds;
-          setProgress({ status: 'running', done, total: Math.max(total, done + remaining), qualified: qualifiedTotal, note: `IA em espera (limite de taxa) — retomando em até ${waitSeconds}s. Pode clicar em "Parar" a qualquer momento.` });
+          rateLimitStreak += 1;
+          const waitSeconds = computeRateLimitBackoff(rateLimitStreak, nextPlan.retryAfterSeconds);
+          setProgress({ status: 'running', done, total: Math.max(total, done + remaining), qualified: qualifiedTotal, note: `Google limitou o ritmo (${rateLimitStreak}ª vez seguida) — aguardando ${waitSeconds}s antes de continuar. A lista não para, só desacelera. Clique em "Parar" se quiser interromper.` });
           // waitForLeadAnalysisRetry checa stopEnrichRef a cada segundo, então
           // "Parar após este lote" interrompe a espera na hora em vez de travar
-          // até o timer de 45s+ acabar (era o bug reportado em 05/07).
+          // até o timer acabar (bug reportado em 05/07).
           const outcome = await waitForLeadAnalysisRetry(waitSeconds, stopEnrichRef);
           if (outcome === 'stopped') break;
+        } else {
+          rateLimitStreak = 0;
         }
       }
       setProgress({ status: 'done', done, total: done, qualified: qualifiedTotal });

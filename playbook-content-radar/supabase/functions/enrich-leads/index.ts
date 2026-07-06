@@ -116,6 +116,12 @@ ${JSON.stringify(payload)}`;
   if (response.status === 429) {
     throw new RateLimitError(body?.error?.message || 'Classification API 429', retryAfterSecondsFromBody(body));
   }
+  // 5xx do Google (503 overloaded / 500 / UNAVAILABLE) é transitório, não é erro do
+  // lead: trata como rate limit pra o lead voltar pra fila e o fluxo esperar+seguir
+  // em vez de queimar o lead como 'error'. O importante é terminar a lista.
+  if (response.status >= 500) {
+    throw new RateLimitError(body?.error?.message || `Classification API ${response.status}`, retryAfterSecondsFromBody(body));
+  }
   if (!response.ok) throw new Error(`${body?.error?.message || 'Classification API'} (${response.status})`);
   const content = body.choices?.[0]?.message?.content || body.output_text;
   if (!content) throw new Error('Modelo não retornou conteúdo');
@@ -353,7 +359,7 @@ Deno.serve(async (request) => {
         const message = errorMessage(leadError);
         // Rate limit do LLM não é culpa do lead: volta pra fila (pending) e encerra
         // o lote — o próximo lote tenta de novo quando a janela de rate limit virar.
-        if (leadError instanceof RateLimitError || message.includes('429') || /RESOURCE_EXHAUSTED|quota|rate/i.test(message)) {
+        if (leadError instanceof RateLimitError || /\b429\b|\b50[03]\b|RESOURCE_EXHAUSTED|quota|rate|overloaded|unavailable/i.test(message)) {
           rateLimited = true;
           retryAfterSeconds = leadError instanceof RateLimitError ? leadError.retryAfterSeconds : GEMINI_RETRY_AFTER_SECONDS;
           await client.from('leads').update({ enrichment_status: 'pending', enrichment_error: null }).eq('id', lead.id);
