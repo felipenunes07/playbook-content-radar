@@ -3,6 +3,7 @@ export const METRICS_SECTIONS = [
   { id: 'linkedin', label: 'LinkedIn', path: '/content-dashboard/linkedin' },
   { id: 'youtube', label: 'YouTube', path: '/content-dashboard/youtube' },
   { id: 'instagram', label: 'Instagram', path: '/content-dashboard/instagram' },
+  { id: 'metas', label: 'Metas', path: '/content-dashboard/metas' },
   { id: 'posts', label: 'Posts', path: '/content-dashboard/posts' },
   { id: 'videos', label: 'Vídeos', path: '/content-dashboard/videos' },
   { id: 'accounts', label: 'Contas', path: '/content-dashboard/accounts' },

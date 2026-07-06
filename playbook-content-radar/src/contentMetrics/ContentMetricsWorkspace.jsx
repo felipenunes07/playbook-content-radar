@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, BarChart3, Database, ExternalLink, FileClock, FileText, Image as ImageIcon, MessageSquare,
-  Play, RefreshCw, Settings, SlidersHorizontal, Users, Video,
+  Play, RefreshCw, Settings, SlidersHorizontal, Users, Video, Target, Copy, Check,
 } from 'lucide-react';
 
 // lucide-react removeu os ícones de marca (Instagram, LinkedIn…) por questão de
@@ -135,7 +135,7 @@ const fallbackAccounts = [
   { id: 'instagram-victor', platform: 'instagram', owner_name: 'Victor Baggio', account_name: 'Victor Baggio Instagram', account_url: 'https://www.instagram.com/victor.baggio.ai/', handle: 'victor.baggio.ai', status: 'active' },
 ];
 
-const sectionIcons = { overview: BarChart3, linkedin: MessageSquare, youtube: Video, instagram: InstagramGlyph, posts: Activity, videos: Play, accounts: Users, imports: FileClock, settings: Settings };
+const sectionIcons = { overview: BarChart3, linkedin: MessageSquare, youtube: Video, instagram: InstagramGlyph, metas: Target, posts: Activity, videos: Play, accounts: Users, imports: FileClock, settings: Settings };
 
 function validUtcDate(value) {
   const date = value ? new Date(value) : null;
@@ -1307,6 +1307,311 @@ function VideosSection({ data, onSettings }) {
   return <YoutubeVideosTable rows={data.youtube} />;
 }
 
+// ─── Metas / Objetivos de crescimento ──────────────────────────────────────
+// As metas são definidas pelo Felipe e ficam salvas no navegador (localStorage).
+// Não há tabela no Supabase pra isso: é um número-alvo por rede que só o admin usa.
+const GOALS_STORAGE_KEY = 'playbook-content-goals-v1';
+
+const GOAL_PLATFORMS = [
+  { id: 'linkedin', label: 'LinkedIn', metric: 'followers', unit: 'seguidores', Icon: LinkedInIcon, color: '#0a66c2', emoji: '🔵' },
+  { id: 'youtube', label: 'YouTube', metric: 'subscribers', unit: 'inscritos', Icon: YouTubeIcon, color: '#e52d27', emoji: '🔴' },
+  { id: 'instagram', label: 'Instagram', metric: 'followers', unit: 'seguidores', Icon: InstagramGlyph, color: '#c13584', emoji: '🔴' },
+];
+
+function loadGoals() {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(GOALS_STORAGE_KEY) : null;
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveGoals(goals) {
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(GOALS_STORAGE_KEY, JSON.stringify(goals));
+  } catch {
+    /* localStorage indisponível (aba privada) — silencioso */
+  }
+}
+
+function firstName(name) {
+  return String(name || '').trim().split(/\s+/)[0] || String(name || '');
+}
+
+// Metas são por mês: a chave guarda plataforma + pessoa + mês (YYYY-MM), então
+// cada mês tem seu próprio alvo e o histórico não se perde ao virar o mês.
+function monthKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthLabel(date = new Date()) {
+  return date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' }).replace('.', '');
+}
+
+function goalKey(platformId, owner, mKey = monthKey()) {
+  return `${platformId}:${owner}:${mKey}`;
+}
+
+// Consolida o crescimento de uma rede: por pessoa (última medição + variação em
+// relação à coleta anterior) e o total da rede. Usa data.growth, que só traz
+// coletas automáticas (o histórico importado é excluído no repository).
+export function summarizeGrowth(growth, platform, metric) {
+  const rows = (growth || []).filter((g) => g.platform === platform && g[metric] != null && Number(g[metric]) > 0);
+  const byOwner = new Map();
+  rows.forEach((g) => {
+    const list = byOwner.get(g.owner_name) || [];
+    list.push(g);
+    byOwner.set(g.owner_name, list);
+  });
+  const owners = [...byOwner.entries()].map(([owner, list]) => {
+    const sorted = list.slice().sort((a, b) => String(b.metric_date).localeCompare(String(a.metric_date)));
+    const seen = new Set();
+    const distinct = [];
+    for (const g of sorted) {
+      const d = String(g.metric_date);
+      if (!seen.has(d)) { seen.add(d); distinct.push(g); }
+    }
+    const latest = distinct[0];
+    const prev = distinct[1];
+    const current = Number(latest[metric]);
+    const dailyDelta = prev ? current - Number(prev[metric]) : null;
+    // Variação semanal: compara com a coleta mais recente que já tenha 7+ dias.
+    const latestTime = Date.parse(`${latest.metric_date}T00:00:00Z`);
+    const weekAgo = latestTime - 7 * 86400000;
+    const weekRef = distinct.find((g) => Date.parse(`${g.metric_date}T00:00:00Z`) <= weekAgo);
+    const weeklyDelta = weekRef ? current - Number(weekRef[metric]) : null;
+    return {
+      owner,
+      short: firstName(owner),
+      current,
+      currentDate: latest.metric_date,
+      dailyDelta,
+      weeklyDelta,
+      weeklyRefDate: weekRef ? weekRef.metric_date : null,
+    };
+  }).sort((a, b) => b.current - a.current);
+  const latestDate = owners.reduce((max, o) => (!max || String(o.currentDate) > max ? String(o.currentDate) : max), null);
+  return { owners, latestDate, hasData: owners.length > 0 };
+}
+
+function formatDeltaSuffix(delta) {
+  if (delta == null) return '';
+  if (delta > 0) return ` (+${integer.format(delta)})`;
+  if (delta < 0) return ` (${integer.format(delta)})`;
+  return ' (0)';
+}
+
+function deltaClass(delta) {
+  if (delta == null) return 'neutral';
+  if (delta > 0) return 'up';
+  if (delta < 0) return 'down';
+  return 'neutral';
+}
+
+// Monta a mensagem pronta pro grupo do WhatsApp: crescimento por rede, com o
+// número de cada pessoa (Victor e Fernando), a variação do período escolhido
+// (diária ou semanal) e o progresso rumo à meta do mês. É só copiar e colar.
+export function buildGoalsWhatsappMessage(platformSummaries, goals, period = 'daily', mKey = monthKey(), mLabel = monthLabel()) {
+  const today = new Date().toLocaleDateString('pt-BR');
+  const periodLabel = period === 'weekly' ? 'Semanal (últimos 7 dias)' : 'Diário';
+  const lines = [`📊 *Crescimento das redes* — ${periodLabel} (${today})`, ''];
+  platformSummaries.forEach(({ platform, summary }) => {
+    if (!summary.hasData) return;
+    lines.push(`${platform.emoji} *${platform.label}*`);
+    summary.owners.forEach((o) => {
+      const delta = period === 'weekly' ? o.weeklyDelta : o.dailyDelta;
+      const goal = Number(goals[goalKey(platform.id, o.owner, mKey)]) || 0;
+      lines.push(`• ${o.short}: ${integer.format(o.current)} ${platform.unit}${formatDeltaSuffix(delta)}`);
+      if (goal > 0) {
+        lines.push(`   Meta ${mLabel}: ${integer.format(goal)}`);
+      }
+    });
+    lines.push('');
+  });
+  lines.push('_Enviado pelo Content Radar · Playbook Lab_');
+  return lines.join('\n').trim();
+}
+
+function MetasSection({ data }) {
+  const [goals, setGoals] = useState(loadGoals);
+  const [copied, setCopied] = useState(false);
+
+  const [period, setPeriod] = useState('daily');
+  const mKey = monthKey();
+  const mLabel = monthLabel();
+
+  const summaries = useMemo(
+    () => GOAL_PLATFORMS.map((platform) => ({ platform, summary: summarizeGrowth(data.growth, platform.id, platform.metric) })),
+    [data.growth],
+  );
+  const hasAnyData = summaries.some((s) => s.summary.hasData);
+
+  const message = useMemo(() => buildGoalsWhatsappMessage(summaries, goals, period, mKey, mLabel), [summaries, goals, period, mKey, mLabel]);
+  const [draft, setDraft] = useState(message);
+  useEffect(() => { setDraft(message); }, [message]);
+
+  const updateGoal = (key, value) => {
+    const next = { ...goals, [key]: value === '' ? '' : Math.max(0, Math.trunc(Number(value) || 0)) };
+    setGoals(next);
+    saveGoals(next);
+  };
+
+  const copyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(draft);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  if (!hasAnyData) {
+    return (
+      <div className="cm-empty">
+        Ainda não há dados de seguidores/inscritos coletados para acompanhar metas. A coleta diária de perfil roda automaticamente e o painel se preenche a cada dia. Defina as metas assim que os primeiros números chegarem.
+      </div>
+    );
+  }
+
+  const deltaOf = (o) => (period === 'weekly' ? o.weeklyDelta : o.dailyDelta);
+  const weeklyHasNoData = summaries.every((s) => s.summary.owners.every((o) => o.weeklyDelta == null));
+
+  const periodToggle = (
+    <div className="cm-period-toggle" role="tablist" aria-label="Período do resumo">
+      <button type="button" role="tab" aria-selected={period === 'daily'} className={period === 'daily' ? 'active' : ''} onClick={() => setPeriod('daily')}>Diário</button>
+      <button type="button" role="tab" aria-selected={period === 'weekly'} className={period === 'weekly' ? 'active' : ''} onClick={() => setPeriod('weekly')}>Semanal</button>
+    </div>
+  );
+
+  return (
+    <div className="cm-metas">
+      <div className="cm-metas-toolbar">
+        <div>
+          <span className="cm-eyebrow">Metas do mês · {mLabel}</span>
+          <p>Meta de cada pessoa por rede (chegar ao número até o fim do mês). A variação exibida é {period === 'weekly' ? 'dos últimos 7 dias' : 'desde a coleta anterior'}.</p>
+        </div>
+        {periodToggle}
+      </div>
+
+      <div className="cm-goal-grid">
+        {summaries.map(({ platform, summary }) => {
+          const Icon = platform.Icon;
+          return (
+            <section className="cm-goal-card" key={platform.id}>
+              <header className="cm-goal-head" style={{ color: platform.color }}>
+                <Icon size={18} />
+                <h3>{platform.label}</h3>
+              </header>
+              {summary.owners.map((o) => {
+                const key = goalKey(platform.id, o.owner, mKey);
+                const rawGoal = goals[key];
+                const goal = Number(rawGoal) || 0;
+                const pct = goal > 0 ? Math.min(100, Math.floor((o.current / goal) * 100)) : 0;
+                const remaining = goal > 0 ? Math.max(0, goal - o.current) : 0;
+                const reached = goal > 0 && o.current >= goal;
+                const delta = deltaOf(o);
+                return (
+                  <div className="cm-goal-person" key={o.owner}>
+                    <div className="cm-goal-person-head">
+                      <span className="cm-goal-person-name">{o.short}</span>
+                      <strong>{integer.format(o.current)}</strong>
+                      <small>{platform.unit}</small>
+                      {delta != null && <em className={`cm-delta ${deltaClass(delta)}`}>{formatDeltaSuffix(delta).trim()}</em>}
+                    </div>
+                    <label className="cm-goal-input">
+                      <span>Meta {mLabel}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        inputMode="numeric"
+                        value={rawGoal ?? ''}
+                        onChange={(e) => updateGoal(key, e.target.value)}
+                        placeholder="Defina a meta"
+                      />
+                    </label>
+                    {goal > 0 ? (
+                      <>
+                        <div className="cm-goal-bar"><span style={{ width: `${pct}%`, background: platform.color }} /></div>
+                        <div className="cm-goal-meta">
+                          <span>{pct}% da meta</span>
+                          <span>{reached ? '🎉 meta batida!' : `faltam ${integer.format(remaining)}`}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="cm-goal-hint">Defina a meta de {mLabel} para acompanhar.</p>
+                    )}
+                  </div>
+                );
+              })}
+            </section>
+          );
+        })}
+      </div>
+
+      <section className="cm-panel">
+        <div className="cm-section-heading">
+          <div>
+            <span className="cm-eyebrow">Resumo {period === 'weekly' ? 'semanal' : 'diário'}</span>
+            <h2>O que aconteceu em cada rede</h2>
+          </div>
+          {periodToggle}
+        </div>
+        <div className="cm-table-wrap">
+          <table className="cm-table">
+            <thead>
+              <tr><th>Rede</th><th>Pessoa</th><th>Atual</th><th>Variação ({period === 'weekly' ? '7 dias' : 'dia'})</th><th>{period === 'weekly' ? 'Comparado com' : 'Última coleta'}</th></tr>
+            </thead>
+            <tbody>
+              {summaries.filter((s) => s.summary.hasData).flatMap(({ platform, summary }) =>
+                summary.owners.map((o) => {
+                  const delta = deltaOf(o);
+                  const refDate = period === 'weekly' ? o.weeklyRefDate : o.currentDate;
+                  return (
+                    <tr key={`${platform.id}-${o.owner}`}>
+                      <td><strong>{platform.label}</strong></td>
+                      <td>{o.short}</td>
+                      <td>{integer.format(o.current)} {platform.unit}</td>
+                      <td><span className={`cm-delta ${deltaClass(delta)}`}>{delta == null ? '—' : formatDeltaSuffix(delta).trim()}</span></td>
+                      <td>{refDate ? new Date(String(refDate)).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '—'}</td>
+                    </tr>
+                  );
+                }),
+              )}
+            </tbody>
+          </table>
+        </div>
+        {period === 'weekly' && weeklyHasNoData && (
+          <p className="cm-table-note">A variação semanal aparece quando houver pelo menos 7 dias de coleta acumulados.</p>
+        )}
+      </section>
+
+      <section className="cm-panel">
+        <div className="cm-section-heading">
+          <div>
+            <span className="cm-eyebrow">WhatsApp</span>
+            <h2>Mensagem pronta para o grupo</h2>
+          </div>
+          <button type="button" className="cm-copy-btn" onClick={copyMessage}>
+            {copied ? <><Check size={14} /> Copiado!</> : <><Copy size={14} /> Copiar mensagem</>}
+          </button>
+        </div>
+        <textarea
+          className="cm-whatsapp-box"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={Math.min(20, draft.split('\n').length + 1)}
+          spellCheck={false}
+        />
+        <p className="cm-table-note">
+          A mensagem segue o período selecionado ({period === 'weekly' ? 'semanal' : 'diário'}) e traz o número de cada pessoa (Victor e Fernando) com o progresso da meta do mês. Edite se quiser, copie e cole no grupo do WhatsApp. Quando você me mandar o grupo, dá pra automatizar o envio.
+        </p>
+      </section>
+    </div>
+  );
+}
+
 function AccountsSection({ data }) {
   const accounts = data.accounts.length ? data.accounts : fallbackAccounts;
 
@@ -1547,6 +1852,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       {section === 'linkedin' && <LinkedinAnalysis filtered={filtered} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'youtube' && <YoutubeSection data={data} videos={filteredYoutube} filters={youtubeFilters} setFilters={setYoutubeFilters} onSettings={() => navigate('settings')} />}
       {section === 'instagram' && <InstagramSection data={data} filtered={filteredInstagram} allPosts={data.instagram} filters={instagramFilters} setFilters={setInstagramFilters} onSettings={() => navigate('settings')} client={client} />}
+      {section === 'metas' && <MetasSection data={data} />}
       {section === 'posts' && <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} onAction={(action) => setOperationMessage(action === 'history' ? 'O histórico completo ficará disponível assim que os snapshots diários forem publicados no Supabase.' : 'Essa ação usa a API administrativa protegida. Publique o schema e autentique o operador antes de alterar dados.')} />}
       {section === 'videos' && <VideosSection data={data} onSettings={() => navigate('settings')} />}
       {section === 'accounts' && <AccountsSection data={data} />}
