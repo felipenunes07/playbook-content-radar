@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import ContentMetricsWorkspace, { buildLeadAnalysisPlan, waitForLeadAnalysisRetry, computeRateLimitBackoff, summarizeGrowth, buildGoalsWhatsappMessage } from './ContentMetricsWorkspace.jsx';
+import ContentMetricsWorkspace, { buildLeadAnalysisPlan, waitForLeadAnalysisRetry, computeRateLimitBackoff, summarizeGrowth, buildGoalsWhatsappMessage, progressBar } from './ContentMetricsWorkspace.jsx';
 
 const data = {
   source: 'local_snapshot',
@@ -57,16 +57,49 @@ describe('summarizeGrowth — base do início do mês', () => {
   });
 });
 
+describe('progressBar', () => {
+  it('desenha a barra proporcional ao percentual', () => {
+    expect(progressBar(0)).toBe('░░░░░░░░░░');
+    expect(progressBar(50)).toBe('█████░░░░░');
+    expect(progressBar(100)).toBe('██████████');
+  });
+
+  it('mostra ao menos um bloco quando já houve algum crescimento', () => {
+    expect(progressBar(1)).toBe('█░░░░░░░░░');
+  });
+
+  it('não enche a barra antes de bater a meta', () => {
+    expect(progressBar(99)).toBe('█████████░');
+  });
+
+  it('trata percentuais fora do intervalo', () => {
+    expect(progressBar(-10)).toBe('░░░░░░░░░░');
+    expect(progressBar(140)).toBe('██████████');
+  });
+});
+
 describe('buildGoalsWhatsappMessage', () => {
-  it('reporta o progresso do mês e o número do início do mês', () => {
+  it('mostra barra de progresso em vez do número do início do mês', () => {
     const summaries = [{
       platform: { id: 'linkedin', label: 'LinkedIn', unit: 'seguidores', emoji: '🔵' },
       summary: summarizeGrowth(growthRows, 'linkedin', 'followers', '2026-07'),
     }];
     const goals = { 'linkedin:Victor Baggio:2026-07': 22000 };
     const msg = buildGoalsWhatsappMessage(summaries, goals, 'daily', '2026-07', 'jul 2026');
-    expect(msg).toContain('Meta jul 2026: 22.000');
-    expect(msg).toContain('Progresso: +154 de 1.189 (12%) — começou o mês com 20.811');
+    expect(msg).toContain('█░░░░░░░░░ 12%');
+    expect(msg).toContain('+154 de 1.189 · meta 22.000');
+    expect(msg).not.toContain('começou o mês com');
+  });
+
+  it('marca meta batida com a barra cheia', () => {
+    const summaries = [{
+      platform: { id: 'linkedin', label: 'LinkedIn', unit: 'seguidores', emoji: '🔵' },
+      summary: summarizeGrowth(growthRows, 'linkedin', 'followers', '2026-07'),
+    }];
+    const goals = { 'linkedin:Victor Baggio:2026-07': 20900 };
+    const msg = buildGoalsWhatsappMessage(summaries, goals, 'daily', '2026-07', 'jul 2026');
+    expect(msg).toContain('██████████ 100%');
+    expect(msg).toContain('🎉 meta de 20.900 batida!');
   });
 });
 

@@ -1396,6 +1396,33 @@ function App() {
 
               <button
                 type="button"
+                className={view === 'metrics' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => openMetrics(metricsSection)}
+              >
+                <TrendingUp size={18} />
+                <span>Métricas</span>
+              </button>
+
+              <button
+                type="button"
+                className={view === 'prospecting' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => leaveMetrics('prospecting')}
+              >
+                <Zap size={18} />
+                <span>Prospecção</span>
+              </button>
+
+              <button
+                type="button"
+                className={view === 'leads' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => leaveMetrics('leads')}
+              >
+                <Users size={18} />
+                <span>Leads</span>
+              </button>
+
+              <button
+                type="button"
                 className={view === 'calendar' ? 'mobile-nav-item active' : 'mobile-nav-item'}
                 onClick={() => setView('calendar')}
               >
@@ -1406,7 +1433,7 @@ function App() {
               <button
                 type="button"
                 className={view === 'goals' ? 'mobile-nav-item active' : 'mobile-nav-item'}
-                onClick={() => setView('goals')}
+                onClick={() => leaveMetrics('goals')}
               >
                 <Target size={18} />
                 <span>Metas</span>
@@ -1439,6 +1466,33 @@ function App() {
               >
                 <TrendingUp size={18} />
                 <span>Métricas</span>
+              </button>
+
+              <button
+                type="button"
+                className={view === 'goals' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => leaveMetrics('goals')}
+              >
+                <Target size={18} />
+                <span>Metas</span>
+              </button>
+
+              <button
+                type="button"
+                className={view === 'prospecting' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => leaveMetrics('prospecting')}
+              >
+                <Zap size={18} />
+                <span>Prospecção</span>
+              </button>
+
+              <button
+                type="button"
+                className={view === 'leads' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => leaveMetrics('leads')}
+              >
+                <Users size={18} />
+                <span>Leads</span>
               </button>
 
               <button

@@ -3106,6 +3106,29 @@ kbd {
     font-size: 9px;
     gap: 2px;
   }
+
+  /* A partir de 7 itens não dá mais pra dividir a largura da tela: a barra vira
+     uma faixa rolável na horizontal. Sem isso o grid (que trava em 6 colunas)
+     quebraria numa segunda linha e estouraria a altura fixa da barra. */
+  .mobile-bottom-nav:has(.mobile-nav-item:nth-child(7)) {
+    display: flex;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .mobile-bottom-nav:has(.mobile-nav-item:nth-child(7))::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-bottom-nav:has(.mobile-nav-item:nth-child(7)) .mobile-nav-item {
+    flex: 0 0 auto;
+    min-width: 68px;
+    font-size: 9px;
+    gap: 2px;
+  }
 }
 
 /* Supabase real-time sync status dot styling */

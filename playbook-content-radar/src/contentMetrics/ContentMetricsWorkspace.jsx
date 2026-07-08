@@ -1485,6 +1485,17 @@ function deltaClass(delta) {
   return 'neutral';
 }
 
+// Barra de progresso desenhada com blocos, já que o WhatsApp não formata gráfico.
+// Ex.: 10% -> '█░░░░░░░░░'. Arredonda pra baixo pra não mostrar bloco cheio antes
+// da hora, mas garante ao menos 1 bloco quando já houve qualquer crescimento.
+export function progressBar(pct, size = 10) {
+  const safe = Math.max(0, Math.min(100, Number(pct) || 0));
+  let filled = Math.floor((safe / 100) * size);
+  if (filled === 0 && safe > 0) filled = 1;
+  if (filled === size && safe < 100) filled = size - 1;
+  return '█'.repeat(filled) + '░'.repeat(size - filled);
+}
+
 // Monta a mensagem pronta pro grupo do WhatsApp: crescimento por rede, com o
 // número de cada pessoa (Victor e Fernando), a variação do período escolhido
 // (diária ou semanal) e o progresso rumo à meta do mês. É só copiar e colar.
@@ -1500,22 +1511,23 @@ export function buildGoalsWhatsappMessage(platformSummaries, goals, period = 'da
       const goal = Number(goals[goalKey(platform.id, o.owner, mKey)]) || 0;
       lines.push(`• ${o.short}: ${integer.format(o.current)} ${platform.unit}${formatDeltaSuffix(delta)}`);
       if (goal > 0) {
-        lines.push(`   Meta ${mLabel}: ${integer.format(goal)}`);
         // Progresso do mês: cresceu X do que precisa crescer (não o total absoluto).
-        if (o.monthStart != null) {
-          const needed = goal - o.monthStart;
-          if (needed > 0) {
-            const pct = Math.max(0, Math.min(100, Math.floor((o.monthGain / needed) * 100)));
-            lines.push(`   Progresso: +${integer.format(o.monthGain)} de ${integer.format(needed)} (${pct}%) — começou o mês com ${integer.format(o.monthStart)}`);
-          } else if (o.current >= goal) {
-            lines.push('   Progresso: 🎉 meta batida!');
-          }
+        const needed = o.monthStart == null ? null : goal - o.monthStart;
+        if (o.current >= goal) {
+          lines.push(`   ${progressBar(100)} 100%`);
+          lines.push(`   🎉 meta de ${integer.format(goal)} batida!`);
+        } else if (needed > 0) {
+          const pct = Math.max(0, Math.min(100, Math.floor((o.monthGain / needed) * 100)));
+          lines.push(`   ${progressBar(pct)} ${pct}%`);
+          lines.push(`   +${integer.format(o.monthGain)} de ${integer.format(needed)} · meta ${integer.format(goal)}`);
+        } else {
+          // Sem base do mês, ou meta abaixo do número que a pessoa já tinha.
+          lines.push(`   Meta ${mLabel}: ${integer.format(goal)}`);
         }
       }
     });
     lines.push('');
   });
-  lines.push('_Enviado pelo Content Radar · Playbook Lab_');
   return lines.join('\n').trim();
 }
 
