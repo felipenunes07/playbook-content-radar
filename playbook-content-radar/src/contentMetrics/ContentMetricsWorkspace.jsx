@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, BarChart3, Database, ExternalLink, FileClock, FileText, Image as ImageIcon, MessageSquare,
-  Play, RefreshCw, Settings, SlidersHorizontal, Users, Video, Target, Copy, Check, Network,
+  Play, RefreshCw, Settings, SlidersHorizontal, Users, Video, Target, Copy, Check, Globe,
 } from 'lucide-react';
 
 // lucide-react removeu os ícones de marca (Instagram, LinkedIn…) por questão de
@@ -447,6 +447,9 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
         YouTube: 0,
         Instagram: 0,
         Total: 0,
+        engagement: 0,
+        comments: 0,
+        averageEngagement: 0,
       };
 
       const plat = item.platform;
@@ -455,6 +458,9 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
       else if (plat === 'instagram') current.Instagram += 1;
 
       current.Total += 1;
+      current.engagement += Number(item.engagement_total || 0);
+      current.comments += Number(item.comments || 0);
+      current.averageEngagement = Math.round(current.engagement / current.Total);
       groups.set(key, current);
     });
 
@@ -481,6 +487,9 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
           YouTube: 0,
           Instagram: 0,
           Total: 0,
+          engagement: 0,
+          comments: 0,
+          averageEngagement: 0,
         });
       }
     } else {
@@ -507,6 +516,9 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
           YouTube: 0,
           Instagram: 0,
           Total: 0,
+          engagement: 0,
+          comments: 0,
+          averageEngagement: 0,
         });
         cursor.setUTCDate(cursor.getUTCDate() + 7);
       }
@@ -617,7 +629,7 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
               transition: 'all 0.2s',
             }}
           >
-            <Layers size={16} />
+            <Globe size={16} />
           </button>
           <div className="cm-period-toggle" role="tablist" aria-label="Período do gráfico de seguidores por rede">
             <button type="button" role="tab" aria-selected={followersPeriod === 'daily'} className={followersPeriod === 'daily' ? 'active' : ''} onClick={() => setFollowersPeriod('daily')}>Diário</button>
@@ -667,7 +679,7 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
             : <div className="cm-empty-chart">Ainda não há coletas de seguidores suficientes para este período.</div>)
           : <CalendarHeatmapChart data={heatmap} onDateClick={handleDateClick} selectedDate={selectedDate?.date} platform={selectedPlatform} />}
       </section>
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Resultado</span><h2>{followersPeriod === 'daily' ? 'Engagement por dia' : 'Engagement por semana'}</h2></div></div><WeeklyEngagementChart data={cadenceData} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Resultado</span><h2>{followersPeriod === 'daily' ? 'Engagement por dia' : 'Engagement por semana'}</h2></div></div><WeeklyEngagementChart data={followersPeriod === 'daily' ? daily : weekly} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} /></section>
     </div>
     
     <section className="cm-panel">
