@@ -46,7 +46,7 @@ export function WeeklyContentTypeChart({ data }) {
   );
 }
 
-export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek }) {
+export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek, periodLabel = 'semanas' }) {
   if (!data.length) return <EmptyChart />;
   const handleBarClick = (barData) => {
     if (onWeekClick && barData) {
@@ -73,17 +73,17 @@ export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek }) {
           <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
           <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="Victor" stackId="cadence" fill="#0a66c2" onClick={handleBarClick}>
+          <Bar dataKey="Victor" stackId="cadence" fill="#0a66c2" onClick={handleBarClick} isAnimationActive={false}>
             {series.map((entry) => (
-              <Cell key={entry.week} fillOpacity={!selectedWeek || entry.week === selectedWeek ? 1 : 0.2} />
+              <Cell key={entry.date || entry.week} fillOpacity={!selectedWeek || entry.week === selectedWeek ? 1 : 0.2} />
             ))}
           </Bar>
-          <Bar dataKey="Fernando" stackId="cadence" fill="#93c5fd" onClick={handleBarClick}>
+          <Bar dataKey="Fernando" stackId="cadence" fill="#93c5fd" onClick={handleBarClick} isAnimationActive={false}>
             {series.map((entry) => (
-              <Cell key={entry.week} fillOpacity={!selectedWeek || entry.week === selectedWeek ? 1 : 0.2} />
+              <Cell key={entry.date || entry.week} fillOpacity={!selectedWeek || entry.week === selectedWeek ? 1 : 0.2} />
             ))}
           </Bar>
-          <Line type="monotone" dataKey="media" name="Média 4 semanas" stroke="#64748b" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="media" name={`Média 4 ${periodLabel}`} stroke="#64748b" strokeWidth={2} dot={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -372,3 +372,53 @@ export function AccountGrowthChart({ data }) {
   );
 }
 
+const NETWORK_COLORS = { LinkedIn: '#0a66c2', YouTube: '#e52d27', Instagram: '#c13584' };
+
+// Barras (não empilhadas, uma ao lado da outra) pra comparar o total de cada
+// rede lado a lado — empilhado esconderia o tamanho real de cada uma. `syncId`
+// igual ao de WeeklyCadenceChart/WeeklyEngagementChart sincroniza o hover/tooltip
+// entre os gráficos quando os rótulos do eixo X (semana) coincidem.
+export function NetworkFollowersChart({ data }) {
+  if (!data.length) return null;
+
+  // `data` já vem em deltas (quanto cresceu de uma coleta pra outra, somando
+  // Victor + Fernando por rede) — nunca o total acumulado, que misturava as
+  // duas pessoas num número só e confundia ("Victor não tem 37 mil no LinkedIn").
+  const seriesKeys = Object.keys(NETWORK_COLORS).filter((key) => data.some((row) => row[key] != null));
+  const yDomain = paddedDomain(data.flatMap((row) => seriesKeys.map((key) => row[key])), { includeZero: true });
+
+  const formatValue = (value) => {
+    const n = Number(value);
+    const text = Math.abs(n).toLocaleString('pt-BR');
+    return n > 0 ? `+${text}` : n < 0 ? `−${text}` : '0';
+  };
+
+  return (
+    <>
+      <div className="cm-chart-toolbar">
+        <span className="cm-chart-hint">Quanto cada rede cresceu (Victor + Fernando) de uma coleta pra outra.</span>
+      </div>
+      <div className="cm-chart cm-chart-small" aria-label="Seguidores por rede">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart syncId="weekly-metrics" data={data} margin={{ top: 8, right: 10, left: -12, bottom: 0 }} barCategoryGap="28%" barGap={4}>
+            <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
+            <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={24} />
+            <YAxis
+              domain={yDomain}
+              allowDecimals={false}
+              tickFormatter={(value) => (value > 0 ? `+${compact.format(value)}` : compact.format(value))}
+              tick={{ fill: '#94a3b8', fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <Tooltip formatter={formatValue} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            {seriesKeys.map((key) => (
+              <Bar key={key} dataKey={key} name={key} fill={NETWORK_COLORS[key]} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </>
+  );
+}

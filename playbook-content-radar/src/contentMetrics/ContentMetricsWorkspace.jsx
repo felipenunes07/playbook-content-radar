@@ -45,6 +45,7 @@ import {
   buildMonthlyComparison,
   buildMonthlyTrend,
   buildCalendarHeatmap,
+  buildDailyCadence,
   buildWeeklyCadence,
   buildWeeklyContentTypeCadence,
   filterContent,
@@ -52,6 +53,7 @@ import {
   groupPerformance,
   rankContent,
   isoWeekKey,
+  weekLabel,
 } from './analytics.js';
 import { loadContentMetrics } from './repository.js';
 import { METRICS_SECTIONS } from './routes.js';
@@ -62,6 +64,7 @@ import {
   CreatorComparisonChart,
   FrequencyResultScatter,
   CalendarHeatmapChart,
+  NetworkFollowersChart,
   PerformanceBars,
   WeeklyCadenceChart,
   WeeklyContentTypeChart,
@@ -306,6 +309,8 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
   const [selectedPlatform, setSelectedPlatform] = useState('all'); // 'all', 'linkedin', 'youtube', 'instagram'
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedWeek, setSelectedWeek] = useState(null);
+  const [distributionView, setDistributionView] = useState('frequency'); // 'frequency' | 'followers'
+  const [followersPeriod, setFollowersPeriod] = useState('daily'); // 'daily' | 'weekly'
 
   const handleDateClick = (dayInfo) => {
     if (selectedDate && selectedDate.date === dayInfo.date) {
@@ -401,8 +406,19 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
   
   const monthly = buildMonthlyComparison(platformFiltered);
   const weekly = buildWeeklyCadence(platformFiltered);
+  // Preenchido dia a dia por todo o período do filtro (às vezes 1 ano) ia gerar
+  // centenas de barras vazias — os últimos 30 dias é o que dá pra comparar de
+  // forma legível com o gráfico de seguidores, que só tem coleta diária recente.
+  const daily = buildDailyCadence(platformFiltered).slice(-30);
+  // Mesma granularidade do toggle Diário/Semanal do gráfico de seguidores, pra
+  // as datas do eixo X baterem entre os dois gráficos (syncId="weekly-metrics").
+  const cadenceData = followersPeriod === 'daily' ? daily : weekly;
   const heatmap = buildCalendarHeatmap(platformFiltered);
   const comparison = buildCreatorComparison(interactiveFiltered);
+  const networkGrowth = useMemo(
+    () => buildNetworkGrowthSeries(data.growth, followersPeriod),
+    [data.growth, followersPeriod],
+  );
   const youtubeViews = data.youtube.reduce((sum, video) => sum + Number(video.views || 0), 0);
 
   const activeFilterLabel = selectedDate 
@@ -474,10 +490,46 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
     )}
 
     <ExecutiveCards summary={summary} monthly={monthly} />
-    <section className="cm-panel cm-hero-chart"><div className="cm-section-heading"><div><span className="cm-eyebrow">Cadência</span><h2>Conteúdos por semana</h2><p>Victor vs Fernando vs Total Playbook. Este é o gráfico central para saber se a frequência aumentou ou caiu.</p></div><small>{weekly.length} semanas</small></div><WeeklyCadenceChart data={weekly} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} /></section>
+    <section className="cm-panel cm-hero-chart">
+      <div className="cm-section-heading">
+        <div>
+          <span className="cm-eyebrow">Cadência</span>
+          <h2>{followersPeriod === 'daily' ? 'Conteúdos por dia' : 'Conteúdos por semana'}</h2>
+          <p>Victor vs Fernando vs Total Playbook. Este é o gráfico central para saber se a frequência aumentou ou caiu.</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div className="cm-period-toggle" role="tablist" aria-label="Período do gráfico de seguidores por rede">
+            <button type="button" role="tab" aria-selected={followersPeriod === 'daily'} className={followersPeriod === 'daily' ? 'active' : ''} onClick={() => setFollowersPeriod('daily')}>Diário</button>
+            <button type="button" role="tab" aria-selected={followersPeriod === 'weekly'} className={followersPeriod === 'weekly' ? 'active' : ''} onClick={() => setFollowersPeriod('weekly')}>Semanal</button>
+          </div>
+          <small>{followersPeriod === 'daily' ? `${daily.length} dias` : `${weekly.length} semanas`}</small>
+        </div>
+      </div>
+      <WeeklyCadenceChart data={cadenceData} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} periodLabel={followersPeriod === 'daily' ? 'dias' : 'semanas'} />
+    </section>
     <div className="cm-primary-grid">
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Distribuição</span><h2>Frequência diária</h2><p>Consistência de conteúdos dia a dia ao longo do ano.</p></div><small>{heatmap.days.length} dias</small></div><CalendarHeatmapChart data={heatmap} onDateClick={handleDateClick} selectedDate={selectedDate?.date} platform={selectedPlatform} /></section>
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Resultado</span><h2>Engagement por semana</h2></div></div><WeeklyEngagementChart data={weekly} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} /></section>
+      <section className="cm-panel">
+        <div className="cm-section-heading">
+          <div>
+            <span className="cm-eyebrow">Distribuição</span>
+            <h2>{distributionView === 'followers' ? 'Seguidores por rede' : 'Frequência diária'}</h2>
+            <p>{distributionView === 'followers' ? 'Total de seguidores/inscritos de cada rede ao longo do tempo.' : 'Consistência de conteúdos dia a dia ao longo do ano.'}</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {distributionView !== 'followers' && <small>{heatmap.days.length} dias</small>}
+            <div className="cm-period-toggle" role="tablist" aria-label="Tipo de gráfico de distribuição">
+              <button type="button" role="tab" aria-selected={distributionView === 'frequency'} className={distributionView === 'frequency' ? 'active' : ''} onClick={() => setDistributionView('frequency')}>Frequência</button>
+              <button type="button" role="tab" aria-selected={distributionView === 'followers'} className={distributionView === 'followers' ? 'active' : ''} onClick={() => setDistributionView('followers')}>Seguidores</button>
+            </div>
+          </div>
+        </div>
+        {distributionView === 'followers'
+          ? (networkGrowth.length
+            ? <NetworkFollowersChart data={networkGrowth} />
+            : <div className="cm-empty-chart">Ainda não há coletas de seguidores suficientes para este período.</div>)
+          : <CalendarHeatmapChart data={heatmap} onDateClick={handleDateClick} selectedDate={selectedDate?.date} platform={selectedPlatform} />}
+      </section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Resultado</span><h2>{followersPeriod === 'daily' ? 'Engagement por dia' : 'Engagement por semana'}</h2></div></div><WeeklyEngagementChart data={cadenceData} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} /></section>
     </div>
     
     <section className="cm-panel">
@@ -1376,6 +1428,49 @@ const GOAL_PLATFORMS = [
   { id: 'youtube', label: 'YouTube', metric: 'subscribers', unit: 'inscritos', Icon: YouTubeIcon, color: '#e52d27', emoji: '🔴' },
   { id: 'instagram', label: 'Instagram', metric: 'followers', unit: 'seguidores', Icon: InstagramGlyph, color: '#c13584', emoji: '🟣' },
 ];
+
+// Soma seguidores/inscritos de todas as pessoas por rede e por dia (total da
+// marca, não de uma pessoa só), depois converte pra QUANTO CRESCEU de um ponto
+// pro outro — não o total acumulado, que ia parecer um número absurdo (a soma
+// de Victor + Fernando) e crescente sem parar. 'weekly' primeiro reduz a 1
+// ponto por semana ISO (última coleta da semana) e só depois calcula a
+// variação semana a semana.
+function buildNetworkGrowthSeries(growth, period = 'daily') {
+  const byDate = new Map();
+  (growth || []).forEach((g) => {
+    const platform = GOAL_PLATFORMS.find((p) => p.id === g.platform);
+    if (!platform) return;
+    const value = Number(g[platform.metric]);
+    if (!Number.isFinite(value) || value <= 0) return;
+    const date = String(g.metric_date);
+    const row = byDate.get(date) || { metric_date: date };
+    row[platform.label] = (row[platform.label] || 0) + value;
+    byDate.set(date, row);
+  });
+  const daily = [...byDate.values()].sort((a, b) => a.metric_date.localeCompare(b.metric_date));
+  const networkKeys = GOAL_PLATFORMS.map((p) => p.label);
+
+  const toDeltas = (rows) => rows.map((row, index) => {
+    const prev = rows[index - 1];
+    const out = { metric_date: row.metric_date, week: row.week, label: row.label };
+    networkKeys.forEach((key) => {
+      if (row[key] == null || !prev || prev[key] == null) return;
+      out[key] = row[key] - prev[key];
+    });
+    return out;
+  }).slice(1); // o primeiro ponto não tem "anterior" pra comparar
+
+  // `label` usa o mesmo formato de WeeklyCadenceChart/WeeklyEngagementChart (dd/mm
+  // da segunda-feira da semana), pra alinhar com o eixo X delas via syncId.
+  if (period !== 'weekly') return toDeltas(daily.map((row) => ({ ...row, label: shortDay(row.metric_date) })));
+
+  const byWeek = new Map();
+  daily.forEach((row) => {
+    const week = isoWeekKey(new Date(`${row.metric_date}T00:00:00Z`));
+    byWeek.set(week, { ...row, week, label: weekLabel(week) }); // `daily` está em ordem crescente, então a última coleta da semana sobrescreve
+  });
+  return toDeltas([...byWeek.values()].sort((a, b) => a.week.localeCompare(b.week)));
+}
 
 // Converte as linhas de `content_goals` (platform, owner_name, month_key, target)
 // num mapa { "linkedin:Victor Baggio:2026-07": 22000 } fácil de consultar na UI.

@@ -180,7 +180,7 @@ function shortCreatorName(ownerName) {
   return text.split(' ')[0] || 'Sem autor';
 }
 
-function weekLabel(weekKey) {
+export function weekLabel(weekKey) {
   const parts = weekKey.split('-W');
   if (parts.length !== 2) return weekKey;
   const year = parseInt(parts[0], 10);
@@ -225,6 +225,46 @@ export function buildWeeklyCadence(items) {
     cursor.setUTCDate(cursor.getUTCDate() + 7);
   }
   return filled;
+}
+
+// Mesma ideia de buildWeeklyCadence, mas 1 ponto por dia em vez de por semana ISO
+// — usado quando o toggle Diário/Semanal do dashboard está em "Diário", pra o
+// gráfico de cadência bater com o gráfico de seguidores por rede (mesmas datas).
+export function buildDailyCadence(items) {
+  const groups = new Map();
+  for (const item of (Array.isArray(items) ? items : [])) {
+    const published = validDate(item.published_at);
+    if (!published) continue;
+    const date = startOfUtcDay(published);
+    const day = dateKey(date);
+    const current = groups.get(day) || { date: day, week: isoWeekKey(date), label: dayLabel(day), Victor: 0, Fernando: 0, Total: 0, engagement: 0, comments: 0, averageEngagement: 0 };
+    const creator = shortCreatorName(item.owner_name);
+    if (creator === 'Victor' || creator === 'Fernando') current[creator] += 1;
+    current.Total += 1;
+    current.engagement += number(item.engagement_total);
+    current.comments += number(item.comments);
+    current.averageEngagement = round(current.engagement / current.Total);
+    groups.set(day, current);
+  }
+  const sorted = [...groups.values()].sort((a, b) => a.date.localeCompare(b.date));
+  if (sorted.length < 2) return sorted;
+
+  // Preenche os dias sem post entre o primeiro e o último com zero, pra não
+  // pular no eixo X (mesma lógica de buildWeeklyCadence pras semanas).
+  const filled = [];
+  const first = new Date(`${sorted[0].date}T00:00:00Z`);
+  const last = new Date(`${sorted[sorted.length - 1].date}T00:00:00Z`);
+  for (let cursor = first; cursor <= last; cursor = addUtcDays(cursor, 1)) {
+    const day = dateKey(cursor);
+    const existing = groups.get(day);
+    filled.push(existing || { date: day, week: isoWeekKey(cursor), label: dayLabel(day), Victor: 0, Fernando: 0, Total: 0, engagement: 0, comments: 0, averageEngagement: 0 });
+  }
+  return filled;
+}
+
+function dayLabel(iso) {
+  const [, m, d] = iso.split('-');
+  return `${d}/${m}`;
 }
 
 function weekKeyToMonday(weekKey) {
