@@ -61,13 +61,13 @@ export function YoutubeFilters({ filters, onChange, videos }) {
   return <div className="cm-filters cm-youtube-filters"><label>Canal<select aria-label="Canal" value={filters.owner || ''} onChange={set('owner')}><option value="">Todos</option>{values('owner_name').map((value) => <option key={value}>{value}</option>)}</select></label><label>De<input aria-label="Data inicial YouTube" type="date" value={filters.from || ''} onChange={set('from')} /></label><label>Até<input aria-label="Data final YouTube" type="date" value={filters.to || ''} onChange={set('to')} /></label><label>Tema<select aria-label="Tema do vídeo" value={filters.theme || ''} onChange={set('theme')}><option value="">Todos</option>{values('theme', 'Não classificado').map((value) => <option key={value}>{value}</option>)}</select></label><label className="cm-search"><span>Vídeo</span><div><Search size={14} /><input aria-label="Buscar vídeo" value={filters.search || ''} onChange={set('search')} placeholder="Título ou descrição" /></div></label></div>;
 }
 
-export function TopContentTable({ rows, metric = 'engagement_score', title = 'Top conteúdos' }) {
+export function TopContentTable({ rows, metric = 'engagement_score', title = 'Top conteúdos', showViews = true }) {
   return (
     <section className="cm-table-section">
       <div className="cm-section-heading"><div><span className="cm-eyebrow">Ranking</span><h2>{title}</h2></div><small>{rows.length} resultados</small></div>
       {!rows.length ? <div className="cm-empty">Nenhum conteúdo encontrado com os filtros atuais.</div> : (
           <div className="cm-table-wrap"><table className="cm-table">
-            <thead><tr><th>#</th><th>Conteúdo</th><th>Autor</th><th>Formato</th><th>Likes</th><th>Comentários</th><th>Shares</th><th>{metric === 'comments' ? 'Comentários' : 'Score'}</th><th /></tr></thead>
+            <thead><tr><th>#</th><th>Conteúdo</th><th>Autor</th><th>Formato</th>{showViews && <th>Views</th>}<th>Likes</th><th>Comentários</th><th>Shares</th><th>{metric === 'comments' ? 'Comentários' : 'Score'}</th><th /></tr></thead>
             <tbody>{rows.map((row, index) => <tr key={row.external_post_id || row.id || index}>
               <td className="cm-rank">{String(index + 1).padStart(2, '0')}</td>
               <td><strong className="cm-hook">{row.hook || row.title || 'Sem título'}</strong><small>{row.published_at ? date.format(new Date(row.published_at)) : 'Data indisponível'}{row.cta_keyword ? ` · CTA ${row.cta_keyword}` : ''}</small></td>
@@ -86,7 +86,7 @@ export function TopContentTable({ rows, metric = 'engagement_score', title = 'To
                   <span className="cm-tag">{row.format || '—'}</span>
                 </div>
               </td>
-              <td>{integer.format(row.likes || 0)}</td><td>{integer.format(row.comments || 0)}</td><td>{integer.format(row.shares || 0)}</td>
+              {showViews && <td><strong>{(row.platform === 'youtube' || row.platform === 'instagram') ? integer.format(row.views || 0) : '—'}</strong></td>}<td>{integer.format(row.likes || 0)}</td><td>{integer.format(row.comments || 0)}</td><td>{integer.format(row.shares || 0)}</td>
               <td><strong>{integer.format(metric === 'comments' ? row.comments || 0 : row.engagement_score || 0)}</strong></td>
               <td>{row.post_url && <a className="cm-open" href={row.post_url} target="_blank" rel="noreferrer" aria-label={`Abrir ${row.hook || 'post'}`}><ExternalLink size={15} /></a>}</td>
             </tr>)}</tbody>

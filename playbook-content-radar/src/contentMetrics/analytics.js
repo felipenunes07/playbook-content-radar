@@ -201,12 +201,13 @@ export function buildWeeklyCadence(items) {
     const date = validDate(item.published_at);
     if (!date) continue;
     const week = isoWeekKey(date);
-    const current = groups.get(week) || { week, label: weekLabel(week), Victor: 0, Fernando: 0, Total: 0, engagement: 0, comments: 0, averageEngagement: 0 };
+    const current = groups.get(week) || { week, label: weekLabel(week), Victor: 0, Fernando: 0, Total: 0, engagement: 0, comments: 0, views: 0, averageEngagement: 0 };
     const creator = shortCreatorName(item.owner_name);
     if (creator === 'Victor' || creator === 'Fernando') current[creator] += 1;
     current.Total += 1;
     current.engagement += number(item.engagement_total);
     current.comments += number(item.comments);
+    current.views += number(item.views);
     current.averageEngagement = round(current.engagement / current.Total);
     groups.set(week, current);
   }
@@ -221,7 +222,7 @@ export function buildWeeklyCadence(items) {
   while (cursor <= lastMonday) {
     const wk = isoWeekKey(cursor);
     const existing = groups.get(wk);
-    filled.push(existing || { week: wk, label: weekLabel(wk), Victor: 0, Fernando: 0, Total: 0, engagement: 0, comments: 0, averageEngagement: 0 });
+    filled.push(existing || { week: wk, label: weekLabel(wk), Victor: 0, Fernando: 0, Total: 0, engagement: 0, comments: 0, views: 0, averageEngagement: 0 });
     cursor.setUTCDate(cursor.getUTCDate() + 7);
   }
   return filled;
@@ -237,12 +238,13 @@ export function buildDailyCadence(items) {
     if (!published) continue;
     const date = startOfUtcDay(published);
     const day = dateKey(date);
-    const current = groups.get(day) || { date: day, week: isoWeekKey(date), label: dayLabel(day), Victor: 0, Fernando: 0, Total: 0, engagement: 0, comments: 0, averageEngagement: 0 };
+    const current = groups.get(day) || { date: day, week: isoWeekKey(date), label: dayLabel(day), Victor: 0, Fernando: 0, Total: 0, engagement: 0, comments: 0, views: 0, averageEngagement: 0 };
     const creator = shortCreatorName(item.owner_name);
     if (creator === 'Victor' || creator === 'Fernando') current[creator] += 1;
     current.Total += 1;
     current.engagement += number(item.engagement_total);
     current.comments += number(item.comments);
+    current.views += number(item.views);
     current.averageEngagement = round(current.engagement / current.Total);
     groups.set(day, current);
   }
@@ -257,7 +259,7 @@ export function buildDailyCadence(items) {
   for (let cursor = first; cursor <= last; cursor = addUtcDays(cursor, 1)) {
     const day = dateKey(cursor);
     const existing = groups.get(day);
-    filled.push(existing || { date: day, week: isoWeekKey(cursor), label: dayLabel(day), Victor: 0, Fernando: 0, Total: 0, engagement: 0, comments: 0, averageEngagement: 0 });
+    filled.push(existing || { date: day, week: isoWeekKey(cursor), label: dayLabel(day), Victor: 0, Fernando: 0, Total: 0, engagement: 0, comments: 0, views: 0, averageEngagement: 0 });
   }
   return filled;
 }

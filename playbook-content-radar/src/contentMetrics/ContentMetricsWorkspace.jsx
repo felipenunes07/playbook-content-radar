@@ -679,7 +679,7 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
             : <div className="cm-empty-chart">Ainda não há coletas de seguidores suficientes para este período.</div>)
           : <CalendarHeatmapChart data={heatmap} onDateClick={handleDateClick} selectedDate={selectedDate?.date} platform={selectedPlatform} />}
       </section>
-      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Resultado</span><h2>{followersPeriod === 'daily' ? 'Engagement por dia' : 'Engagement por semana'}</h2></div></div><WeeklyEngagementChart data={followersPeriod === 'daily' ? daily : weekly} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} /></section>
+      <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Resultado</span><h2>{followersPeriod === 'daily' ? 'Engagement e Visualizações por dia' : 'Engagement e Visualizações por semana'}</h2></div></div><WeeklyEngagementChart data={followersPeriod === 'daily' ? daily : weekly} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} /></section>
     </div>
     
     <section className="cm-panel">
@@ -689,7 +689,7 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
           <h2>{activeFilterLabel ? `Conteúdos em destaque (${activeFilterLabel})` : 'Top conteúdos por score'}</h2>
         </div>
       </div>
-      <TopContentTable rows={rankContent(interactiveFiltered, 'engagement_score', activeFilterLabel ? 100 : 10)} />
+      <TopContentTable rows={rankContent(interactiveFiltered, 'engagement_score', activeFilterLabel ? 100 : 10)} showViews={selectedPlatform !== 'linkedin' && selectedPlatform !== 'instagram'} />
     </section>
 
     <div className="cm-analysis-grid">
@@ -823,7 +823,7 @@ function LinkedinAnalysis({ filtered, allPosts, data, filters, setFilters }) {
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Tema</span><h2>Performance temática</h2></div></div><PerformanceBars rows={groupPerformance(interactiveFiltered, 'theme')} valueKey="comments" label="Comentários" /></section>
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Estratégia</span><h2>Frequência vs resultado</h2></div></div><FrequencyResultScatter data={weekly} /></section>
     </div>
-    <TopContentTable rows={rankContent(interactiveFiltered, 'comments', activeFilterLabel ? 100 : 10)} metric="comments" title={activeFilterLabel ? `Top posts por comentários (${activeFilterLabel})` : "Top posts por comentários"} />
+    <TopContentTable rows={rankContent(interactiveFiltered, 'comments', activeFilterLabel ? 100 : 10)} metric="comments" title={activeFilterLabel ? `Top posts por comentários (${activeFilterLabel})` : "Top posts por comentários"} showViews={false} />
   </>;
 }
 
@@ -907,7 +907,7 @@ function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSet
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>Reel · Story · Carrossel · Imagem</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">CTA</span><h2>Comentários por chamada</h2></div></div><PerformanceBars rows={groupPerformance(filtered, 'cta_keyword')} valueKey="comments" label="Comentários" /></section>
     </div>
-    <TopContentTable rows={rankContent(filtered, 'engagement_score', 20)} title="Top conteúdos do Instagram" />
+    <TopContentTable rows={rankContent(filtered, 'engagement_score', 20)} title="Top conteúdos do Instagram" showViews={false} />
   </>;
 }
 

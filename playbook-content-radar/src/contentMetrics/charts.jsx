@@ -196,7 +196,7 @@ export function WeeklyEngagementChart({ data, onWeekClick, selectedWeek }) {
           <Tooltip itemSorter={(item) => -item.value} formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Line type="monotone" dataKey="engagement" name="Engagement" stroke="#0a66c2" strokeWidth={2.5} dot={false} />
-          <Line type="monotone" dataKey="comments" name="Comentários" stroke="#93c5fd" strokeWidth={2.5} dot={false} />
+          <Line type="monotone" dataKey="views" name="Visualizações" stroke="#93c5fd" strokeWidth={2.5} dot={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>
