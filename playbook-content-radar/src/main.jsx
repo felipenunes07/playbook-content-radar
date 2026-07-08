@@ -1116,6 +1116,12 @@ function App() {
                   <TrendingUp size={16} /> Métricas
                 </button>
                 <button
+                  className={view === 'goals' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('goals')}
+                >
+                  <Target size={16} /> Metas
+                </button>
+                <button
                   className={view === 'prospecting' ? 'nav-link active' : 'nav-link'}
                   onClick={() => leaveMetrics('prospecting')}
                 >
@@ -1132,12 +1138,6 @@ function App() {
                   onClick={() => setView('calendar')}
                 >
                   <Calendar size={16} /> Calendário Editorial
-                </button>
-                <button
-                  className={view === 'goals' ? 'nav-link active' : 'nav-link'}
-                  onClick={() => setView('goals')}
-                >
-                  <Target size={16} /> Metas
                 </button>
               </>
             )}
@@ -1405,6 +1405,15 @@ function App() {
 
               <button
                 type="button"
+                className={view === 'goals' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => leaveMetrics('goals')}
+              >
+                <Target size={18} />
+                <span>Metas</span>
+              </button>
+
+              <button
+                type="button"
                 className={view === 'prospecting' ? 'mobile-nav-item active' : 'mobile-nav-item'}
                 onClick={() => leaveMetrics('prospecting')}
               >
@@ -1428,15 +1437,6 @@ function App() {
               >
                 <Calendar size={18} />
                 <span>Agenda</span>
-              </button>
-
-              <button
-                type="button"
-                className={view === 'goals' ? 'mobile-nav-item active' : 'mobile-nav-item'}
-                onClick={() => leaveMetrics('goals')}
-              >
-                <Target size={18} />
-                <span>Metas</span>
               </button>
 
               <button
