@@ -10,12 +10,24 @@ function EmptyChart({ children = 'Sem dados para o período selecionado.' }) {
   return <div className="cm-empty-chart">{children}</div>;
 }
 
-export function ContentTrendChart({ data, metric = 'engagement', color = '#0a66c2' }) {
+export function ContentTrendChart({ data, metric = 'engagement', color = '#0a66c2', onPointClick }) {
   if (!data.length) return <EmptyChart />;
   return (
     <div className="cm-chart" aria-label="Tendência mensal de conteúdo">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+        <LineChart
+          data={data}
+          margin={{ top: 8, right: 10, left: -12, bottom: 0 }}
+          onClick={(state) => {
+            if (state && state.activeTooltipIndex !== undefined) {
+              const payload = data[state.activeTooltipIndex];
+              if (onPointClick && payload) {
+                onPointClick(payload);
+              }
+            }
+          }}
+          style={{ cursor: onPointClick ? 'pointer' : 'default' }}
+        >
           <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={24} />
           <YAxis tickFormatter={(value) => compact.format(value)} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
@@ -50,7 +62,7 @@ export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek, periodLabe
   if (!data.length) return <EmptyChart />;
   const handleBarClick = (barData) => {
     if (onWeekClick && barData) {
-      onWeekClick({ week: barData.week, label: barData.label });
+      onWeekClick({ week: barData.week, label: barData.label, date: barData.date });
     }
   };
   const series = data.map((entry, index) => {
@@ -172,11 +184,10 @@ export function WeeklyEngagementChart({ data, onWeekClick, selectedWeek }) {
           data={data} 
           margin={{ top: 8, right: 10, left: -12, bottom: 0 }}
           onClick={(state) => {
-            if (state && state.activePayload && state.activePayload[0]) {
-              const weekKey = state.activePayload[0].payload.week;
-              const weekLabel = state.activePayload[0].payload.label;
-              if (onWeekClick) {
-                onWeekClick({ week: weekKey, label: weekLabel });
+            if (state && state.activeTooltipIndex !== undefined) {
+              const payload = data[state.activeTooltipIndex];
+              if (onWeekClick && payload) {
+                onWeekClick({ week: payload.week, label: payload.label, date: payload.date });
               }
             }
           }}
@@ -380,7 +391,7 @@ const NETWORK_COLORS = { LinkedIn: '#0a66c2', YouTube: '#e52d27', Instagram: '#c
 // rede lado a lado — empilhado esconderia o tamanho real de cada uma. `syncId`
 // igual ao de WeeklyCadenceChart/WeeklyEngagementChart sincroniza o hover/tooltip
 // entre os gráficos quando os rótulos do eixo X (semana) coincidem.
-export function NetworkFollowersChart({ data }) {
+export function NetworkFollowersChart({ data, onWeekClick, selectedWeek, selectedDate, period = 'daily' }) {
   if (!data.length) return null;
 
   // `data` já vem em deltas (quanto cresceu de uma coleta pra outra, somando
@@ -395,6 +406,12 @@ export function NetworkFollowersChart({ data }) {
     return n > 0 ? `+${text}` : n < 0 ? `−${text}` : '0';
   };
 
+  const handleBarClick = (barData) => {
+    if (onWeekClick && barData) {
+      onWeekClick({ week: barData.week, label: barData.label, date: barData.metric_date });
+    }
+  };
+
   return (
     <>
       <div className="cm-chart-toolbar">
@@ -402,7 +419,15 @@ export function NetworkFollowersChart({ data }) {
       </div>
       <div className="cm-chart cm-chart-small" aria-label="Seguidores por rede">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart syncId="weekly-metrics" syncMethod="value" data={data} margin={{ top: 8, right: 10, left: -12, bottom: 0 }} barCategoryGap="28%" barGap={4}>
+          <BarChart
+            syncId="weekly-metrics"
+            syncMethod="value"
+            data={data}
+            margin={{ top: 8, right: 10, left: -12, bottom: 0 }}
+            barCategoryGap="28%"
+            barGap={4}
+            style={{ cursor: onWeekClick ? 'pointer' : 'default' }}
+          >
             <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
             <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={24} />
             <YAxis
@@ -416,7 +441,14 @@ export function NetworkFollowersChart({ data }) {
             <Tooltip itemSorter={(item) => -item.value} cursor={{ fill: '#f1f5f9', opacity: 0.55 }} formatter={formatValue} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             {seriesKeys.map((key) => (
-              <Bar key={key} dataKey={key} name={key} fill={NETWORK_COLORS[key]} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+              <Bar key={key} dataKey={key} name={key} fill={NETWORK_COLORS[key]} radius={[4, 4, 0, 0]} isAnimationActive={false} onClick={handleBarClick}>
+                {data.map((entry) => {
+                  const isSelected = period === 'weekly'
+                    ? (!selectedWeek || entry.week === selectedWeek)
+                    : (!selectedDate || entry.metric_date === selectedDate);
+                  return <Cell key={entry.metric_date || entry.week} fillOpacity={isSelected ? 1 : 0.2} />;
+                })}
+              </Bar>
             ))}
           </BarChart>
         </ResponsiveContainer>

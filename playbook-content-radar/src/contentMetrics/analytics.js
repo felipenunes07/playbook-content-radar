@@ -109,7 +109,7 @@ export function buildMonthlyTrend(items) {
     const period = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
     const current = groups.get(period) || {
       period,
-      label: `${MONTHS[date.getUTCMonth()]} ${String(date.getUTCFullYear()).slice(-2)}`,
+      label: `${MONTHS[date.getUTCMonth()]}/${date.getUTCFullYear()}`,
       posts: 0, likes: 0, comments: 0, shares: 0, engagement: 0, score: 0,
     };
     current.posts += 1;

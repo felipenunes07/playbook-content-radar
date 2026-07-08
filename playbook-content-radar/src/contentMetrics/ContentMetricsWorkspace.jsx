@@ -319,12 +319,21 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
     }
   };
 
-  const handleWeekClick = (weekInfo) => {
-    if (selectedWeek && selectedWeek.week === weekInfo.week) {
-      setSelectedWeek(null);
+  const handleWeekClick = (clickedInfo) => {
+    if (followersPeriod === 'daily' && clickedInfo.date) {
+      if (selectedDate && selectedDate.date === clickedInfo.date) {
+        setSelectedDate(null);
+      } else {
+        setSelectedDate({ date: clickedInfo.date, label: clickedInfo.label });
+        setSelectedWeek(null);
+      }
     } else {
-      setSelectedWeek(weekInfo);
-      setSelectedDate(null);
+      if (selectedWeek && selectedWeek.week === clickedInfo.week) {
+        setSelectedWeek(null);
+      } else {
+        setSelectedWeek({ week: clickedInfo.week, label: clickedInfo.label });
+        setSelectedDate(null);
+      }
     }
   };
 
@@ -523,7 +532,13 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
         </div>
         {distributionView === 'followers'
           ? (networkGrowth.length
-            ? <NetworkFollowersChart data={networkGrowth} />
+            ? <NetworkFollowersChart
+                data={networkGrowth}
+                onWeekClick={handleWeekClick}
+                selectedWeek={selectedWeek?.week}
+                selectedDate={selectedDate?.date}
+                period={followersPeriod}
+              />
             : <div className="cm-empty-chart">Ainda não há coletas de seguidores suficientes para este período.</div>)
           : <CalendarHeatmapChart data={heatmap} onDateClick={handleDateClick} selectedDate={selectedDate?.date} platform={selectedPlatform} />}
       </section>
@@ -760,6 +775,8 @@ function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSet
 }
 
 function YoutubeSection({ data, videos, filters, setFilters, onSettings }) {
+  const [selectedMonth, setSelectedMonth] = useState(null);
+
   const filteredGrowth = useMemo(() => {
     if (!data?.growth) return [];
     const youtubeGrowth = data.growth.filter(g => g.platform === 'youtube' || (!g.platform && (g.subscribers !== undefined || g.total_views !== undefined)));
@@ -795,10 +812,87 @@ function YoutubeSection({ data, videos, filters, setFilters, onSettings }) {
     </section>
   ) : null;
 
+  const filteredVideos = useMemo(() => {
+    if (!selectedMonth) return videos;
+    return videos.filter((video) => {
+      if (!video.published_at) return false;
+      const date = new Date(video.published_at);
+      const period = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+      return period === selectedMonth.period;
+    });
+  }, [videos, selectedMonth]);
+
   if (!data.youtube.length) return <>{growthSection}<EmptyCollector platform="YouTube" onSettings={onSettings} /></>;
   const totals = aggregateYoutubeMetrics(videos);
   const trend = buildMonthlyTrend(videos.map((video) => ({ ...video, engagement_total: video.engagement_total || 0, shares: 0 })));
-  return <><YoutubeFilters filters={filters} onChange={setFilters} videos={data.youtube} /><div className="cm-metric-strip"><div className="cm-metric"><span>Vídeos</span><strong>{totals.videos}</strong></div><div className="cm-metric"><span>Views</span><strong>{integer.format(totals.views)}</strong></div><div className="cm-metric"><span>Likes</span><strong>{integer.format(totals.likes)}</strong></div><div className="cm-metric"><span>Comentários</span><strong>{integer.format(totals.comments)}</strong></div><div className="cm-metric"><span>Engagement</span><strong>{integer.format(totals.engagement)}</strong></div><div className="cm-metric"><span>Taxa média</span><strong>{totals.engagementRate.toLocaleString('pt-BR')}%</strong></div></div><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Publicação</span><h2>Vídeos publicados por mês</h2></div><small>{trend.length} períodos</small></div><ContentTrendChart data={trend} metric="posts" color="#e52d27" /></section>{growthSection}<YoutubeVideosTable rows={[...videos].sort((a, b) => Number(b.views || 0) - Number(a.views || 0)).slice(0, 50)} title="Top vídeos por views" /></>;
+
+  return (
+    <>
+      <YoutubeFilters filters={filters} onChange={setFilters} videos={data.youtube} />
+      <div className="cm-metric-strip">
+        <div className="cm-metric"><span>Vídeos</span><strong>{totals.videos}</strong></div>
+        <div className="cm-metric"><span>Views</span><strong>{integer.format(totals.views)}</strong></div>
+        <div className="cm-metric"><span>Likes</span><strong>{integer.format(totals.likes)}</strong></div>
+        <div className="cm-metric"><span>Comentários</span><strong>{integer.format(totals.comments)}</strong></div>
+        <div className="cm-metric"><span>Engagement</span><strong>{integer.format(totals.engagement)}</strong></div>
+        <div className="cm-metric"><span>Taxa média</span><strong>{totals.engagementRate.toLocaleString('pt-BR')}%</strong></div>
+      </div>
+
+      {selectedMonth && (
+        <div 
+          className="cm-interactive-filter-banner" 
+          style={{ 
+            background: '#eff6ff', 
+            border: '1px solid #bfdbfe', 
+            borderRadius: '8px', 
+            padding: '10px 16px', 
+            marginBottom: '16px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            fontSize: '13px', 
+            color: '#1e3a8a',
+          }}
+        >
+          <SlidersHorizontal size={14} style={{ marginRight: 8 }} />
+          <span>Filtrado por período: <strong>{selectedMonth.label}</strong></span>
+          <button 
+            onClick={() => setSelectedMonth(null)}
+            style={{
+              background: '#3b82f6',
+              color: '#fff',
+              border: 'none',
+              padding: '4px 10px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 500,
+              marginLeft: 'auto'
+            }}
+          >
+            Limpar filtro do gráfico
+          </button>
+        </div>
+      )}
+
+      <section className="cm-panel">
+        <div className="cm-section-heading">
+          <div>
+            <span className="cm-eyebrow">Publicação</span>
+            <h2>Vídeos publicados por mês</h2>
+          </div>
+          <small>{trend.length} períodos</small>
+        </div>
+        <ContentTrendChart data={trend} metric="posts" color="#e52d27" onPointClick={setSelectedMonth} />
+      </section>
+
+      {growthSection}
+
+      <YoutubeVideosTable 
+        rows={[...filteredVideos].sort((a, b) => Number(b.views || 0) - Number(a.views || 0)).slice(0, 50)} 
+        title={selectedMonth ? `Top vídeos por views (${selectedMonth.label})` : "Top vídeos por views"} 
+      />
+    </>
+  );
 }
 
 // ————— Prospecção: banco de leads (Fase 3) —————
