@@ -250,21 +250,26 @@ function GrowthCurrentStrip({ growth, platform, metric = 'followers', label = 's
   const chips = [...byOwner.values()].sort((a, b) => Number(b[metric]) - Number(a[metric]));
   const collectedDays = new Set(rows.map((g) => String(g.metric_date))).size;
   const firstDate = rows.reduce((min, g) => (!min || String(g.metric_date) < min ? String(g.metric_date) : min), null);
+  // A nota vive junto do texto descritivo do painel (linha própria, largura toda),
+  // e não dentro da faixa de cards — ali ela ficava espremida e quebrava em duas
+  // linhas no meio do vazio entre a descrição e os cards.
   return (
-    <div className="cm-growth-strip">
-      {chips.map((g) => (
-        <div className="cm-growth-chip" key={g.owner_name}>
-          <span>{g.owner_name}</span>
-          <strong>{Number(g[metric]).toLocaleString('pt-BR')}</strong>
-          <small>{label} · {new Date(String(g.metric_date)).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</small>
-        </div>
-      ))}
+    <>
       {collectedDays < 8 && firstDate && (
-        <small className="cm-growth-note">
+        <p className="cm-growth-note">
           Coleta diária ativa desde {new Date(firstDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })} — o histórico do gráfico se forma a cada dia.
-        </small>
+        </p>
       )}
-    </div>
+      <div className="cm-growth-strip">
+        {chips.map((g) => (
+          <div className="cm-growth-chip" key={g.owner_name}>
+            <span>{g.owner_name}</span>
+            <strong>{Number(g[metric]).toLocaleString('pt-BR')}</strong>
+            <small>{label} · {new Date(String(g.metric_date)).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</small>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 

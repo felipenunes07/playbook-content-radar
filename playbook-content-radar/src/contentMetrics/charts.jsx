@@ -234,7 +234,25 @@ export function PerformanceBars({ rows, valueKey = 'engagement', label = 'Engage
   );
 }
 
+// Eixo Y colado nos dados (com uma folga), em vez de começar no zero. Com 20.965
+// seguidores e uma faixa 0–22 mil, o ganho de 154 do mês vira uma linha reta.
+export function paddedDomain(values, { includeZero = false } = {}) {
+  const nums = values.filter((v) => v != null && Number.isFinite(Number(v))).map(Number);
+  if (!nums.length) return [0, 1];
+  let min = Math.min(...nums);
+  let max = Math.max(...nums);
+  if (includeZero) { min = Math.min(min, 0); max = Math.max(max, 0); }
+  // Série constante: abre uma faixa artificial pra linha não colar na borda.
+  if (min === max) return [min - 1, max + 1];
+  const pad = Math.max(1, Math.round((max - min) * 0.12));
+  return [min - pad, max + pad];
+}
+
 export function AccountGrowthChart({ data }) {
+  // 'variation' = cada linha parte do zero (quanto cresceu no período). É o padrão
+  // porque pessoas em patamares diferentes (20.9 mil vs 16.9 mil) num eixo absoluto
+  // achatam a variação de cada uma. 'total' mostra o número cheio.
+  const [mode, setMode] = React.useState('variation');
   if (!data.length) return null;
   const rows = [...data].sort((a, b) => String(a.metric_date).localeCompare(String(b.metric_date)));
   // Com poucos snapshots (coleta diária recém-ativada), linha sem marcador é invisível.
@@ -266,37 +284,91 @@ export function AccountGrowthChart({ data }) {
     return fallbackColors[index % fallbackColors.length];
   };
 
-  return (
-    <div className="cm-chart cm-chart-small" aria-label="Crescimento de inscritos e seguidores">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={rows} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
-          <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
-          <XAxis dataKey="metric_date" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} />
-          <YAxis tickFormatter={(value) => compact.format(value)} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
-          <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
-          
-          {/* Render dynamic follower/subscriber lines */}
-          {lineKeys.map((key, index) => (
-            <Line 
-              key={key}
-              type="monotone" 
-              dataKey={key} 
-              name={key === 'subscribers' ? 'Inscritos' : key} 
-              stroke={getStrokeColor(key, index)}
-              strokeWidth={2.5}
-              connectNulls
-              dot={sparseDot}
-            />
-          ))}
+  const hasViews = rows.some(r => r.total_views !== undefined && r.total_views !== null);
+  const seriesKeys = hasViews ? [...lineKeys, 'total_views'] : lineKeys;
 
-          {/* Render YouTube views if present in single-creator mode */}
-          {rows.some(r => r.total_views !== undefined && r.total_views !== null) && (
-            <Line type="monotone" dataKey="total_views" name="Views totais" stroke="#9cbfe0" strokeWidth={2} connectNulls dot={sparseDot} />
-          )}
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
+  // No modo variação cada série vira "quanto cresceu desde a primeira coleta do
+  // período", partindo de zero. Assim Victor e Fernando ficam comparáveis mesmo
+  // estando em patamares de seguidores bem diferentes.
+  const baseline = {};
+  seriesKeys.forEach((key) => {
+    const first = rows.find(r => r[key] != null);
+    baseline[key] = first ? Number(first[key]) : 0;
+  });
+
+  const variationRows = rows.map((r) => {
+    const out = { metric_date: r.metric_date };
+    seriesKeys.forEach((key) => {
+      if (r[key] != null) out[key] = Number(r[key]) - baseline[key];
+    });
+    return out;
+  });
+
+  const isVariation = mode === 'variation';
+  const chartRows = isVariation ? variationRows : rows;
+  const yDomain = paddedDomain(
+    chartRows.flatMap((r) => seriesKeys.map((k) => r[k])),
+    { includeZero: isVariation },
+  );
+
+  const formatValue = (value) => {
+    const n = Number(value);
+    const text = Math.abs(n).toLocaleString('pt-BR');
+    if (!isVariation) return text;
+    return n > 0 ? `+${text}` : n < 0 ? `−${text}` : '0';
+  };
+
+  return (
+    <>
+      <div className="cm-chart-toolbar">
+        <span className="cm-chart-hint">
+          {isVariation
+            ? 'Quanto cada conta cresceu desde a primeira coleta do período.'
+            : 'Número total de seguidores de cada conta.'}
+        </span>
+        <div className="cm-period-toggle" role="tablist" aria-label="Modo do gráfico de crescimento">
+          <button type="button" role="tab" aria-selected={isVariation} className={isVariation ? 'active' : ''} onClick={() => setMode('variation')}>Variação</button>
+          <button type="button" role="tab" aria-selected={!isVariation} className={!isVariation ? 'active' : ''} onClick={() => setMode('total')}>Total</button>
+        </div>
+      </div>
+      <div className="cm-chart cm-chart-small" aria-label="Crescimento de inscritos e seguidores">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartRows} margin={{ top: 8, right: 10, left: -12, bottom: 0 }}>
+            <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
+            <XAxis dataKey="metric_date" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} />
+            <YAxis
+              domain={yDomain}
+              allowDecimals={false}
+              tickFormatter={(value) => (isVariation && value > 0 ? `+${compact.format(value)}` : compact.format(value))}
+              tick={{ fill: '#94a3b8', fontSize: 11 }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <Tooltip formatter={formatValue} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+
+            {/* Render dynamic follower/subscriber lines */}
+            {lineKeys.map((key, index) => (
+              <Line
+                key={key}
+                type="monotone"
+                dataKey={key}
+                name={key === 'subscribers' ? 'Inscritos' : key}
+                stroke={getStrokeColor(key, index)}
+                strokeWidth={2.5}
+                connectNulls
+                dot={sparseDot}
+              />
+            ))}
+
+            {/* Render YouTube views if present in single-creator mode */}
+            {hasViews && (
+              <Line type="monotone" dataKey="total_views" name="Views totais" stroke="#9cbfe0" strokeWidth={2} connectNulls dot={sparseDot} />
+            )}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </>
   );
 }
 
