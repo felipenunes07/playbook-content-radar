@@ -640,8 +640,8 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
       </div>
       <WeeklyCadenceChart
         data={cadenceData}
-        onWeekClick={handleWeekClick}
-        selectedWeek={selectedWeek?.week}
+        onWeekClick={followersPeriod === 'daily' ? handleDateClick : handleWeekClick}
+        selectedWeek={followersPeriod === 'daily' ? selectedDate?.date : selectedWeek?.week}
         periodLabel={followersPeriod === 'daily' ? 'dias' : 'semanas'}
         keys={cadenceGroup === 'creator' ? ['Victor', 'Fernando'] : ['LinkedIn', 'YouTube', 'Instagram']}
         colors={
@@ -839,7 +839,7 @@ function EmptyCollector({ platform, onSettings }) {
   return <div className="cm-collector-empty"><div className="cm-empty-icon"><Icon size={28} /></div><span className="cm-eyebrow">Coleta aguardando Apify</span><h2>{platform}</h2><p>{copy.text}</p><button type="button" onClick={onSettings}><Settings size={15} /> Abrir configurações</button></div>;
 }
 
-function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSettings, client }) {
+function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSettings, client, onReload }) {
   const [pulling, setPulling] = useState(false);
   const [pullMsg, setPullMsg] = useState('');
 
@@ -877,7 +877,10 @@ function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSet
     try {
       const { data: res, error } = await client.functions.invoke('collect-instagram', { body: { manual: true } });
       if (error) throw error;
-      setPullMsg(`Sincronização concluída: ${res?.itemsProcessed ?? 0} item(s). Atualize a página para ver.`);
+      setPullMsg(`Sincronização concluída com sucesso!`);
+      if (onReload) {
+        await onReload();
+      }
     } catch (e) {
       setPullMsg(`Falha na coleta: ${e?.message || e}`);
     } finally {
@@ -2448,7 +2451,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       {section === 'overview' && <Overview filtered={combinedOverviewData} allPosts={allPostsForOverview} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'linkedin' && <LinkedinAnalysis filtered={filtered} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'youtube' && <YoutubeSection data={data} videos={filteredYoutube} filters={youtubeFilters} setFilters={setYoutubeFilters} onSettings={() => navigate('settings')} />}
-      {section === 'instagram' && <InstagramSection data={data} filtered={filteredInstagram} allPosts={data.instagram} filters={instagramFilters} setFilters={setInstagramFilters} onSettings={() => navigate('settings')} client={client} />}
+      {section === 'instagram' && <InstagramSection data={data} filtered={filteredInstagram} allPosts={data.instagram} filters={instagramFilters} setFilters={setInstagramFilters} onSettings={() => navigate('settings')} client={client} onReload={reloadData} />}
       {section === 'posts' && <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} onAction={(action) => setOperationMessage(action === 'history' ? 'O histórico completo ficará disponível assim que os snapshots diários forem publicados no Supabase.' : 'Essa ação usa a API administrativa protegida. Publique o schema e autentique o operador antes de alterar dados.')} />}
       {section === 'videos' && <VideosSection data={data} onSettings={() => navigate('settings')} />}
       {section === 'accounts' && <AccountsSection data={data} />}

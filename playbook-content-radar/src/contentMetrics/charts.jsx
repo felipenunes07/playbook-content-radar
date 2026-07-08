@@ -89,7 +89,7 @@ export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek, periodLabe
           {keys.map((key) => (
             <Bar key={key} dataKey={key} name={key} stackId="cadence" fill={colors[key] || '#cbd5e1'} onClick={handleBarClick} isAnimationActive={false}>
               {series.map((entry) => (
-                <Cell key={entry.date || entry.week} fillOpacity={!selectedWeek || entry.week === selectedWeek ? 1 : 0.2} />
+                <Cell key={entry.date || entry.week} fillOpacity={!selectedWeek || (entry.date || entry.week) === selectedWeek ? 1 : 0.2} />
               ))}
             </Bar>
           ))}
