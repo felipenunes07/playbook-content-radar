@@ -24,7 +24,7 @@
 .cm-metric { min-width:0; padding:16px 17px; border-right:1px solid #e5ebf0; }.cm-metric:last-child{border:0}.cm-metric span{display:block;color:#64748b;font-size:10px;font-weight:700;margin-bottom:5px}.cm-metric strong{display:block;font-family:'Plus Jakarta Sans',var(--font-body);font-size:22px;letter-spacing:-.035em;color:#111827}
 .cm-primary-grid { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(300px,.8fr); gap:14px; }.cm-analysis-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .cm-panel,.cm-table-section { background:#fff; border:1px solid #dce4eb; border-radius:10px; }.cm-panel{padding:17px}.cm-table-section{overflow:hidden}
-.cm-section-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:15px; padding:17px 18px 13px; }.cm-panel>.cm-section-heading{padding:0 0 12px}
+.cm-section-heading { display:flex; align-items:center; justify-content:space-between; gap:15px; padding:17px 18px 13px; }.cm-panel>.cm-section-heading{padding:0 0 12px}
 .cm-section-heading h2{font-size:14px;letter-spacing:-.015em;margin-top:3px}.cm-section-heading small{color:#94a3b8;font-size:10px;font-weight:700}
 .cm-chart{height:310px;width:100%}.cm-chart-small{height:310px}
 .cm-chart-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}

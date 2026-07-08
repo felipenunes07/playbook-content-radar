@@ -1435,6 +1435,20 @@ const GOAL_PLATFORMS = [
 // de Victor + Fernando) e crescente sem parar. 'weekly' primeiro reduz a 1
 // ponto por semana ISO (última coleta da semana) e só depois calcula a
 // variação semana a semana.
+// Calcula a segunda-feira correspondente à semana ISO ('2026-W28' -> '2026-07-06')
+// para fazer comparativos de datas que coincidam com o início da semana.
+function weekKeyToMondayDate(weekKey) {
+  const parts = String(weekKey || '').split('-W');
+  if (parts.length !== 2) return '';
+  const year = parseInt(parts[0], 10);
+  const week = parseInt(parts[1], 10);
+  const simple = new Date(Date.UTC(year, 0, 4));
+  const day = simple.getUTCDay() || 7;
+  const monday = new Date(simple.getTime());
+  monday.setUTCDate(simple.getUTCDate() - day + 1 + (week - 1) * 7);
+  return monday.toISOString().slice(0, 10);
+}
+
 function buildNetworkGrowthSeries(growth, period = 'daily', filters = {}, selectedPlatform = 'all') {
   const byDate = new Map();
   (growth || []).forEach((g) => {
@@ -1484,8 +1498,12 @@ function buildNetworkGrowthSeries(growth, period = 'daily', filters = {}, select
 
   // Filtrar deltas pelo intervalo de datas
   return deltas.filter((row) => {
-    if (filters.from && row.metric_date < filters.from) return false;
-    if (filters.to && row.metric_date > filters.to) return false;
+    let compareDate = row.metric_date;
+    if (period === 'weekly' && row.week) {
+      compareDate = weekKeyToMondayDate(row.week);
+    }
+    if (filters.from && compareDate < filters.from) return false;
+    if (filters.to && compareDate > filters.to) return false;
     return true;
   });
 }
