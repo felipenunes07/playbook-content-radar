@@ -734,7 +734,9 @@ function App() {
   React.useEffect(() => {
     const handlePopState = () => {
       if (window.location.pathname.startsWith('/content-dashboard')) {
-        setUser('Felipe');
+        // Métricas agora é acessível também para curadores (Victor/Fernando);
+        // só assumimos "Felipe" quando ainda não há perfil selecionado.
+        setUser(current => current || 'Felipe');
         setMetricsSection(pathToMetricsSection(window.location.pathname));
         setView('metrics');
       } else {
@@ -1108,6 +1110,24 @@ function App() {
                   <FileText size={16} /> Minhas Curadorias
                 </button>
                 <button
+                  className={view === 'metrics' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => openMetrics(metricsSection)}
+                >
+                  <TrendingUp size={16} /> Métricas
+                </button>
+                <button
+                  className={view === 'prospecting' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('prospecting')}
+                >
+                  <Zap size={16} /> Prospecção
+                </button>
+                <button
+                  className={view === 'leads' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('leads')}
+                >
+                  <Users size={16} /> Leads ICP
+                </button>
+                <button
                   className={view === 'calendar' ? 'nav-link active' : 'nav-link'}
                   onClick={() => setView('calendar')}
                 >
@@ -1135,6 +1155,12 @@ function App() {
                   onClick={() => openMetrics(metricsSection)}
                 >
                   <TrendingUp size={16} /> Métricas
+                </button>
+                <button
+                  className={view === 'goals' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('goals')}
+                >
+                  <Target size={16} /> Metas
                 </button>
                 <button
                   className={view === 'prospecting' ? 'nav-link active' : 'nav-link'}
@@ -1267,7 +1293,7 @@ function App() {
               }}
             />
           )}
-          {view === 'metrics' && user === 'Felipe' && (
+          {view === 'metrics' && (
             <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Carregando métricas…</div>}>
               <ContentMetricsWorkspace
                 client={supabase}
@@ -1280,12 +1306,12 @@ function App() {
               />
             </React.Suspense>
           )}
-          {view === 'prospecting' && user === 'Felipe' && (
+          {view === 'prospecting' && (
             <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Carregando prospecção…</div>}>
               <ContentMetricsWorkspace client={supabase} mode="prospecting" />
             </React.Suspense>
           )}
-          {view === 'leads' && user === 'Felipe' && (
+          {view === 'leads' && (
             <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Carregando leads…</div>}>
               <ContentMetricsWorkspace client={supabase} mode="leads" />
             </React.Suspense>

@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import ContentMetricsWorkspace, { buildLeadAnalysisPlan, waitForLeadAnalysisRetry, computeRateLimitBackoff } from './ContentMetricsWorkspace.jsx';
+import ContentMetricsWorkspace, { buildLeadAnalysisPlan, waitForLeadAnalysisRetry, computeRateLimitBackoff, summarizeGrowth, buildGoalsWhatsappMessage } from './ContentMetricsWorkspace.jsx';
 
 const data = {
   source: 'local_snapshot',
@@ -21,6 +21,54 @@ const data = {
 };
 
 afterEach(cleanup);
+
+// Crescimento do Victor no LinkedIn atravessando a virada de junho -> julho.
+const growthRows = [
+  { platform: 'linkedin', owner_name: 'Victor Baggio', metric_date: '2026-06-26', followers: 20811 },
+  { platform: 'linkedin', owner_name: 'Victor Baggio', metric_date: '2026-07-02', followers: 20846 },
+  { platform: 'linkedin', owner_name: 'Victor Baggio', metric_date: '2026-07-08', followers: 20965 },
+];
+
+describe('summarizeGrowth — base do início do mês', () => {
+  it('usa a última coleta antes do dia 1º como número levado para dentro do mês', () => {
+    const [victor] = summarizeGrowth(growthRows, 'linkedin', 'followers', '2026-07').owners;
+    expect(victor.monthStart).toBe(20811);
+    expect(victor.monthStartDate).toBe('2026-06-26');
+    expect(victor.monthStartSource).toBe('before');
+    expect(victor.monthGain).toBe(154);
+  });
+
+  it('cai na primeira coleta do mês quando não há nada antes do dia 1º', () => {
+    const semJunho = growthRows.filter((g) => g.metric_date >= '2026-07-01');
+    const [victor] = summarizeGrowth(semJunho, 'linkedin', 'followers', '2026-07').owners;
+    expect(victor.monthStart).toBe(20846);
+    expect(victor.monthStartSource).toBe('first-in-month');
+    expect(victor.monthGain).toBe(119);
+  });
+
+  it('mede progresso pelo crescimento do mês, não pelo total absoluto', () => {
+    const [victor] = summarizeGrowth(growthRows, 'linkedin', 'followers', '2026-07').owners;
+    const goal = 22000;
+    const needed = goal - victor.monthStart; // 1189
+    const pct = Math.floor((victor.monthGain / needed) * 100);
+    expect(needed).toBe(1189);
+    expect(pct).toBe(12); // e NÃO 95%, que é o que 20965/22000 daria
+    expect(Math.floor((victor.current / goal) * 100)).toBe(95);
+  });
+});
+
+describe('buildGoalsWhatsappMessage', () => {
+  it('reporta o progresso do mês e o número do início do mês', () => {
+    const summaries = [{
+      platform: { id: 'linkedin', label: 'LinkedIn', unit: 'seguidores', emoji: '🔵' },
+      summary: summarizeGrowth(growthRows, 'linkedin', 'followers', '2026-07'),
+    }];
+    const goals = { 'linkedin:Victor Baggio:2026-07': 22000 };
+    const msg = buildGoalsWhatsappMessage(summaries, goals, 'daily', '2026-07', 'jul 2026');
+    expect(msg).toContain('Meta jul 2026: 22.000');
+    expect(msg).toContain('Progresso: +154 de 1.189 (12%) — começou o mês com 20.811');
+  });
+});
 
 describe('ContentMetricsWorkspace', () => {
   it('estimates a conservative lead analysis plan from Gemini pacing and pending count', () => {

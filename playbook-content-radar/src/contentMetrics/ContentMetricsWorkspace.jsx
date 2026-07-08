@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, BarChart3, Database, ExternalLink, FileClock, FileText, Image as ImageIcon, MessageSquare,
@@ -135,7 +135,8 @@ const fallbackAccounts = [
   { id: 'instagram-victor', platform: 'instagram', owner_name: 'Victor Baggio', account_name: 'Victor Baggio Instagram', account_url: 'https://www.instagram.com/victor.baggio.ai/', handle: 'victor.baggio.ai', status: 'active' },
 ];
 
-const sectionIcons = { overview: BarChart3, linkedin: MessageSquare, youtube: Video, instagram: InstagramGlyph, metas: Target, posts: Activity, videos: Play, accounts: Users, imports: FileClock, settings: Settings };
+// Metas não é mais uma aba de Métricas: virou página própria no menu lateral (mode="goals").
+const sectionIcons = { overview: BarChart3, linkedin: MessageSquare, youtube: Video, instagram: InstagramGlyph, posts: Activity, videos: Play, accounts: Users, imports: FileClock, settings: Settings };
 
 function validUtcDate(value) {
   const date = value ? new Date(value) : null;
@@ -1399,10 +1400,24 @@ function goalKey(platformId, owner, mKey = monthKey()) {
   return `${platformId}:${owner}:${mKey}`;
 }
 
+// '2026-06-26' -> '26/06'. Data tratada como UTC pra não escorregar um dia.
+function shortDay(iso) {
+  if (!iso) return '';
+  const [, m, d] = String(iso).split('-');
+  return m && d ? `${d}/${m}` : String(iso);
+}
+
 // Consolida o crescimento de uma rede: por pessoa (última medição + variação em
 // relação à coleta anterior) e o total da rede. Usa data.growth, que só traz
 // coletas automáticas (o histórico importado é excluído no repository).
-export function summarizeGrowth(growth, platform, metric) {
+//
+// `mKey` (YYYY-MM) define o mês da meta. Para medir progresso é preciso saber o
+// número que a pessoa já tinha quando o mês começou — senão 20.965 seguidores
+// numa meta de 22.000 apareceriam como "95% da meta" no dia 1º, mesmo sem ter
+// crescido nada. A base é a última coleta ANTES do dia 1º (o número que a pessoa
+// levou para dentro do mês); se não houver, cai na coleta mais antiga do mês.
+export function summarizeGrowth(growth, platform, metric, mKey = monthKey()) {
+  const monthStartIso = `${mKey}-01`;
   const rows = (growth || []).filter((g) => g.platform === platform && g[metric] != null && Number(g[metric]) > 0);
   const byOwner = new Map();
   rows.forEach((g) => {
@@ -1427,6 +1442,14 @@ export function summarizeGrowth(growth, platform, metric) {
     const weekAgo = latestTime - 7 * 86400000;
     const weekRef = distinct.find((g) => Date.parse(`${g.metric_date}T00:00:00Z`) <= weekAgo);
     const weeklyDelta = weekRef ? current - Number(weekRef[metric]) : null;
+
+    // Base do mês: `distinct` está em ordem decrescente, então o primeiro registro
+    // anterior ao dia 1º é justamente a última coleta antes do mês virar.
+    const beforeMonth = distinct.find((g) => String(g.metric_date) < monthStartIso);
+    const inMonth = distinct.filter((g) => String(g.metric_date) >= monthStartIso);
+    const baseRow = beforeMonth || inMonth[inMonth.length - 1] || null;
+    const monthStart = baseRow ? Number(baseRow[metric]) : null;
+
     return {
       owner,
       short: firstName(owner),
@@ -1435,6 +1458,13 @@ export function summarizeGrowth(growth, platform, metric) {
       dailyDelta,
       weeklyDelta,
       weeklyRefDate: weekRef ? weekRef.metric_date : null,
+      monthStart,
+      monthStartDate: baseRow ? baseRow.metric_date : null,
+      // 'before' = número real levado para dentro do mês. 'first-in-month' = não
+      // havia coleta antes do dia 1º, então usamos a primeira do próprio mês (o
+      // crescimento anterior a ela fica de fora da conta).
+      monthStartSource: baseRow ? (beforeMonth ? 'before' : 'first-in-month') : null,
+      monthGain: monthStart == null ? null : current - monthStart,
     };
   }).sort((a, b) => b.current - a.current);
   const latestDate = owners.reduce((max, o) => (!max || String(o.currentDate) > max ? String(o.currentDate) : max), null);
@@ -1471,6 +1501,16 @@ export function buildGoalsWhatsappMessage(platformSummaries, goals, period = 'da
       lines.push(`• ${o.short}: ${integer.format(o.current)} ${platform.unit}${formatDeltaSuffix(delta)}`);
       if (goal > 0) {
         lines.push(`   Meta ${mLabel}: ${integer.format(goal)}`);
+        // Progresso do mês: cresceu X do que precisa crescer (não o total absoluto).
+        if (o.monthStart != null) {
+          const needed = goal - o.monthStart;
+          if (needed > 0) {
+            const pct = Math.max(0, Math.min(100, Math.floor((o.monthGain / needed) * 100)));
+            lines.push(`   Progresso: +${integer.format(o.monthGain)} de ${integer.format(needed)} (${pct}%) — começou o mês com ${integer.format(o.monthStart)}`);
+          } else if (o.current >= goal) {
+            lines.push('   Progresso: 🎉 meta batida!');
+          }
+        }
       }
     });
     lines.push('');
@@ -1480,24 +1520,31 @@ export function buildGoalsWhatsappMessage(platformSummaries, goals, period = 'da
 }
 
 function MetasSection({ data, client }) {
-  // Metas vêm do Supabase (data.goals). Mantemos overrides locais só para o
-  // input responder na hora — a gravação real é debounced (600ms) pra não
-  // disparar um upsert a cada tecla digitada.
+  // Metas vêm do Supabase (data.goals). O que você digita fica só na tela
+  // (goalOverrides) até clicar em "Salvar metas" — nada é gravado sozinho.
   const baseGoals = useMemo(() => goalsMapFromRows(data.goals), [data.goals]);
   const [goalOverrides, setGoalOverrides] = useState({});
   const goals = useMemo(() => ({ ...baseGoals, ...goalOverrides }), [baseGoals, goalOverrides]);
-  const [savedKeys, setSavedKeys] = useState({});
+  // O que já foi gravado nesta sessão. `data.goals` não é recarregado após salvar,
+  // então sem isso o "está alterado?" compararia com o valor do load inicial —
+  // e voltar ao número antigo pareceria "sem alteração" sem nunca gravar.
+  const [persistedOverrides, setPersistedOverrides] = useState({});
+  const persistedGoals = useMemo(() => ({ ...baseGoals, ...persistedOverrides }), [baseGoals, persistedOverrides]);
+  // Metas editadas e ainda não gravadas: key -> { platformId, owner, target }
+  const [pendingGoals, setPendingGoals] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const saveTimers = useRef({});
   const [copied, setCopied] = useState(false);
+  const pendingCount = Object.keys(pendingGoals).length;
 
   const [period, setPeriod] = useState('daily');
   const mKey = monthKey();
   const mLabel = monthLabel();
 
   const summaries = useMemo(
-    () => GOAL_PLATFORMS.map((platform) => ({ platform, summary: summarizeGrowth(data.growth, platform.id, platform.metric) })),
-    [data.growth],
+    () => GOAL_PLATFORMS.map((platform) => ({ platform, summary: summarizeGrowth(data.growth, platform.id, platform.metric, mKey) })),
+    [data.growth, mKey],
   );
   const hasAnyData = summaries.some((s) => s.summary.hasData);
 
@@ -1505,29 +1552,62 @@ function MetasSection({ data, client }) {
   const [draft, setDraft] = useState(message);
   useEffect(() => { setDraft(message); }, [message]);
 
-  const persistGoal = async (key, platformId, owner, target) => {
-    if (!client?.from) { setSaveError('Conecte o Supabase para salvar metas.'); return; }
-    setSaveError('');
-    const result = target == null
-      ? await client.from('content_goals').delete().eq('platform', platformId).eq('owner_name', owner).eq('month_key', mKey)
-      : await client.from('content_goals').upsert(
+  const persistGoal = async (platformId, owner, target) => (
+    target == null
+      ? client.from('content_goals').delete().eq('platform', platformId).eq('owner_name', owner).eq('month_key', mKey)
+      : client.from('content_goals').upsert(
           { platform: platformId, owner_name: owner, month_key: mKey, target },
           { onConflict: 'platform,owner_name,month_key' },
-        );
-    if (result.error) {
-      setSaveError(`Falha ao salvar meta: ${result.error.message}`);
-      return;
-    }
-    setSavedKeys((prev) => ({ ...prev, [key]: true }));
-    setTimeout(() => setSavedKeys((prev) => ({ ...prev, [key]: false })), 1800);
-  };
+        )
+  );
 
+  // Só mexe no estado local: a gravação acontece no botão "Salvar metas".
   const updateGoal = (platformId, owner, value) => {
     const key = goalKey(platformId, owner, mKey);
     const target = value === '' ? null : Math.max(0, Math.trunc(Number(value) || 0));
     setGoalOverrides((prev) => ({ ...prev, [key]: target === null ? '' : target }));
-    clearTimeout(saveTimers.current[key]);
-    saveTimers.current[key] = setTimeout(() => persistGoal(key, platformId, owner, target), 600);
+    setJustSaved(false);
+    setSaveError('');
+    setPendingGoals((prev) => {
+      const next = { ...prev };
+      // Se voltou ao valor que já está no banco, deixa de ser uma alteração pendente.
+      const savedTarget = persistedGoals[key] == null || persistedGoals[key] === '' ? null : Number(persistedGoals[key]);
+      if (savedTarget === target) delete next[key];
+      else next[key] = { platformId, owner, target };
+      return next;
+    });
+  };
+
+  const saveGoals = async () => {
+    if (!client?.from) { setSaveError('Conecte o Supabase para salvar metas.'); return; }
+    if (!pendingCount || saving) return;
+    setSaving(true);
+    setSaveError('');
+    const entries = Object.entries(pendingGoals);
+    const results = await Promise.all(entries.map(([, g]) => persistGoal(g.platformId, g.owner, g.target)));
+    const okEntries = entries.filter((_, i) => !results[i]?.error);
+
+    // Tudo que gravou vira o novo "valor no banco" pra comparação de alterações.
+    setPersistedOverrides((prev) => {
+      const next = { ...prev };
+      okEntries.forEach(([key, g]) => { next[key] = g.target === null ? '' : g.target; });
+      return next;
+    });
+    setPendingGoals((prev) => {
+      const next = { ...prev };
+      okEntries.forEach(([key]) => delete next[key]);
+      return next;
+    });
+    setSaving(false);
+
+    // Mantém pendentes só as que não gravaram, pra um novo clique tentar de novo.
+    const failedAt = results.findIndex((r) => r?.error);
+    if (failedAt !== -1) {
+      setSaveError(`Falha ao salvar meta: ${results[failedAt].error.message}`);
+      return;
+    }
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2500);
   };
 
   const copyMessage = async () => {
@@ -1563,10 +1643,30 @@ function MetasSection({ data, client }) {
       <div className="cm-metas-toolbar">
         <div>
           <span className="cm-eyebrow">Metas do mês · {mLabel}</span>
-          <p>Meta de cada pessoa por rede (chegar ao número até o fim do mês). A variação exibida é {period === 'weekly' ? 'dos últimos 7 dias' : 'desde a coleta anterior'}. Salva sozinho — sem botão — e fica no banco, então Felipe e Victor veem e editam a mesma meta.</p>
+          <p>Meta de cada pessoa por rede (chegar ao número até o fim do mês). O progresso mede <strong>o que cresceu no mês</strong> sobre o que falta crescer, partindo do número que a pessoa tinha no início de {mLabel} — não o total absoluto. A variação exibida é {period === 'weekly' ? 'dos últimos 7 dias' : 'desde a coleta anterior'}. Depois de alterar, clique em <strong>Salvar metas</strong> — fica no banco, então Felipe, Victor e Fernando veem a mesma meta.</p>
           {saveError && <p className="cm-goal-error">{saveError}</p>}
         </div>
         {periodToggle}
+      </div>
+
+      <div className="cm-goal-savebar">
+        <button
+          type="button"
+          className="cm-goal-save-btn"
+          onClick={saveGoals}
+          disabled={!pendingCount || saving}
+        >
+          {saving ? 'Salvando…' : 'Salvar metas'}
+        </button>
+        <span className="cm-goal-save-status">
+          {saving
+            ? 'Gravando no Supabase…'
+            : pendingCount
+              ? `${pendingCount} ${pendingCount === 1 ? 'meta alterada' : 'metas alteradas'} — ainda não salva${pendingCount === 1 ? '' : 's'}`
+              : justSaved
+                ? 'Salvo ✓'
+                : 'Nenhuma alteração pendente'}
+        </span>
       </div>
 
       <div className="cm-goal-grid">
@@ -1582,9 +1682,22 @@ function MetasSection({ data, client }) {
                 const key = goalKey(platform.id, o.owner, mKey);
                 const rawGoal = goals[key];
                 const goal = Number(rawGoal) || 0;
-                const pct = goal > 0 ? Math.min(100, Math.floor((o.current / goal) * 100)) : 0;
-                const remaining = goal > 0 ? Math.max(0, goal - o.current) : 0;
+                const hasBase = o.monthStart != null;
+                // Progresso = o que cresceu no mês / o que precisa crescer no mês.
+                // Sem isso, quem já começa perto da meta apareceria com 95% no dia 1º.
+                const needed = hasBase && goal > 0 ? goal - o.monthStart : 0;
+                const gained = hasBase ? o.monthGain : 0;
                 const reached = goal > 0 && o.current >= goal;
+                const goalBelowBase = hasBase && goal > 0 && needed <= 0;
+                const pct = goal <= 0
+                  ? 0
+                  : !hasBase
+                    // Sem base do início do mês só dá pra medir o número absoluto.
+                    ? Math.min(100, Math.floor((o.current / goal) * 100))
+                    : needed > 0
+                      ? Math.max(0, Math.min(100, Math.floor((gained / needed) * 100)))
+                      : (reached ? 100 : 0);
+                const remaining = goal > 0 ? Math.max(0, goal - o.current) : 0;
                 const delta = deltaOf(o);
                 return (
                   <div className="cm-goal-person" key={o.owner}>
@@ -1595,7 +1708,7 @@ function MetasSection({ data, client }) {
                       {delta != null && <em className={`cm-delta ${deltaClass(delta)}`}>{formatDeltaSuffix(delta).trim()}</em>}
                     </div>
                     <label className="cm-goal-input">
-                      <span>Meta {mLabel}{savedKeys[key] && <em className="cm-goal-saved">Salvo ✓</em>}</span>
+                      <span>Meta {mLabel}{pendingGoals[key] && <em className="cm-goal-dirty">Não salvo</em>}</span>
                       <input
                         type="number"
                         min="0"
@@ -1605,13 +1718,36 @@ function MetasSection({ data, client }) {
                         placeholder="Defina a meta"
                       />
                     </label>
+                    {hasBase && (
+                      <div className="cm-goal-base">
+                        <span>Início de {mLabel}: <strong>{integer.format(o.monthStart)}</strong></span>
+                        <small>
+                          {o.monthStartSource === 'before'
+                            ? `medido em ${shortDay(o.monthStartDate)}`
+                            : `1ª coleta do mês (${shortDay(o.monthStartDate)})`}
+                        </small>
+                      </div>
+                    )}
                     {goal > 0 ? (
                       <>
                         <div className="cm-goal-bar"><span style={{ width: `${pct}%`, background: platform.color }} /></div>
-                        <div className="cm-goal-meta">
-                          <span>{pct}% da meta</span>
-                          <span>{reached ? '🎉 meta batida!' : `faltam ${integer.format(remaining)}`}</span>
-                        </div>
+                        {hasBase ? (
+                          <div className="cm-goal-meta">
+                            <span>{goalBelowBase ? '—' : `${pct}% da meta`}</span>
+                            <span>
+                              {reached
+                                ? '🎉 meta batida!'
+                                : goalBelowBase
+                                  ? 'meta abaixo do início do mês'
+                                  : `+${integer.format(gained)} de ${integer.format(needed)} no mês`}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="cm-goal-meta">
+                            <span>{reached ? '🎉 meta batida!' : `faltam ${integer.format(remaining)}`}</span>
+                            <span>sem base do início do mês</span>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <p className="cm-goal-hint">Defina a meta de {mLabel} para acompanhar.</p>
@@ -1936,7 +2072,6 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       {section === 'linkedin' && <LinkedinAnalysis filtered={filtered} allPosts={data.linkedin} data={data} filters={filters} setFilters={setFilters} />}
       {section === 'youtube' && <YoutubeSection data={data} videos={filteredYoutube} filters={youtubeFilters} setFilters={setYoutubeFilters} onSettings={() => navigate('settings')} />}
       {section === 'instagram' && <InstagramSection data={data} filtered={filteredInstagram} allPosts={data.instagram} filters={instagramFilters} setFilters={setInstagramFilters} onSettings={() => navigate('settings')} client={client} />}
-      {section === 'metas' && <MetasSection data={data} client={client} />}
       {section === 'posts' && <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} onAction={(action) => setOperationMessage(action === 'history' ? 'O histórico completo ficará disponível assim que os snapshots diários forem publicados no Supabase.' : 'Essa ação usa a API administrativa protegida. Publique o schema e autentique o operador antes de alterar dados.')} />}
       {section === 'videos' && <VideosSection data={data} onSettings={() => navigate('settings')} />}
       {section === 'accounts' && <AccountsSection data={data} />}

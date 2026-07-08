@@ -7,7 +7,6 @@ describe('metrics routes', () => {
     ['/content-dashboard/linkedin', 'linkedin'],
     ['/content-dashboard/youtube', 'youtube'],
     ['/content-dashboard/instagram', 'instagram'],
-    ['/content-dashboard/metas', 'metas'],
     ['/content-dashboard/posts', 'posts'],
     ['/content-dashboard/videos', 'videos'],
     ['/content-dashboard/accounts', 'accounts'],
@@ -20,5 +19,12 @@ describe('metrics routes', () => {
 
   it('falls back to overview for unknown metrics paths', () => {
     expect(pathToMetricsSection('/content-dashboard/unknown')).toBe('overview');
+  });
+
+  // Metas saiu das abas de Métricas e virou página própria no menu lateral.
+  // O link antigo não deve mais resolver para uma seção de métricas.
+  it('no longer exposes metas as a metrics section', () => {
+    expect(pathToMetricsSection('/content-dashboard/metas')).toBe('overview');
+    expect(sectionToMetricsPath('metas')).toBe('/content-dashboard');
   });
 });
