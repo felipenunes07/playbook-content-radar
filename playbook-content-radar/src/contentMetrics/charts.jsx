@@ -36,7 +36,7 @@ export function WeeklyContentTypeChart({ data }) {
           <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={56} interval="preserveStartEnd" tickMargin={8} />
           <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
-          <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+          <Tooltip cursor={{ fill: '#f1f5f9', opacity: 0.55 }} formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="feed" name="Reels + Publicações" stackId="tipo" fill="#0a66c2" />
           <Bar dataKey="stories" name="Stories" stackId="tipo" fill="#e1306c" />
@@ -72,7 +72,7 @@ export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek, periodLabe
           <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={56} interval="preserveStartEnd" tickMargin={8} />
           <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
-          <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+          <Tooltip cursor={{ fill: '#f1f5f9', opacity: 0.55 }} formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="Victor" stackId="cadence" fill="#0a66c2" onClick={handleBarClick} isAnimationActive={false}>
             {series.map((entry) => (
@@ -209,7 +209,7 @@ export function CreatorComparisonChart({ data }) {
           <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
           <XAxis dataKey="owner" tickFormatter={(name) => name.split(' ')[0]} tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} />
           <YAxis tickFormatter={(value) => compact.format(value)} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
-          <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+          <Tooltip cursor={{ fill: '#f1f5f9', opacity: 0.55 }} formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="likes" name="Likes" fill="#0a66c2" radius={[4, 4, 0, 0]} />
           <Bar dataKey="comments" name="Comentários" fill="#7aa7d7" radius={[4, 4, 0, 0]} />
@@ -413,7 +413,7 @@ export function NetworkFollowersChart({ data }) {
               tickLine={false}
               axisLine={false}
             />
-            <Tooltip formatter={formatValue} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+            <Tooltip cursor={{ fill: '#f1f5f9', opacity: 0.55 }} formatter={formatValue} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             {seriesKeys.map((key) => (
               <Bar key={key} dataKey={key} name={key} fill={NETWORK_COLORS[key]} radius={[4, 4, 0, 0]} isAnimationActive={false} />

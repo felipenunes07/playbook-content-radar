@@ -253,26 +253,24 @@ function GrowthCurrentStrip({ growth, platform, metric = 'followers', label = 's
   const chips = [...byOwner.values()].sort((a, b) => Number(b[metric]) - Number(a[metric]));
   const collectedDays = new Set(rows.map((g) => String(g.metric_date))).size;
   const firstDate = rows.reduce((min, g) => (!min || String(g.metric_date) < min ? String(g.metric_date) : min), null);
-  // A nota vive junto do texto descritivo do painel (linha própria, largura toda),
-  // e não dentro da faixa de cards — ali ela ficava espremida e quebrava em duas
-  // linhas no meio do vazio entre a descrição e os cards.
+
   return (
-    <>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
       {collectedDays < 8 && firstDate && (
-        <p className="cm-growth-note">
-          Coleta diária ativa desde {new Date(firstDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })} — o histórico do gráfico se forma a cada dia.
+        <p className="cm-growth-note" style={{ margin: 0, fontSize: '10.5px', color: '#64748b' }}>
+          Coleta diária ativa desde {new Date(firstDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
         </p>
       )}
-      <div className="cm-growth-strip">
+      <div className="cm-growth-strip" style={{ marginBottom: 0 }}>
         {chips.map((g) => (
           <div className="cm-growth-chip" key={g.owner_name}>
             <span>{g.owner_name}</span>
             <strong>{Number(g[metric]).toLocaleString('pt-BR')}</strong>
-            <small>{label} · {new Date(String(g.metric_date)).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}</small>
+            <small>{label} · {shortDay(g.metric_date)}</small>
           </div>
         ))}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -603,8 +601,8 @@ function LinkedinAnalysis({ filtered, allPosts, data, filters, setFilters }) {
           <h2>Crescimento de contas</h2>
           <p>Evolução do número total de seguidores no LinkedIn ao longo do tempo.</p>
         </div>
+        <GrowthCurrentStrip growth={data.growth} platform="linkedin" />
       </div>
-      <GrowthCurrentStrip growth={data.growth} platform="linkedin" />
       <AccountGrowthChart data={filteredGrowth} />
     </section>
   ) : null;
@@ -715,8 +713,8 @@ function InstagramSection({ data, filtered, allPosts, filters, setFilters, onSet
           <h2>Crescimento de contas</h2>
           <p>Evolução do número total de seguidores no Instagram, coletado diariamente.</p>
         </div>
+        <GrowthCurrentStrip growth={data.growth} platform="instagram" />
       </div>
-      <GrowthCurrentStrip growth={data.growth} platform="instagram" />
       <AccountGrowthChart data={filteredGrowth} />
     </section>
   ) : null;
@@ -791,8 +789,8 @@ function YoutubeSection({ data, videos, filters, setFilters, onSettings }) {
           <h2>Crescimento de contas</h2>
           <p>Evolução de inscritos e views totais do YouTube.</p>
         </div>
+        <GrowthCurrentStrip growth={data.growth} platform="youtube" metric="subscribers" label="inscritos" />
       </div>
-      <GrowthCurrentStrip growth={data.growth} platform="youtube" metric="subscribers" label="inscritos" />
       <AccountGrowthChart data={filteredGrowth} />
     </section>
   ) : null;
