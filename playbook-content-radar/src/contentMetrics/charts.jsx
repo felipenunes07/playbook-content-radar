@@ -58,7 +58,7 @@ export function WeeklyContentTypeChart({ data }) {
   );
 }
 
-export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek, periodLabel = 'semanas' }) {
+export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek, periodLabel = 'semanas', keys = ['Victor', 'Fernando'], colors = { Victor: '#0a66c2', Fernando: '#93c5fd' } }) {
   if (!data.length) return <EmptyChart />;
   const handleBarClick = (barData) => {
     if (onWeekClick && barData) {
@@ -86,16 +86,13 @@ export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek, periodLabe
           <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
           <Tooltip itemSorter={(item) => -item.value} cursor={{ fill: '#f1f5f9', opacity: 0.55 }} formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="Victor" stackId="cadence" fill="#0a66c2" onClick={handleBarClick} isAnimationActive={false}>
-            {series.map((entry) => (
-              <Cell key={entry.date || entry.week} fillOpacity={!selectedWeek || entry.week === selectedWeek ? 1 : 0.2} />
-            ))}
-          </Bar>
-          <Bar dataKey="Fernando" stackId="cadence" fill="#93c5fd" onClick={handleBarClick} isAnimationActive={false}>
-            {series.map((entry) => (
-              <Cell key={entry.date || entry.week} fillOpacity={!selectedWeek || entry.week === selectedWeek ? 1 : 0.2} />
-            ))}
-          </Bar>
+          {keys.map((key) => (
+            <Bar key={key} dataKey={key} name={key} stackId="cadence" fill={colors[key] || '#cbd5e1'} onClick={handleBarClick} isAnimationActive={false}>
+              {series.map((entry) => (
+                <Cell key={entry.date || entry.week} fillOpacity={!selectedWeek || entry.week === selectedWeek ? 1 : 0.2} />
+              ))}
+            </Bar>
+          ))}
           <Line type="monotone" dataKey="media" name={`Média 4 ${periodLabel}`} stroke="#64748b" strokeWidth={2} dot={false} />
         </ComposedChart>
       </ResponsiveContainer>

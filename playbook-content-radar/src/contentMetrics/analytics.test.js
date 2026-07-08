@@ -78,8 +78,8 @@ describe('aggregateContentMetrics', () => {
 describe('trend and rankings', () => {
   it('groups chronologically by month without mixing creators', () => {
     expect(buildMonthlyTrend(posts)).toEqual([
-      { period: '2026-01', label: 'Jan 26', posts: 2, likes: 150, comments: 30, shares: 7, engagement: 187, score: 268 },
-      { period: '2026-02', label: 'Fev 26', posts: 1, likes: 20, comments: 2, shares: 1, engagement: 23, score: 30 },
+      { period: '2026-01', label: 'Jan/2026', posts: 2, likes: 150, comments: 30, shares: 7, engagement: 187, score: 268 },
+      { period: '2026-02', label: 'Fev/2026', posts: 1, likes: 20, comments: 2, shares: 1, engagement: 23, score: 30 },
     ]);
   });
 

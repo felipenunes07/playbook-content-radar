@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, BarChart3, Database, ExternalLink, FileClock, FileText, Image as ImageIcon, MessageSquare,
-  Play, RefreshCw, Settings, SlidersHorizontal, Users, Video, Target, Copy, Check,
+  Play, RefreshCw, Settings, SlidersHorizontal, Users, Video, Target, Copy, Check, Network,
 } from 'lucide-react';
 
 // lucide-react removeu os ícones de marca (Instagram, LinkedIn…) por questão de
@@ -309,6 +309,7 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [distributionView, setDistributionView] = useState('frequency'); // 'frequency' | 'followers'
   const [followersPeriod, setFollowersPeriod] = useState('daily'); // 'daily' | 'weekly'
+  const [cadenceGroup, setCadenceGroup] = useState('creator'); // 'creator' | 'platform'
 
   const handleDateClick = (dayInfo) => {
     if (selectedDate && selectedDate.date === dayInfo.date) {
@@ -412,14 +413,107 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
   };
   
   const monthly = buildMonthlyComparison(platformFiltered);
-  const weekly = buildWeeklyCadence(platformFiltered);
-  // Preenchido dia a dia por todo o período do filtro (às vezes 1 ano) ia gerar
-  // centenas de barras vazias — os últimos 30 dias é o que dá pra comparar de
-  // forma legível com o gráfico de seguidores, que só tem coleta diária recente.
   const daily = buildDailyCadence(platformFiltered).slice(-30);
-  // Mesma granularidade do toggle Diário/Semanal do gráfico de seguidores, pra
-  // as datas do eixo X baterem entre os dois gráficos (syncId="weekly-metrics").
-  const cadenceData = followersPeriod === 'daily' ? daily : weekly;
+  const weekly = buildWeeklyCadence(platformFiltered);
+
+  const cadenceData = useMemo(() => {
+    if (cadenceGroup === 'creator') {
+      return followersPeriod === 'daily' ? daily : weekly;
+    }
+
+    const isDaily = followersPeriod === 'daily';
+    const groups = new Map();
+
+    platformFiltered.forEach((item) => {
+      const published = item.published_at ? new Date(item.published_at) : null;
+      if (!published || Number.isNaN(published.getTime())) return;
+
+      let key, label;
+      if (isDaily) {
+        const utcDate = new Date(Date.UTC(published.getUTCFullYear(), published.getUTCMonth(), published.getUTCDate()));
+        key = utcDate.toISOString().slice(0, 10);
+        const [, m, d] = key.split('-');
+        label = `${d}/${m}`;
+      } else {
+        key = isoWeekKey(published);
+        label = weekLabel(key);
+      }
+
+      const current = groups.get(key) || {
+        week: isDaily ? undefined : key,
+        date: isDaily ? key : undefined,
+        label,
+        LinkedIn: 0,
+        YouTube: 0,
+        Instagram: 0,
+        Total: 0,
+      };
+
+      const plat = item.platform;
+      if (plat === 'linkedin') current.LinkedIn += 1;
+      else if (plat === 'youtube') current.YouTube += 1;
+      else if (plat === 'instagram') current.Instagram += 1;
+
+      current.Total += 1;
+      groups.set(key, current);
+    });
+
+    const sorted = [...groups.values()].sort((a, b) => {
+      const keyA = isDaily ? a.date : a.week;
+      const keyB = isDaily ? b.date : b.week;
+      return keyA.localeCompare(keyB);
+    });
+
+    if (sorted.length < 2) return sorted;
+
+    const filled = [];
+    if (isDaily) {
+      const first = new Date(`${sorted[0].date}T00:00:00Z`);
+      const last = new Date(`${sorted[sorted.length - 1].date}T00:00:00Z`);
+      for (let cursor = first; cursor <= last; cursor = new Date(cursor.getTime() + 86400000)) {
+        const day = cursor.toISOString().slice(0, 10);
+        const [, m, d] = day.split('-');
+        const existing = groups.get(day);
+        filled.push(existing || {
+          date: day,
+          label: `${d}/${m}`,
+          LinkedIn: 0,
+          YouTube: 0,
+          Instagram: 0,
+          Total: 0,
+        });
+      }
+    } else {
+      const weekKeyToMonday = (weekKey) => {
+        const parts = weekKey.split('-W');
+        const year = parseInt(parts[0], 10);
+        const week = parseInt(parts[1], 10);
+        const simple = new Date(Date.UTC(year, 0, 4));
+        const day = simple.getUTCDay() || 7;
+        const monday = new Date(simple.getTime());
+        monday.setUTCDate(simple.getUTCDate() - day + 1 + (week - 1) * 7);
+        return monday;
+      };
+      const firstMonday = weekKeyToMonday(sorted[0].week);
+      const lastMonday = weekKeyToMonday(sorted[sorted.length - 1].week);
+      const cursor = new Date(firstMonday);
+      while (cursor <= lastMonday) {
+        const wk = isoWeekKey(cursor);
+        const existing = groups.get(wk);
+        filled.push(existing || {
+          week: wk,
+          label: weekLabel(wk),
+          LinkedIn: 0,
+          YouTube: 0,
+          Instagram: 0,
+          Total: 0,
+        });
+        cursor.setUTCDate(cursor.getUTCDate() + 7);
+      }
+    }
+
+    return isDaily ? filled.slice(-30) : filled;
+  }, [platformFiltered, cadenceGroup, followersPeriod, daily, weekly]);
   const heatmap = buildCalendarHeatmap(platformFiltered);
   const comparison = buildCreatorComparison(interactiveFiltered);
   const networkGrowth = useMemo(
@@ -504,7 +598,27 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
           <h2>{followersPeriod === 'daily' ? 'Conteúdos por dia' : 'Conteúdos por semana'}</h2>
           <p>Victor vs Fernando vs Total Playbook. Este é o gráfico central para saber se a frequência aumentou ou caiu.</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button 
+            type="button" 
+            onClick={() => setCadenceGroup(prev => prev === 'creator' ? 'platform' : 'creator')}
+            title={cadenceGroup === 'platform' ? "Agrupado por Rede (clique para agrupar por Criador)" : "Agrupar por Rede"}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '32px',
+              height: '32px',
+              borderRadius: '6px',
+              border: `1px solid ${cadenceGroup === 'platform' ? '#cbd5e1' : '#e2e8f0'}`,
+              backgroundColor: cadenceGroup === 'platform' ? '#e2e8f0' : '#ffffff',
+              color: cadenceGroup === 'platform' ? '#0f172a' : '#64748b',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            <Layers size={16} />
+          </button>
           <div className="cm-period-toggle" role="tablist" aria-label="Período do gráfico de seguidores por rede">
             <button type="button" role="tab" aria-selected={followersPeriod === 'daily'} className={followersPeriod === 'daily' ? 'active' : ''} onClick={() => setFollowersPeriod('daily')}>Diário</button>
             <button type="button" role="tab" aria-selected={followersPeriod === 'weekly'} className={followersPeriod === 'weekly' ? 'active' : ''} onClick={() => setFollowersPeriod('weekly')}>Semanal</button>
@@ -512,7 +626,18 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
           <small>{followersPeriod === 'daily' ? `${daily.length} dias` : `${weekly.length} semanas`}</small>
         </div>
       </div>
-      <WeeklyCadenceChart data={cadenceData} onWeekClick={handleWeekClick} selectedWeek={selectedWeek?.week} periodLabel={followersPeriod === 'daily' ? 'dias' : 'semanas'} />
+      <WeeklyCadenceChart
+        data={cadenceData}
+        onWeekClick={handleWeekClick}
+        selectedWeek={selectedWeek?.week}
+        periodLabel={followersPeriod === 'daily' ? 'dias' : 'semanas'}
+        keys={cadenceGroup === 'creator' ? ['Victor', 'Fernando'] : ['LinkedIn', 'YouTube', 'Instagram']}
+        colors={
+          cadenceGroup === 'creator'
+            ? { Victor: '#0a66c2', Fernando: '#93c5fd' }
+            : { LinkedIn: '#0a66c2', YouTube: '#e52d27', Instagram: '#c13584' }
+        }
+      />
     </section>
     <div className="cm-primary-grid">
       <section className="cm-panel">
