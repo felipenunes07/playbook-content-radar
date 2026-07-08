@@ -36,7 +36,7 @@ export function WeeklyContentTypeChart({ data }) {
           <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={56} interval="preserveStartEnd" tickMargin={8} />
           <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
-          <Tooltip cursor={{ fill: '#f1f5f9', opacity: 0.55 }} formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+          <Tooltip itemSorter={(item) => -item.value} cursor={{ fill: '#f1f5f9', opacity: 0.55 }} formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="feed" name="Reels + Publicações" stackId="tipo" fill="#0a66c2" />
           <Bar dataKey="stories" name="Stories" stackId="tipo" fill="#e1306c" />
@@ -72,7 +72,7 @@ export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek, periodLabe
           <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={56} interval="preserveStartEnd" tickMargin={8} />
           <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
-          <Tooltip cursor={{ fill: '#f1f5f9', opacity: 0.55 }} formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+          <Tooltip itemSorter={(item) => -item.value} cursor={{ fill: '#f1f5f9', opacity: 0.55 }} formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Bar dataKey="Victor" stackId="cadence" fill="#0a66c2" onClick={handleBarClick} isAnimationActive={false}>
             {series.map((entry) => (
@@ -185,7 +185,7 @@ export function WeeklyEngagementChart({ data, onWeekClick, selectedWeek }) {
           <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={56} interval="preserveStartEnd" tickMargin={8} />
           <YAxis tickFormatter={(value) => compact.format(value)} tick={{ fill: '#94a3b8', fontSize: 11 }} tickLine={false} axisLine={false} />
-          <Tooltip formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+          <Tooltip itemSorter={(item) => -item.value} formatter={(value) => Number(value).toLocaleString('pt-BR')} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Line type="monotone" dataKey="engagement" name="Engagement" stroke="#0a66c2" strokeWidth={2.5} dot={false} />
           <Line type="monotone" dataKey="comments" name="Comentários" stroke="#93c5fd" strokeWidth={2.5} dot={false} />
@@ -346,7 +346,7 @@ export function AccountGrowthChart({ data }) {
               tickLine={false}
               axisLine={false}
             />
-            <Tooltip formatter={formatValue} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+            <Tooltip itemSorter={(item) => -item.value} formatter={formatValue} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
 
             {/* Render dynamic follower/subscriber lines */}
@@ -413,7 +413,7 @@ export function NetworkFollowersChart({ data }) {
               tickLine={false}
               axisLine={false}
             />
-            <Tooltip cursor={{ fill: '#f1f5f9', opacity: 0.55 }} formatter={formatValue} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
+            <Tooltip itemSorter={(item) => -item.value} cursor={{ fill: '#f1f5f9', opacity: 0.55 }} formatter={formatValue} contentStyle={{ borderRadius: 10, borderColor: '#dbe3eb', fontSize: 12 }} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             {seriesKeys.map((key) => (
               <Bar key={key} dataKey={key} name={key} fill={NETWORK_COLORS[key]} radius={[4, 4, 0, 0]} isAnimationActive={false} />
