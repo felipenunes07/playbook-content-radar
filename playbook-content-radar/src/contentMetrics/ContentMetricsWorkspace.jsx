@@ -416,8 +416,8 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
   const heatmap = buildCalendarHeatmap(platformFiltered);
   const comparison = buildCreatorComparison(interactiveFiltered);
   const networkGrowth = useMemo(
-    () => buildNetworkGrowthSeries(data.growth, followersPeriod),
-    [data.growth, followersPeriod],
+    () => buildNetworkGrowthSeries(data.growth, followersPeriod, filters, selectedPlatform),
+    [data.growth, followersPeriod, filters, selectedPlatform],
   );
   const youtubeViews = data.youtube.reduce((sum, video) => sum + Number(video.views || 0), 0);
 
@@ -1435,9 +1435,12 @@ const GOAL_PLATFORMS = [
 // de Victor + Fernando) e crescente sem parar. 'weekly' primeiro reduz a 1
 // ponto por semana ISO (última coleta da semana) e só depois calcula a
 // variação semana a semana.
-function buildNetworkGrowthSeries(growth, period = 'daily') {
+function buildNetworkGrowthSeries(growth, period = 'daily', filters = {}, selectedPlatform = 'all') {
   const byDate = new Map();
   (growth || []).forEach((g) => {
+    // 1. Filtrar por Criador (Owner)
+    if (filters.owner && g.owner_name !== filters.owner) return;
+
     const platform = GOAL_PLATFORMS.find((p) => p.id === g.platform);
     if (!platform) return;
     const value = Number(g[platform.metric]);
@@ -1449,27 +1452,42 @@ function buildNetworkGrowthSeries(growth, period = 'daily') {
   });
   const daily = [...byDate.values()].sort((a, b) => a.metric_date.localeCompare(b.metric_date));
   const networkKeys = GOAL_PLATFORMS.map((p) => p.label);
+  const activePlatforms = selectedPlatform === 'all' ? null : selectedPlatform.split(',');
+  const activeLabels = activePlatforms 
+    ? GOAL_PLATFORMS.filter(p => activePlatforms.includes(p.id)).map(p => p.label)
+    : null;
 
   const toDeltas = (rows) => rows.map((row, index) => {
     const prev = rows[index - 1];
     const out = { metric_date: row.metric_date, week: row.week, label: row.label };
     networkKeys.forEach((key) => {
+      if (activeLabels && !activeLabels.includes(key)) return;
       if (row[key] == null || !prev || prev[key] == null) return;
       out[key] = row[key] - prev[key];
     });
     return out;
   }).slice(1); // o primeiro ponto não tem "anterior" pra comparar
 
+  let deltas;
   // `label` usa o mesmo formato de WeeklyCadenceChart/WeeklyEngagementChart (dd/mm
   // da segunda-feira da semana), pra alinhar com o eixo X delas via syncId.
-  if (period !== 'weekly') return toDeltas(daily.map((row) => ({ ...row, label: shortDay(row.metric_date) })));
+  if (period !== 'weekly') {
+    deltas = toDeltas(daily.map((row) => ({ ...row, label: shortDay(row.metric_date) })));
+  } else {
+    const byWeek = new Map();
+    daily.forEach((row) => {
+      const week = isoWeekKey(new Date(`${row.metric_date}T00:00:00Z`));
+      byWeek.set(week, { ...row, week, label: weekLabel(week) }); // `daily` está em ordem crescente, então a última coleta da semana sobrescreve
+    });
+    deltas = toDeltas([...byWeek.values()].sort((a, b) => a.week.localeCompare(b.week)));
+  }
 
-  const byWeek = new Map();
-  daily.forEach((row) => {
-    const week = isoWeekKey(new Date(`${row.metric_date}T00:00:00Z`));
-    byWeek.set(week, { ...row, week, label: weekLabel(week) }); // `daily` está em ordem crescente, então a última coleta da semana sobrescreve
+  // Filtrar deltas pelo intervalo de datas
+  return deltas.filter((row) => {
+    if (filters.from && row.metric_date < filters.from) return false;
+    if (filters.to && row.metric_date > filters.to) return false;
+    return true;
   });
-  return toDeltas([...byWeek.values()].sort((a, b) => a.week.localeCompare(b.week)));
 }
 
 // Converte as linhas de `content_goals` (platform, owner_name, month_key, target)

@@ -63,6 +63,7 @@ export function WeeklyCadenceChart({ data, onWeekClick, selectedWeek, periodLabe
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           syncId="weekly-metrics"
+          syncMethod="value"
           data={series}
           margin={{ top: 12, right: 16, left: -10, bottom: 0 }}
           barCategoryGap="28%"
@@ -167,6 +168,7 @@ export function WeeklyEngagementChart({ data, onWeekClick, selectedWeek }) {
       <ResponsiveContainer width="100%" height="100%">
         <LineChart 
           syncId="weekly-metrics"
+          syncMethod="value"
           data={data} 
           margin={{ top: 8, right: 10, left: -12, bottom: 0 }}
           onClick={(state) => {
@@ -400,7 +402,7 @@ export function NetworkFollowersChart({ data }) {
       </div>
       <div className="cm-chart cm-chart-small" aria-label="Seguidores por rede">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart syncId="weekly-metrics" data={data} margin={{ top: 8, right: 10, left: -12, bottom: 0 }} barCategoryGap="28%" barGap={4}>
+          <BarChart syncId="weekly-metrics" syncMethod="value" data={data} margin={{ top: 8, right: 10, left: -12, bottom: 0 }} barCategoryGap="28%" barGap={4}>
             <CartesianGrid stroke="#e8edf2" strokeDasharray="3 6" vertical={false} />
             <XAxis dataKey="label" tick={{ fill: '#64748b', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={24} />
             <YAxis

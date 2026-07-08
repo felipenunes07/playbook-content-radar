@@ -211,7 +211,7 @@ describe('ContentMetricsWorkspace', () => {
     expect(screen.getByRole('button', { name: /Fernando/i })).toBeInTheDocument();
     expect(screen.getByAltText('Victor Baggio')).toBeInTheDocument();
     expect(screen.getByAltText('Fernando Tedesco')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Conteúdos por semana/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Conteúdos por dia/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Frequência diária/i })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /Média móvel de 4 semanas/i })).not.toBeInTheDocument();
 
