@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, BarChart3, Database, ExternalLink, FileClock, FileText, Image as ImageIcon, MessageSquare,
@@ -2260,13 +2260,46 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   const [prospectOverrides, setProspectOverrides] = useState({});
   const [prospectingRunning, setProspectingRunning] = useState(() => new Set());
 
+  // A coleta roda no servidor diariamente, mas esta tela pode ficar aberta por dias.
+  // Recarregar somente na montagem deixava "Seguidores por rede" congelado até F5,
+  // mesmo com novas linhas em account_daily_metrics. As atualizações preservam os
+  // filtros do operador; eles só são inicializados no primeiro carregamento.
+  const refreshData = useCallback(async ({ initializeFilters = false } = {}) => {
+    const result = await loadContentMetrics({ supabase: client });
+    if (initializeFilters) {
+      setFilters(defaultContentFilters(result));
+      setYoutubeFilters(defaultYoutubeFilters(result));
+      setInstagramFilters(defaultDateFilters(result.instagram || []));
+    }
+    setData(result);
+    setLoading(false);
+    return result;
+  }, [client]);
+
   useEffect(() => { setSection(initialSection); }, [initialSection]);
   useEffect(() => {
     if (initialData) return;
-    let active = true;
-    loadContentMetrics({ supabase: client }).then((result) => { if (active) { setFilters(defaultContentFilters(result)); setYoutubeFilters(defaultYoutubeFilters(result)); setInstagramFilters(defaultDateFilters(result.instagram || [])); setData(result); setLoading(false); } });
-    return () => { active = false; };
-  }, [client, initialData]);
+    refreshData({ initializeFilters: true }).catch(() => {});
+    return undefined;
+  }, [client, initialData, refreshData]);
+
+  useEffect(() => {
+    if (initialData || !client || typeof window === 'undefined') return undefined;
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState === 'visible') refreshData().catch(() => {});
+    };
+    // Uma nova leitura por minuto mantém a tela aberta alinhada à coleta automática,
+    // inclusive logo depois do cron terminar. Ao voltar para a aba, atualiza na hora.
+    const interval = window.setInterval(refreshIfVisible, 60_000);
+    document.addEventListener('visibilitychange', refreshIfVisible);
+    window.addEventListener('focus', refreshIfVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+      window.removeEventListener('focus', refreshIfVisible);
+    };
+  }, [client, initialData, refreshData]);
 
   const filtered = useMemo(() => filterContent(data?.linkedin || [], filters), [data, filters]);
   const filteredYoutube = useMemo(() => filterYoutube(data?.youtube || [], youtubeFilters), [data, youtubeFilters]);
@@ -2334,8 +2367,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   // Recarrega tudo do Supabase sem resetar filtros — usado depois de prospectar/
   // enriquecer pra trazer leads e contagens novas sem F5.
   const reloadData = async () => {
-    const result = await loadContentMetrics({ supabase: client });
-    setData(result);
+    await refreshData();
   };
 
   // Números de prospecção por post: parte do que veio do banco (última execução de
