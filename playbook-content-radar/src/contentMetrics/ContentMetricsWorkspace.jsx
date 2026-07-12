@@ -308,7 +308,7 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [distributionView, setDistributionView] = useState('frequency'); // 'frequency' | 'followers'
-  const [followersPeriod, setFollowersPeriod] = useState('daily'); // 'daily' | 'weekly'
+  const [followersPeriod, setFollowersPeriod] = useState('weekly'); // 'daily' | 'weekly'
   const [cadenceGroup, setCadenceGroup] = useState('creator'); // 'creator' | 'platform'
 
   const handleDateClick = (dayInfo) => {

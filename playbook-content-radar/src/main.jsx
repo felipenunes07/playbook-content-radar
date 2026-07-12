@@ -22,6 +22,8 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const ContentMetricsWorkspace = React.lazy(() => import('./contentMetrics/ContentMetricsWorkspace.jsx'));
+const NotionDevelopmentBoard = React.lazy(() => import('./notionDevelopment/NotionDevelopmentBoard.jsx'));
+const IdeaProductionWorkspace = React.lazy(() => import('./production/IdeaProductionWorkspace.jsx'));
 
 // Custom Linkedin logo component for brand header
 const LinkedinIcon = ({ size = 24, ...props }) => (
@@ -1134,6 +1136,18 @@ function App() {
                   <Users size={16} /> Leads ICP
                 </button>
                 <button
+                  className={view === 'development' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('development')}
+                >
+                  <FileText size={16} /> Desenvolvimento
+                </button>
+                <button
+                  className={view === 'production' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('production')}
+                >
+                  <Sparkles size={16} /> Produção
+                </button>
+                <button
                   className={view === 'calendar' ? 'nav-link active' : 'nav-link'}
                   onClick={() => setView('calendar')}
                 >
@@ -1173,6 +1187,18 @@ function App() {
                   onClick={() => leaveMetrics('leads')}
                 >
                   <Users size={16} /> Leads ICP
+                </button>
+                <button
+                  className={view === 'development' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('development')}
+                >
+                  <FileText size={16} /> Desenvolvimento
+                </button>
+                <button
+                  className={view === 'production' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('production')}
+                >
+                  <Sparkles size={16} /> Produção
                 </button>
                 <button
                   className={view === 'new' ? 'nav-link active' : 'nav-link'}
@@ -1321,6 +1347,29 @@ function App() {
               <ContentMetricsWorkspace client={supabase} mode="goals" />
             </React.Suspense>
           )}
+          {view === 'development' && (
+            <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Carregando desenvolvimento...</div>}>
+              <NotionDevelopmentBoard
+                client={supabase}
+                ideas={enrichedIdeas}
+                currentUser={user}
+                updateState={updateState}
+                onOpenStudio={(idea) => setStudioIdea(idea)}
+                onSchedule={(idea) => setSchedulingIdea(idea)}
+              />
+            </React.Suspense>
+          )}
+          {view === 'production' && (
+            <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Carregando produção...</div>}>
+              <IdeaProductionWorkspace
+                ideas={enrichedIdeas}
+                currentUser={user}
+                updateState={updateState}
+                onOpenStudio={(idea) => setStudioIdea(idea)}
+                onSchedule={(idea) => setSchedulingIdea(idea)}
+              />
+            </React.Suspense>
+          )}
           {view === 'new' && user === 'Felipe' && (
             <NewIdeaView
               updateState={updateState}
@@ -1432,6 +1481,23 @@ function App() {
 
               <button
                 type="button"
+                className={view === 'development' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => leaveMetrics('development')}
+              >
+                <FileText size={18} />
+                <span>Dev</span>
+              </button>
+              <button
+                type="button"
+                className={view === 'production' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => leaveMetrics('production')}
+              >
+                <Sparkles size={18} />
+                <span>Produção</span>
+              </button>
+
+              <button
+                type="button"
                 className={view === 'calendar' ? 'mobile-nav-item active' : 'mobile-nav-item'}
                 onClick={() => setView('calendar')}
               >
@@ -1493,6 +1559,23 @@ function App() {
               >
                 <Users size={18} />
                 <span>Leads</span>
+              </button>
+
+              <button
+                type="button"
+                className={view === 'development' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => leaveMetrics('development')}
+              >
+                <FileText size={18} />
+                <span>Dev</span>
+              </button>
+              <button
+                type="button"
+                className={view === 'production' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => leaveMetrics('production')}
+              >
+                <Sparkles size={18} />
+                <span>Produção</span>
               </button>
 
               <button

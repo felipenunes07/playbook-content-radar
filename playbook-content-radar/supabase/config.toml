@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.backfill-post-media]
 verify_jwt = false
+
+[functions.notion-development-board]
+verify_jwt = false
