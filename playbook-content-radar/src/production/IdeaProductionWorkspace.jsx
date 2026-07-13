@@ -121,8 +121,9 @@ function EditorialInspector({ idea, currentUser, onBring, onReturnToQueue, onOpe
             ) : (
               <button type="button" className="ipw-empty-draft" onClick={() => stage === 'queue' ? onBring(idea, true) : onOpenStudio(idea)}>
                 <Sparkles size={20} />
-                <strong>Começar a adaptação</strong>
-                <span>Abra o estúdio com a referência ao lado e escreva a versão Playbook.</span>
+                <strong>{stage === 'production' ? 'Continuar desenvolvimento' : 'Começar a adaptação'}</strong>
+                <span>{stage === 'production' ? 'Organize o material, prepare os criativos e deixe a copy para o fechamento.' : 'Abra o estúdio com a referência ao lado e monte o pacote Playbook.'}</span>
+                {stage === 'production' && <div className="ipw-production-steps"><span><b>1</b> Material</span><span><b>2</b> Criativos</span><span><b>3</b> Copy final</span></div>}
               </button>
             )}
           </section>
@@ -131,7 +132,7 @@ function EditorialInspector({ idea, currentUser, onBring, onReturnToQueue, onOpe
         <footer className="ipw-inspector-actions">
           <div>
             <span>Próxima ação</span>
-            <strong>{stage === 'queue' ? 'Transformar a referência em pauta própria' : stage === 'production' ? 'Concluir copy e criativo' : stage === 'review' ? 'Revisar e escolher uma data' : `Publicação em ${dateLabel(idea.scheduledAt)}`}</strong>
+            <strong>{stage === 'queue' ? 'Transformar a referência em pauta própria' : stage === 'production' ? 'Fechar material e criativos; gerar a copy por último' : stage === 'review' ? 'Revisar e escolher uma data' : `Publicação em ${dateLabel(idea.scheduledAt)}`}</strong>
           </div>
           <div className="ipw-action-buttons">
             {stage === 'queue' ? (
@@ -196,7 +197,7 @@ export default function IdeaProductionWorkspace({ ideas, currentUser, updateStat
       : `${grouped.queue.length} ideias curtidas aguardam seleção`;
 
   return (
-    <section className="idea-production-workspace">
+    <section className={`idea-production-workspace is-${activeStage}`}>
       <header className="ipw-command-header">
         <div>
           <span className="ipw-eyebrow">Sala de produção</span>

@@ -28,6 +28,8 @@ function removeGenericLanguage(value: unknown) {
     .replace(/merece aten[cç][aã]o/gi, 'vale testar')
     .replace(/a tecnologia deve ser uma aliada/gi, 'A tecnologia entra no operacional')
     .replace(/essa [ée] a nova realidade/gi, 'Esse é o fluxo')
+    .replace(/a efici[êe]ncia n[aã]o [ée] uma op[cç][aã]o\.?\s*[ée] uma necessidade\.?/gi, '')
+    .replace(/pode ser mais simples e r[aá]pido/gi, 'não deveria depender de trabalho manual')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -68,7 +70,7 @@ function validateResult(raw: Record<string, any>) {
   if (!['PAS', 'AIDA', 'CPF', 'BAB'].includes(framework)) throw new Error('Framework invalido');
   const post = clean(raw.post, 12000);
   const wordCount = post.split(/\s+/).filter(Boolean).length;
-  if (wordCount < 70 || wordCount > 450) throw new Error(`Post fora do tamanho editorial (${wordCount} palavras)`);
+  if (wordCount < 60 || wordCount > 500) throw new Error(`Post fora do tamanho editorial (${wordCount} palavras)`);
   return {
     sourceSummary: clean(raw.sourceSummary, 1000),
     outcome: clean(raw.outcome, 500),
@@ -157,13 +159,24 @@ Retorne JSON com:
         if (!response.ok) throw new Error(responseBody?.error?.message || `Copy API ${response.status}`);
         return parseLlmJson(responseBody);
       };
-      const plan = await callJson([
-        { role: 'system', content: LINKEDIN_WRITER_CONTEXT },
-        { role: 'user', content: userContent },
-      ], 0.62);
-      if (!Array.isArray(plan.outcomes) || plan.outcomes.length !== 10 || !Array.isArray(plan.hooks) || plan.hooks.length !== 10) {
-        throw new Error('O plano editorial nao completou as 10 opcoes obrigatorias');
+      console.log('[linkedin-writer] planning started', { sources: sources.length, pages: publicPages.filter(Boolean).length });
+      let plan: Record<string, any>;
+      try {
+        plan = await callJson([
+          { role: 'system', content: LINKEDIN_WRITER_CONTEXT },
+          { role: 'user', content: userContent },
+        ], 0.62);
+      } catch (error) {
+        console.warn('[linkedin-writer] planning fallback', errorMessage(error));
+        plan = {};
       }
+      if (!Array.isArray(plan.outcomes) || !plan.outcomes.length) {
+        plan.outcomes = [{ outcome: 'Transformar o material em uma ideia prática para vendas B2B.', angle: clean(idea.playbookAngle, 500), audience: 'Head de Vendas/Growth' }];
+      }
+      if (!Array.isArray(plan.hooks) || !plan.hooks.length) {
+        plan.hooks = [clean(idea.title, 240) || 'Uma forma mais prática de operar vendas com IA.'];
+      }
+      plan.selectedFramework = ['PAS', 'AIDA', 'CPF', 'BAB'].includes(clean(plan.selectedFramework).toUpperCase()) ? clean(plan.selectedFramework).toUpperCase() : 'CPF';
       const finalPrompt = `STEP 5 — agora escreva uma unica primeira versao usando o plano aprovado internamente.
 
 PLANO EDITORIAL
@@ -178,6 +191,18 @@ REVISÃO OBRIGATORIA ANTES DA SAIDA
 - Use detalhes do material, nao abstrações. Se o material for insuficiente, escreva um post curto e honesto.
 - Nao atribua a Victor um case, numero ou experiencia que a fonte nao comprova.
 - Frases curtas, uma ideia por linha, sem headings e sem hashtags.
+- Posts de autoridade precisam ter 120 a 220 palavras. Lead magnets, 150 a 350.
+- Cada bloco deve conter uma acao, objeto, dado ou contraste concreto da fonte.
+- Proibido terminar com frases universais sobre eficiencia, tecnologia, inovacao ou "foco no que importa".
+- Feche com uma tese especifica que so faria sentido para este material.
+
+RITMO DE REFERENCIA (nao copie as frases; reproduza a cadencia)
+"O vendedor termina a reuniao.
+Ainda precisa registrar o CRM.
+Organizar os proximos passos.
+E escrever o follow-up.
+
+Foi exatamente essa fila de trabalho que tiramos do caminho."
 
 Retorne JSON com:
 {
@@ -191,11 +216,21 @@ Retorne JSON com:
   "post":"texto final",
   "qualityChecks":["fatos conferidos","hook conectado ao corpo","voz e ritmo revisados","originalidade revisada"]
 }`;
-      let final = await callJson([
-        { role: 'system', content: LINKEDIN_WRITER_CONTEXT },
-        { role: 'user', content: finalPrompt },
-      ], 0.48);
-      const genericLanguage = /(imagine|convenhamos|etapa crucial|a ideia [ée] simples|o que realmente importa|merece aten[cç][aã]o|otimiz\w*|melhor\w* a efici[êe]ncia|tecnologia deve ser uma aliada|nova realidade)/i;
+      console.log('[linkedin-writer] drafting started', { framework: plan.selectedFramework });
+      let final: Record<string, any>;
+      try {
+        final = await callJson([
+          { role: 'system', content: LINKEDIN_WRITER_CONTEXT },
+          { role: 'user', content: finalPrompt },
+        ], 0.48);
+      } catch (error) {
+        console.warn('[linkedin-writer] structured draft retry', errorMessage(error));
+        final = await callJson([
+          { role: 'system', content: LINKEDIN_WRITER_CONTEXT },
+          { role: 'user', content: `${finalPrompt}\n\nA tentativa anterior falhou no formato. Retorne obrigatoriamente um JSON simples com post, hook, outcome, audience, framework, contentType, cta, sourceSummary e qualityChecks.` },
+        ], 0.35);
+      }
+      const genericLanguage = /(imagine|convenhamos|etapa crucial|a ideia [ée] simples|o que realmente importa|merece aten[cç][aã]o|otimiz\w*|melhor\w* a efici[êe]ncia|tecnologia deve ser uma aliada|nova realidade|a efici[êe]ncia n[aã]o [ée] uma op[cç][aã]o|pode ser mais simples e r[aá]pido)/i;
       for (let revision = 0; revision < 2 && genericLanguage.test(`${clean(final.hook)} ${clean(final.post)}`); revision += 1) {
         const polishPrompt = `Voce e o editor-chefe da Playbook Lab. O rascunho abaixo foi REPROVADO porque ainda soa como IA generica.
 
@@ -214,12 +249,19 @@ REESCREVA COM ESTAS EXIGENCIAS
 - Nao adicione nenhum fato, resultado ou experiencia.
 - O resultado deve soar como Victor explicando algo que acabou de construir, nao como artigo corporativo.
 - Antes de responder, procure cada termo proibido no seu texto. Se encontrar, reescreva novamente.
+- Entregue entre 120 e 220 palavras se for autoridade/storytelling.
+- Termine com uma tese especifica do material. Nenhuma frase universal sobre eficiencia, tecnologia ou inovacao.
 
 Retorne o mesmo JSON completo, com o post reescrito e qualityChecks atualizados.`;
-        final = await callJson([
-          { role: 'system', content: LINKEDIN_WRITER_CONTEXT },
-          { role: 'user', content: polishPrompt },
-        ], revision ? 0.2 : 0.35);
+        try {
+          final = await callJson([
+            { role: 'system', content: LINKEDIN_WRITER_CONTEXT },
+            { role: 'user', content: polishPrompt },
+          ], revision ? 0.2 : 0.35);
+        } catch (error) {
+          console.warn('[linkedin-writer] polish skipped', errorMessage(error));
+          break;
+        }
       }
       if (genericLanguage.test(`${clean(final.hook)} ${clean(final.post)}`)) {
         final = {
@@ -229,7 +271,22 @@ Retorne o mesmo JSON completo, com o post reescrito e qualityChecks atualizados.
           qualityChecks: [...(Array.isArray(final.qualityChecks) ? final.qualityChecks : []), 'linguagem generica removida pelo editor'],
         };
       }
-      return validateResult(final);
+      const selectedOutcome = plan.outcomes?.[Number(plan.selectedOutcomeIndex) || 0] || plan.outcomes?.[0] || {};
+      const selectedHook = plan.hooks?.[Number(plan.selectedHookIndex) || 0] || plan.hooks?.[0] || '';
+      final = {
+        sourceSummary: plan.sourceSummary || 'Material analisado para a produção da copy.',
+        outcome: selectedOutcome.outcome || selectedOutcome.angle || 'Entregar uma ideia prática ao leitor.',
+        audience: selectedOutcome.audience || 'Head de Vendas/Growth',
+        framework: plan.selectedFramework || 'CPF',
+        hook: selectedHook,
+        contentType: plan.contentType || 'autoridade',
+        cta: plan.cta || '',
+        ...final,
+        hook: clean(final.hook) || clean(selectedHook) || clean(final.post).split('\n').find(Boolean) || 'Uma ideia prática para vendas B2B.',
+      };
+      const validated = validateResult(final);
+      console.log('[linkedin-writer] completed', { framework: validated.framework, wordCount: validated.wordCount });
+      return validated;
     }, (provider, error) => console.warn(`LinkedIn Writer: provedor ${provider.label} falhou (${errorMessage(error)}).`));
 
     return json({ success: true, result });

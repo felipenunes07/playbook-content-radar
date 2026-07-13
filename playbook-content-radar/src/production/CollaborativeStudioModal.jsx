@@ -446,7 +446,16 @@ export default function CollaborativeStudioModal({ idea, currentUser, client, on
           workspaceContext,
         },
       });
-      if (error) throw error;
+      if (error) {
+        let detail = error.message || 'A função de IA retornou um erro.';
+        try {
+          const payload = await error.context?.json?.();
+          detail = payload?.error || payload?.message || detail;
+        } catch {
+          // O contexto pode já ter sido consumido pelo client; preserva a mensagem original.
+        }
+        throw new Error(detail);
+      }
       if (!data?.success || !data.result?.post) throw new Error(data?.error || 'A IA não devolveu uma versão completa.');
       const result = data.result;
       const item = {
@@ -465,7 +474,7 @@ export default function CollaborativeStudioModal({ idea, currentUser, client, on
       addToast(`Primeira versão gerada com ${result.framework} e salva para revisão.`, 'success');
     } catch (error) {
       console.error('LinkedIn Writer generation:', error);
-      addToast(error?.message || 'Não foi possível gerar a copy agora.', 'error');
+      addToast(`Copy não gerada: ${error?.message || 'erro desconhecido na IA.'}`, 'error');
     } finally {
       setGeneratingCopy(false);
     }
