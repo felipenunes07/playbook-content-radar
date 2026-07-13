@@ -5,6 +5,7 @@ import {
   ExternalLink, FilePenLine, Image, Search, Sparkles, ThumbsUp, UserRound,
 } from 'lucide-react';
 import './ideaProduction.css';
+import victorPhoto from '../assets/victor.png';
 
 const dateLabel = (value) => {
   if (!value) return 'Sem data';
@@ -74,6 +75,35 @@ function VoteProof({ idea }) {
   );
 }
 
+function ReviewDesk({ idea, currentUser, onOpenStudio }) {
+  const copy = idea.finalPostText || 'A copy ainda não foi concluída.';
+  const creative = idea.finalImageUrl || idea.imageUrl;
+  return (
+    <div className="ipw-review-desk">
+      <section className="ipw-review-post">
+        <header><span>O que será publicado</span><strong>Preview do post do Victor</strong><small>Leia o post como ele aparecerá no LinkedIn.</small></header>
+        <button type="button" className="ipw-linkedin-review" onClick={() => onOpenStudio(idea)}>
+          <div className="ipw-linkedin-head"><img src={victorPhoto} alt="Victor Baggio" /><span><strong>Victor Baggio</strong><small>Founder da Playbook Lab · Agora</small></span><b>•••</b></div>
+          <p>{copy}</p>
+          {creative && <img className="ipw-review-creative" src={creative} alt="Criativo selecionado para o post" />}
+          <footer><span>♡ Reagir</span><span>◯ Comentar</span><span>↗ Compartilhar</span></footer>
+        </button>
+      </section>
+
+      <aside className="ipw-review-decision">
+        <span>Decisão do Victor</span>
+        <h3>Revise, ajuste ou aprove</h3>
+        <p>Este é o pacote final. Clique em qualquer item para abrir o estúdio exatamente no material que precisa analisar.</p>
+        <button type="button" className="ipw-review-item" onClick={() => onOpenStudio(idea)}><CheckCircle2 size={17} /><span><strong>Copy final</strong><small>{copy.length} caracteres prontos para leitura</small></span><ArrowRight size={15} /></button>
+        <button type="button" className="ipw-review-item" onClick={() => onOpenStudio(idea)}><CheckCircle2 size={17} /><span><strong>Criativo selecionado</strong><small>{creative ? 'Imagem incluída no post' : 'Post somente em texto'}</small></span><ArrowRight size={15} /></button>
+        <button type="button" className="ipw-review-open" onClick={() => onOpenStudio(idea)}><FilePenLine size={16} /> Abrir revisão completa</button>
+        {idea.linkedinUrl && <a className="ipw-review-reference" href={idea.linkedinUrl} target="_blank" rel="noreferrer">Ver referência original <ExternalLink size={13} /></a>}
+        <small className="ipw-review-hint">{currentUser === 'Victor' ? 'Escolha a combinação no estúdio para aprovar ou pedir ajuste.' : 'Victor pode abrir este pacote e registrar a decisão.'}</small>
+      </aside>
+    </div>
+  );
+}
+
 function EditorialInspector({ idea, currentUser, onBring, onReturnToQueue, onOpenStudio, onSchedule, onSendToReview }) {
   if (!idea) return null;
   const stage = stageOf(idea);
@@ -102,7 +132,7 @@ function EditorialInspector({ idea, currentUser, onBring, onReturnToQueue, onOpe
           <VoteProof idea={idea} />
         </header>
 
-        <div className="ipw-editorial-grid">
+        {stage === 'review' ? <ReviewDesk idea={idea} currentUser={currentUser} onOpenStudio={onOpenStudio} /> : <div className="ipw-editorial-grid">
           <section className="ipw-original-pane">
             <div className="ipw-pane-label"><span>01</span><div><strong>O que chamou atenção</strong><small>Referência original</small></div></div>
             {idea.imageUrl && <div className="ipw-original-image"><img src={idea.imageUrl} alt="Imagem do post original" /></div>}
@@ -131,7 +161,7 @@ function EditorialInspector({ idea, currentUser, onBring, onReturnToQueue, onOpe
               </button>
             )}
           </section>
-        </div>
+        </div>}
 
         <footer className="ipw-inspector-actions">
           <div>
