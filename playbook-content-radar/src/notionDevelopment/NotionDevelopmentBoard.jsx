@@ -1,730 +1,391 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import IdeaProductionWorkspace from '../production/IdeaProductionWorkspace.jsx';
 import {
-  AlertCircle,
-  Calendar,
-  CheckCircle2,
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  KeyboardSensor,
+  closestCorners,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  Archive,
+  CalendarDays,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
   ExternalLink,
   FileText,
-  KanbanSquare,
+  Folder,
+  GripVertical,
   ImagePlus,
-  LayoutList,
+  Inbox,
+  LayoutDashboard,
+  Library,
   Lightbulb,
+  ListFilter,
   Magnet,
   PlaySquare,
   Plus,
   RefreshCw,
   Save,
+  Search,
   Trash2,
   UserRound,
   X,
 } from 'lucide-react';
-import { DEVELOPMENT_STATUSES, PLATFORM_ORDER, filterCardsByPlatform, groupCardsByStatus, normalizeNotionContentPage } from './normalize.js';
-import './notionDevelopment.css';
+import IdeaProductionWorkspace from '../production/IdeaProductionWorkspace.jsx';
+import { DEVELOPMENT_STATUSES, PLATFORM_ORDER, normalizeNotionContentPage } from './normalize.js';
+import './contentHub.css';
 
-const statusLabels = {
-  'Not started': 'Nao iniciado',
-  'In progress': 'Em progresso',
-  'Em edicao': 'Em edicao',
-  'Em edição': 'Em edicao',
-  'Ready to publish': 'Pronto',
-  Programado: 'Programado',
-  Published: 'Publicado',
-  Cancelled: 'Cancelado',
+const BOARD_STATUSES = ['Not started', 'In progress', 'Em edição', 'Ready to publish', 'Programado', 'Published'];
+const STATUS = {
+  'Not started': { label: 'Ideias', hint: 'Ainda sem produção', tone: 'gray' },
+  'In progress': { label: 'Produção', hint: 'Conteúdo em criação', tone: 'blue' },
+  'Em edição': { label: 'Edição', hint: 'Ajustes e mídia', tone: 'purple' },
+  'Ready to publish': { label: 'Revisão', hint: 'Aguardando aprovação', tone: 'green' },
+  Programado: { label: 'Programado', hint: 'Com data definida', tone: 'amber' },
+  Published: { label: 'Publicado', hint: 'Conteúdo no ar', tone: 'teal' },
+  Cancelled: { label: 'Arquivado', hint: 'Fora do fluxo', tone: 'red' },
 };
 
-const statusDetails = {
-  'Not started': 'Ideias e pautas',
-  'In progress': 'Em producao',
-  'Em edicao': 'Ajustes finais',
-  'Em edição': 'Ajustes finais',
-  'Ready to publish': 'Pode publicar',
-  Programado: 'Agendado',
-  Published: 'Publicado',
-  Cancelled: 'Fora do plano',
-};
+const NOTION_EMBED_URL = 'https://playbooklab.notion.site/ebd//383f8d62b79a8025a18ddb349e61cd7d';
+const NOTION_PAGE_URL = 'https://playbooklab.notion.site/Felipe-Content-383f8d62b79a8025a18ddb349e61cd7d?pvs=73';
 
-const platformLabels = {
-  all: 'Todas',
-  LinkedIn: 'LinkedIn',
-  YouTube: 'YouTube',
-};
-
-const templateFallbacks = [
-  {
-    key: 'linkedin_post',
-    name: 'New LinkedIn Post',
-    platform: 'LinkedIn',
-    campaign: 'Editorial',
-    sections: [
-      { title: 'Explicacao', prompt: 'Ponto de vista, promessa e contexto do post.', done: false },
-      { title: 'Hook', prompt: 'Primeira linha com tensao, contraste ou promessa.', done: false },
-      { title: 'Texto', prompt: 'Rascunho principal do post.', done: false },
-      { title: 'CTA', prompt: 'Proxima acao esperada.', done: false },
-      { title: 'Materiais', prompt: 'Links, prints, provas e referencias.', done: false },
-    ],
-  },
-  {
-    key: 'lead_magnet_post',
-    name: 'New Lead Magnet Post',
-    platform: 'LinkedIn',
-    campaign: 'Lead Magnet',
-    sections: [
-      { title: 'Oferta', prompt: 'O que a pessoa recebe e por que vale pedir.', done: false },
-      { title: 'Dor', prompt: 'Problema concreto que esse material resolve.', done: false },
-      { title: 'Prova', prompt: 'Resultado, exemplo ou print que sustenta.', done: false },
-      { title: 'Post', prompt: 'Texto final com CTA claro.', done: false },
-      { title: 'Entrega', prompt: 'Link, arquivo ou automacao de resposta.', done: false },
-    ],
-  },
-  {
-    key: 'youtube_video',
-    name: 'New YouTube Video',
-    platform: 'YouTube',
-    campaign: 'Video',
-    sections: [
-      { title: 'Explicacao', prompt: 'Ideia central, publico e promessa do video.', done: false },
-      { title: 'Script', prompt: 'Abertura, blocos, exemplos e fechamento.', done: false },
-      { title: 'Materiais de Apoio/Descricao', prompt: 'Links, capitulos, descricao e arquivos.', done: false },
-      { title: 'Titulo e Thumbnail', prompt: 'Opcoes de titulo e angulo visual.', done: false },
-      { title: 'Checklist de Publicacao', prompt: 'Descricao, tags, cards, tela final e CTA.', done: false },
-    ],
-  },
+const FALLBACK_TEMPLATES = [
+  { key: 'linkedin_post', name: 'Post LinkedIn', platform: 'LinkedIn', campaign: 'Editorial', sections: [
+    { title: 'Explicacao', prompt: 'Contexto, objetivo e angulo do post.', done: false },
+    { title: 'Copy', prompt: 'Texto final, hook e CTA.', done: false },
+    { title: 'Midia', prompt: 'Imagem, carrossel, video ou referencia.', done: false },
+  ] },
+  { key: 'lead_magnet_post', name: 'Lead Magnet', platform: 'LinkedIn', campaign: 'Lead Magnet', sections: [
+    { title: 'Checklist de entrega', prompt: 'Notion publico, Tally, n8n e Lead Shark.', done: false },
+    { title: 'Explicacao', prompt: 'Contexto, objetivo e oferta.', done: false },
+    { title: 'Copy do Post', prompt: 'Texto final com CTA.', done: false },
+    { title: 'Midia do Post', prompt: 'Imagem, carrossel ou video.', done: false },
+    { title: 'Notion Page', prompt: 'Material final e link publico.', done: false },
+    { title: 'Link do Tally', prompt: 'Formulario e entrega.', done: false },
+  ] },
+  { key: 'youtube_video', name: 'Vídeo YouTube', platform: 'YouTube', campaign: 'Video', sections: [
+    { title: 'Explicacao', prompt: 'Ideia central, publico e promessa.', done: false },
+    { title: 'Script', prompt: 'Abertura, blocos e fechamento.', done: false },
+    { title: 'Materiais de Apoio/Descricao', prompt: 'Links, capitulos e descricao.', done: false },
+  ] },
 ];
 
-function slug(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-}
-
-function formatDate(value) {
+function formatDate(value, options = { day: '2-digit', month: 'short' }) {
   if (!value) return 'Sem data';
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  const date = new Date(`${String(value).slice(0, 10)}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('pt-BR', options);
 }
 
-function TemplateIcon({ templateKey, size = 16 }) {
+function isoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function progressOf(sections = []) {
+  const total = sections.length;
+  const done = sections.filter((section) => section.done).length;
+  return { total, done, pct: total ? Math.round((done / total) * 100) : 0 };
+}
+
+function templateFor(card, templates) {
+  if (card.templateKey) return templates.find((item) => item.key === card.templateKey) || templates[0];
+  if (card.platforms?.includes('YouTube')) return templates.find((item) => item.key === 'youtube_video') || templates[0];
+  if (card.campaign?.includes('Lead Magnet')) return templates.find((item) => item.key === 'lead_magnet_post') || templates[0];
+  return templates.find((item) => item.key === 'linkedin_post') || templates[0];
+}
+
+function sectionsFor(card, templates) {
+  if (card.sections?.length) return card.sections;
+  return (templateFor(card, templates)?.sections || []).map((section) => ({ ...section, note: '', done: false }));
+}
+
+function ContentIcon({ templateKey, size = 15 }) {
   if (templateKey === 'youtube_video') return <PlaySquare size={size} />;
   if (templateKey === 'lead_magnet_post') return <Magnet size={size} />;
   return <FileText size={size} />;
 }
 
-function sectionProgress(sections) {
-  if (!Array.isArray(sections) || !sections.length) return { done: 0, total: 0, pct: 0 };
-  const done = sections.filter((section) => section?.done).length;
-  return { done, total: sections.length, pct: Math.round((done / sections.length) * 100) };
+function NotionEmbedView() {
+  return <section className="hub-notion-embed">
+    <header>
+      <div><span>Calendário original</span><h2>Notion</h2></div>
+      <a href={NOTION_PAGE_URL} target="_blank" rel="noreferrer"><ExternalLink size={14} />Abrir no Notion</a>
+    </header>
+    <iframe title="Felipe Content no Notion" src={NOTION_EMBED_URL} allowFullScreen />
+  </section>;
 }
 
-function inferTemplate(card, templates) {
-  if (card?.templateKey) return templates.find((template) => template.key === card.templateKey) || templates[0];
-  if (card?.platforms?.includes('YouTube')) return templates.find((template) => template.key === 'youtube_video') || templates[0];
-  if (card?.campaign?.includes('Lead Magnet')) return templates.find((template) => template.key === 'lead_magnet_post') || templates[0];
-  return templates.find((template) => template.key === 'linkedin_post') || templates[0];
-}
-
-function templateSectionsForCard(card, templates) {
-  if (Array.isArray(card?.sections) && card.sections.length) return card.sections;
-  return (inferTemplate(card, templates)?.sections || []).map((section) => ({ ...section, note: '', done: false }));
-}
-
-function BoardCard({ card, onOpen, onDragStart, onPointerStart }) {
-  const platform = card.platforms[0] || 'Sem plataforma';
-  const progress = sectionProgress(card.sections);
-
+function Card({ card, onOpen, onPointerStart, onNativeStart, onMoveNext, onReturnToIdeas, drag = true, overlay = false }) {
+  const progress = progressOf(card.sections);
+  const draggable = useDraggable({ id: card.id, disabled: !drag });
+  const style = draggable.transform ? { transform: `translate3d(${draggable.transform.x}px, ${draggable.transform.y}px, 0)` } : undefined;
   return (
-    <article
-      className={`nd-card ${card.assignedToFelipe ? 'is-felipe' : ''}`}
-      role="button"
-      tabIndex={0}
-      draggable
-      onDragStart={(event) => onDragStart?.(event, card)}
-      onPointerDown={() => onPointerStart?.(card)}
-      onClick={() => onOpen(card)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') onOpen(card);
-      }}
-    >
-      <div className="nd-card-topline">
-        <span className={`nd-platform-pill ${slug(platform)}`}>{card.platforms.join(' + ')}</span>
-        <span className={card.publishDate ? 'nd-date-chip has-date' : 'nd-date-chip'}>{formatDate(card.publishDate)}</span>
+    <article ref={draggable.setNodeRef} style={style} draggable={drag} className={`hub-card ${overlay ? 'is-overlay' : ''} ${draggable.isDragging ? 'is-dragging' : ''}`} onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/content-card', card.id); onNativeStart?.(card); }} onClick={() => !draggable.isDragging && onOpen(card)}>
+      <div className="hub-card-line">
+        <span className={`hub-platform ${card.platforms?.[0]?.toLowerCase() || 'none'}`}>{card.platforms?.[0] || 'Sem plataforma'}</span>
+        {drag && <span className="hub-card-tools">{card.status !== 'Not started' && <button type="button" aria-label="Voltar para ideias" title="Voltar para ideias" onClick={(event) => { event.stopPropagation(); onReturnToIdeas?.(card); }}><ChevronLeft size={14} /></button>}<button type="button" aria-label="Avançar etapa" title="Avançar para a próxima etapa" onClick={(event) => { event.stopPropagation(); onMoveNext?.(card); }}><ChevronRight size={14} /></button><button className="hub-grip" type="button" aria-label="Arrastar card" onClick={(event) => event.stopPropagation()} onPointerDownCapture={() => onPointerStart?.(card)} {...draggable.listeners} {...draggable.attributes}><GripVertical size={15} /></button></span>}
       </div>
       <h3>{card.title}</h3>
-      {card.templateName && (
-        <div className="nd-template-line">
-          <TemplateIcon templateKey={card.templateKey} size={13} />
-          <span>{card.templateName}</span>
-        </div>
-      )}
-      {(card.campaign.length > 0 || card.assignedToFelipe) && (
-        <div className="nd-card-tags">
-          {card.campaign.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}
-          {card.assignedToFelipe && <span className="felipe"><UserRound size={10} /> Felipe</span>}
-        </div>
-      )}
-      {progress.total > 0 && (
-        <div className="nd-card-sections">
-          <div className="nd-progress">
-            <span style={{ width: `${progress.pct}%` }} />
-          </div>
-          <small>{progress.done}/{progress.total} fases completas</small>
-        </div>
-      )}
-      <div className="nd-card-actions" onClick={(event) => event.stopPropagation()}>
-        {card.contentUrl && (
-          <a href={card.contentUrl} target="_blank" rel="noreferrer">
-            Conteudo <ExternalLink size={12} />
-          </a>
-        )}
-        {card.notionUrl && (
-          <a href={card.notionUrl} target="_blank" rel="noreferrer">
-            Notion <ExternalLink size={12} />
-          </a>
-        )}
+      <div className="hub-card-meta">
+        {card.assignee && <span><UserRound size={11} />{card.assignee}</span>}
+        <span><CalendarDays size={11} />{formatDate(card.publishDate || card.deadline)}</span>
       </div>
+      {(card.templateName || progress.total > 0) && <div className="hub-card-foot">
+        <span><ContentIcon templateKey={card.templateKey} size={12} />{card.templateName || card.contentType}</span>
+        {progress.total > 0 && <strong>{progress.done}/{progress.total}</strong>}
+      </div>}
     </article>
   );
 }
 
-function PlatformBoard({ cards, statuses, onOpen, onDragStart, onPointerStart, onDropStatus, onPointerDrop }) {
-  const groups = ['LinkedIn', 'YouTube', 'Sem plataforma'];
+function Column({ status, cards, onOpen, onMoveNext, onReturnToIdeas, onPointerDrop, onPointerStart, onNativeStart, onNativeDrop }) {
+  const drop = useDroppable({ id: status });
+  const config = STATUS[status] || STATUS['Not started'];
   return (
-    <div className="nd-platform-board">
-      <div className="nd-matrix-head">
-        <span>Plataforma</span>
-        {statuses.map((status) => <strong key={status}>{statusLabels[status] || status}</strong>)}
+    <section ref={drop.setNodeRef} data-hub-status={status} className={`hub-column tone-${config.tone} ${drop.isOver ? 'is-over' : ''}`} onPointerUpCapture={() => onPointerDrop?.(status)} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }} onDrop={(event) => { event.preventDefault(); onNativeDrop?.(status); }}>
+      <header><div><span>{config.label}</span><small>{config.hint}</small></div><strong>{cards.length}</strong></header>
+      <div className="hub-column-list">
+        {cards.map((card) => <Card key={card.id} card={card} onOpen={onOpen} onMoveNext={onMoveNext} onReturnToIdeas={onReturnToIdeas} onPointerStart={onPointerStart} onNativeStart={onNativeStart} />)}
+        {!cards.length && <div className="hub-drop-empty">Solte um conteúdo aqui</div>}
       </div>
-      {groups.map((group) => {
-        const groupCards = cards.filter((card) => group === 'Sem plataforma'
-          ? !card.platforms.length
-          : card.platforms.includes(group));
-        if (!groupCards.length) return null;
-        return (
-          <section className="nd-matrix-row" key={group}>
-            <header><span className={`nd-platform-pill ${slug(group)}`}>{group}</span><small>{groupCards.length} cards</small></header>
-            {statuses.map((status) => (
-              <div
-                className="nd-matrix-cell"
-                key={status}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => onDropStatus?.(event, status)}
-                onPointerUp={() => onPointerDrop?.(status)}
-              >
-                {groupCards.filter((card) => card.status === status).map((card) => (
-                  <BoardCard key={card.id} card={card} onOpen={onOpen} onDragStart={onDragStart} onPointerStart={onPointerStart} />
-                ))}
-              </div>
-            ))}
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-function CalendarView({ cards, onOpen }) {
-  const dated = [...cards].filter((card) => card.publishDate).sort((a, b) => a.publishDate.localeCompare(b.publishDate));
-  return (
-    <section className="nd-calendar-view">
-      {dated.length ? dated.map((card) => (
-        <button type="button" key={card.id} onClick={() => onOpen(card)}>
-          <time>{formatDate(card.publishDate)}</time>
-          <span className={`nd-platform-pill ${slug(card.platforms[0])}`}>{card.platforms[0] || 'Sem plataforma'}</span>
-          <strong>{card.title}</strong>
-          <small>{statusLabels[card.status] || card.status}</small>
-        </button>
-      )) : <div className="nd-empty"><Calendar size={15} /> Nenhum conteudo com data definida</div>}
     </section>
   );
 }
 
-function CreateModal({ templates, selectedTemplate, setSelectedTemplate, newTitle, setNewTitle, creating, onCreate, onClose }) {
+function BoardView({ cards, onOpen, onMove }) {
+  const [activeCard, setActiveCard] = useState(null);
+  const pointerCard = useRef(null);
+  const nativeCard = useRef(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor));
+  const finishPointer = (status) => {
+    const card = pointerCard.current;
+    pointerCard.current = null;
+    if (card && card.status !== status) onMove(card, status);
+  };
+  const finishNative = (status) => {
+    const card = nativeCard.current;
+    nativeCard.current = null;
+    pointerCard.current = null;
+    if (card && card.status !== status) onMove(card, status);
+  };
+  const moveNext = (card) => {
+    const position = BOARD_STATUSES.indexOf(card.status);
+    if (position >= 0 && position < BOARD_STATUSES.length - 1) onMove(card, BOARD_STATUSES[position + 1]);
+  };
+  const returnToIdeas = (card) => onMove(card, 'Not started');
+  useEffect(() => {
+    const finishAtPointer = (event) => {
+      const card = pointerCard.current;
+      if (!card) return;
+      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('[data-hub-status]');
+      const status = target?.getAttribute('data-hub-status');
+      pointerCard.current = null;
+      if (status && card.status !== status) onMove(card, status);
+    };
+    window.addEventListener('pointerup', finishAtPointer, true);
+    return () => window.removeEventListener('pointerup', finishAtPointer, true);
+  }, [onMove]);
   return (
-    <div className="nd-modal-backdrop" role="presentation" onClick={onClose}>
-      <section className="nd-create-modal" role="dialog" aria-modal="true" aria-label="Novo conteudo" onClick={(event) => event.stopPropagation()}>
-        <header>
-          <div>
-            <span>Novo conteudo</span>
-            <h2>Escolha um template</h2>
-          </div>
-          <button type="button" className="nd-icon-button" onClick={onClose} aria-label="Fechar">
-            <X size={16} />
-          </button>
-        </header>
-
-        <div className="nd-create-options">
-          {templates.map((template) => (
-            <button
-              key={template.key}
-              type="button"
-              className={selectedTemplate === template.key ? 'active' : ''}
-              onClick={() => setSelectedTemplate(template.key)}
-            >
-              <TemplateIcon templateKey={template.key} />
-              <strong>{template.name}</strong>
-              <span>{template.sections.length} fases</span>
-            </button>
-          ))}
-        </div>
-
-        <input
-          value={newTitle}
-          onChange={(event) => setNewTitle(event.target.value)}
-          placeholder="Titulo do conteudo"
-        />
-
-        <div className="nd-create-preview">
-          {(templates.find((template) => template.key === selectedTemplate)?.sections || []).map((section) => (
-            <div key={section.title}>
-              <strong>{section.title}</strong>
-              <span>{section.prompt}</span>
-            </div>
-          ))}
-        </div>
-
-        <footer>
-          <button type="button" className="nd-secondary" onClick={onClose}>Cancelar</button>
-          <button type="button" className="nd-primary" onClick={onCreate} disabled={creating}>
-            <Plus size={15} />
-            {creating ? 'Criando...' : 'Criar card'}
-          </button>
-        </footer>
-      </section>
-    </div>
+    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={({ active }) => setActiveCard(cards.find((card) => card.id === active.id) || null)} onDragCancel={() => { pointerCard.current = null; setActiveCard(null); }} onDragEnd={({ active, over }) => { const card = cards.find((item) => item.id === active.id); setActiveCard(null); if (pointerCard.current && card && over?.id && card.status !== over.id) { pointerCard.current = null; onMove(card, String(over.id)); } }}>
+      <div className="hub-board">{BOARD_STATUSES.map((status) => <Column key={status} status={status} cards={cards.filter((card) => card.status === status)} onOpen={onOpen} onMoveNext={moveNext} onReturnToIdeas={returnToIdeas} onPointerStart={(card) => { pointerCard.current = card; }} onPointerDrop={finishPointer} onNativeStart={(card) => { nativeCard.current = card; }} onNativeDrop={finishNative} />)}</div>
+      <DragOverlay>{activeCard ? <Card card={activeCard} onOpen={() => {}} drag={false} overlay /> : null}</DragOverlay>
+    </DndContext>
   );
 }
 
-function CardDrawer({
-  card, templates, draft, setDraft, saving, uploading, onUpload, onRemoveAttachment, onSave, onClose,
-}) {
-  const template = templates.find((item) => item.key === draft.templateKey) || inferTemplate(card, templates);
-  const sections = draft.sections || [];
-  const progress = sectionProgress(sections);
+function TodayView({ cards, onOpen, onCreate }) {
+  const today = isoDate(new Date());
+  const week = new Date(); week.setDate(week.getDate() + 7);
+  const due = cards.filter((card) => card.deadline && card.deadline <= today && !['Published', 'Cancelled'].includes(card.status));
+  const review = cards.filter((card) => card.status === 'Ready to publish');
+  const active = cards.filter((card) => ['In progress', 'Em edição'].includes(card.status));
+  const upcoming = cards.filter((card) => card.publishDate && card.publishDate >= today && card.publishDate <= isoDate(week));
+  const groups = [
+    ['Atenção agora', due, CircleAlert],
+    ['Em produção', active, RefreshCw],
+    ['Para revisar', review, Check],
+    ['Próximos 7 dias', upcoming, CalendarDays],
+  ];
+  return <div className="hub-today">
+    <section className="hub-focus"><div><span>Central editorial</span><h2>O que precisa andar hoje</h2><p>Prazos, produção e revisão em uma fila única.</p></div><button type="button" onClick={onCreate}><Plus size={16} />Novo conteúdo</button></section>
+    <div className="hub-today-grid">{groups.map(([title, rows, Icon]) => <section key={title} className="hub-worklist"><header><div><Icon size={15} /><strong>{title}</strong></div><span>{rows.length}</span></header>{rows.length ? rows.slice(0, 6).map((card) => <button type="button" key={card.id} onClick={() => onOpen(card)}><span className={`hub-status-dot tone-${STATUS[card.status]?.tone || 'gray'}`} /><div><strong>{card.title}</strong><small>{card.creator} · {card.platforms?.[0] || 'Sem plataforma'}</small></div><time>{formatDate(card.deadline || card.publishDate)}</time></button>) : <div className="hub-work-empty">Nada pendente aqui</div>}</section>)}</div>
+  </div>;
+}
 
-  function updateSection(index, patch) {
-    setDraft((current) => ({
-      ...current,
-      sections: current.sections.map((section, sectionIndex) => (
-        sectionIndex === index ? { ...section, ...patch } : section
-      )),
-    }));
-  }
+function CalendarView({ cards, onOpen }) {
+  const [cursor, setCursor] = useState(() => new Date());
+  const year = cursor.getFullYear(); const month = cursor.getMonth();
+  const first = new Date(year, month, 1); const last = new Date(year, month + 1, 0);
+  const cells = [];
+  for (let i = 0; i < first.getDay(); i += 1) cells.push(null);
+  for (let day = 1; day <= last.getDate(); day += 1) cells.push(new Date(year, month, day));
+  while (cells.length % 7) cells.push(null);
+  return <section className="hub-calendar"><header><div><button type="button" onClick={() => setCursor(new Date(year, month - 1, 1))}><ChevronLeft size={16} /></button><h2>{cursor.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h2><button type="button" onClick={() => setCursor(new Date(year, month + 1, 1))}><ChevronRight size={16} /></button></div><button type="button" onClick={() => setCursor(new Date())}>Hoje</button></header><div className="hub-weekdays">{['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => <span key={day}>{day}</span>)}</div><div className="hub-month-grid">{cells.map((date, index) => { const key = date ? isoDate(date) : `empty-${index}`; const dayCards = date ? cards.filter((card) => (card.publishDate || card.deadline) === key) : []; return <div key={key} className={!date ? 'is-empty' : key === isoDate(new Date()) ? 'is-today' : ''}>{date && <time>{date.getDate()}</time>}{dayCards.slice(0, 3).map((card) => <button type="button" key={card.id} onClick={() => onOpen(card)} className={`tone-${STATUS[card.status]?.tone || 'gray'}`}>{card.title}</button>)}{dayCards.length > 3 && <small>+{dayCards.length - 3} conteúdos</small>}</div>; })}</div></section>;
+}
 
-  function changeTemplate(templateKey) {
-    const next = templates.find((item) => item.key === templateKey);
-    if (!next) return;
-    setDraft((current) => ({
-      ...current,
-      templateKey,
-      sections: next.sections.map((section) => ({ ...section, note: '', done: false })),
-    }));
-  }
+function LibraryView({ cards, onOpen }) {
+  const [folder, setFolder] = useState('Todos');
+  const folders = ['Todos', ...new Set(cards.map((card) => card.folder || card.platforms?.[0] || 'Conteúdos'))];
+  const rows = folder === 'Todos' ? cards : cards.filter((card) => (card.folder || card.platforms?.[0]) === folder);
+  return <div className="hub-library"><aside><strong>Pastas</strong>{folders.map((item) => <button type="button" key={item} className={folder === item ? 'active' : ''} onClick={() => setFolder(item)}><Folder size={14} />{item}<span>{item === 'Todos' ? cards.length : cards.filter((card) => (card.folder || card.platforms?.[0]) === item).length}</span></button>)}</aside><section><header><div><span>Biblioteca</span><h2>{folder}</h2></div><small>{rows.length} conteúdos</small></header><div className="hub-table"><div className="hub-table-head"><span>Conteúdo</span><span>Criador</span><span>Plataforma</span><span>Status</span><span>Data</span></div>{rows.map((card) => <button type="button" key={card.id} onClick={() => onOpen(card)}><span><ContentIcon templateKey={card.templateKey} /><strong>{card.title}</strong></span><span>{card.creator}</span><span>{card.platforms?.join(', ')}</span><span><i className={`tone-${STATUS[card.status]?.tone || 'gray'}`} />{STATUS[card.status]?.label || card.status}</span><time>{formatDate(card.publishDate || card.deadline)}</time></button>)}</div></section></div>;
+}
 
-  return (
-    <div className="nd-drawer-backdrop" role="presentation" onClick={onClose}>
-      <aside className="nd-drawer" role="dialog" aria-modal="true" aria-label="Detalhes do card" onClick={(event) => event.stopPropagation()}>
-        <header className="nd-drawer-header">
-          <div>
-            <span>Espaço de produção</span>
-            <input className="nd-editor-title" value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} />
-          </div>
-          <button type="button" className="nd-icon-button" onClick={onClose} aria-label="Fechar">
-            <X size={16} />
-          </button>
-        </header>
+function CreateDialog({ templates, ideas, onClose, onCreate, onCreateFromIdea, busy }) {
+  const approvedIdeas = useMemo(() => ideas.filter((idea) => idea.victorVote === 'like' || idea.fernandoVote === 'like'), [ideas]);
+  const [mode, setMode] = useState(approvedIdeas.length ? 'idea' : 'blank');
+  const [templateKey, setTemplateKey] = useState('linkedin_post');
+  const [title, setTitle] = useState('');
+  const [ideaSearch, setIdeaSearch] = useState('');
+  const [selectedIdeaId, setSelectedIdeaId] = useState(approvedIdeas[0]?.id || '');
+  const visibleIdeas = approvedIdeas.filter((idea) => `${idea.title} ${idea.sourceAuthor || ''} ${idea.category || ''}`.toLowerCase().includes(ideaSearch.toLowerCase()));
+  const selectedIdea = approvedIdeas.find((idea) => idea.id === selectedIdeaId);
+  return <div className="hub-modal-layer" onMouseDown={onClose}><section className="hub-create" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><header><div><span>Novo conteúdo</span><h2>Escolha a origem</h2></div><button type="button" onClick={onClose}><X size={17} /></button></header><div className="hub-create-source"><button type="button" className={mode === 'idea' ? 'active' : ''} onClick={() => setMode('idea')}><Lightbulb size={15} />Usar ideia aprovada<strong>{approvedIdeas.length}</strong></button><button type="button" className={mode === 'blank' ? 'active' : ''} onClick={() => setMode('blank')}><Plus size={15} />Criar do zero</button></div>{mode === 'idea' ? <div className="hub-idea-picker"><label><Search size={14} /><input value={ideaSearch} onChange={(event) => setIdeaSearch(event.target.value)} placeholder="Buscar nas ideias curtidas" /></label><div>{visibleIdeas.length ? visibleIdeas.map((idea) => <button type="button" key={idea.id} className={selectedIdeaId === idea.id ? 'active' : ''} onClick={() => setSelectedIdeaId(idea.id)}>{idea.imageUrl ? <img src={idea.imageUrl} alt="" /> : <span className="hub-idea-placeholder"><Lightbulb size={15} /></span>}<div><strong>{idea.title}</strong><small>{idea.sourceAuthor || idea.category || 'Radar de ideias'}</small><em>{idea.victorVote === 'like' ? 'Victor curtiu' : ''}{idea.victorVote === 'like' && idea.fernandoVote === 'like' ? ' · ' : ''}{idea.fernandoVote === 'like' ? 'Fernando curtiu' : ''}</em></div>{selectedIdeaId === idea.id && <Check size={16} />}</button>) : <div className="hub-no-ideas"><Inbox size={18} />Nenhuma ideia curtida encontrada.</div>}</div></div> : <><div className="hub-template-options">{templates.map((template) => <button type="button" key={template.key} className={templateKey === template.key ? 'active' : ''} onClick={() => setTemplateKey(template.key)}><ContentIcon templateKey={template.key} size={19} /><strong>{template.name}</strong><span>{template.platform} · {template.sections.length} blocos</span></button>)}</div><label>Título<input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Nome da pauta ou conteúdo" /></label></>}<footer><button type="button" onClick={onClose}>Cancelar</button>{mode === 'idea' ? <button type="button" className="primary" disabled={busy || !selectedIdea} onClick={() => onCreateFromIdea(selectedIdea)}><Lightbulb size={15} />{busy ? 'Criando...' : 'Usar esta ideia'}</button> : <button type="button" className="primary" disabled={busy} onClick={() => onCreate(templateKey, title)}><Plus size={15} />{busy ? 'Criando...' : 'Criar conteúdo'}</button>}</footer></section></div>;
+}
 
-        <div className="nd-editor-layout">
-          <aside className="nd-editor-properties">
-            <label>Status<select value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}>{DEVELOPMENT_STATUSES.map((status) => <option key={status} value={status}>{statusLabels[status] || status}</option>)}</select></label>
-            <label>Template<select value={draft.templateKey} onChange={(event) => changeTemplate(event.target.value)}>{templates.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}</select></label>
-            <label>Data<input type="date" value={draft.publishDate || ''} onChange={(event) => setDraft((current) => ({ ...current, publishDate: event.target.value }))} /></label>
-            <div className="nd-editor-progress"><strong>{progress.pct}% concluído</strong><span>{progress.done} de {progress.total} etapas</span><div className="nd-progress"><i style={{ width: `${progress.pct}%` }} /></div></div>
-            <div className="nd-editor-source"><span>Origem</span><strong>{card.notionSourceId || card.sourceType === 'notion' ? 'Importado do Notion' : 'Criado no sistema'}</strong></div>
-          </aside>
-
-          <main className="nd-editor-main" onPaste={onUpload}>
-            <section className="nd-editor-brief">
-              <h3>Briefing e conteúdo</h3>
-              <textarea value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Escreva a ideia, objetivo, gancho, referências ou o rascunho principal..." />
-            </section>
-
-            <section className="nd-editor-media">
-              <div><h3>Imagens e referências</h3><span>Cole uma imagem com Ctrl+V ou envie um arquivo.</span></div>
-              <label className="nd-upload-button"><ImagePlus size={15} />{uploading ? 'Enviando...' : 'Adicionar imagem'}<input type="file" accept="image/*" onChange={onUpload} disabled={uploading} /></label>
-              {draft.attachments.length > 0 && <div className="nd-media-grid">{draft.attachments.map((item, index) => <figure key={item.url}><img src={item.url} alt={item.name || 'Imagem do conteudo'} /><button type="button" aria-label="Remover imagem" onClick={() => onRemoveAttachment(item, index)}><Trash2 size={14} /></button></figure>)}</div>}
-            </section>
-
-            <section className="nd-section-editor">
-              <div className="nd-section-heading"><div><h3>Etapas do template</h3><span>Marque, escreva e adapte cada etapa ao seu processo.</span></div><button type="button" onClick={() => setDraft((current) => ({ ...current, sections: [...current.sections, { title: 'Nova etapa', prompt: '', note: '', done: false }] }))}><Plus size={14} /> Etapa</button></div>
-              {sections.map((section, index) => (
-                <article key={`${index}-${section.title}`} className={section.done ? 'is-done' : ''}>
-                  <label className="nd-section-check"><input type="checkbox" checked={Boolean(section.done)} onChange={(event) => updateSection(index, { done: event.target.checked })} /><input value={section.title} onChange={(event) => updateSection(index, { title: event.target.value })} aria-label="Nome da etapa" /></label>
-                  <input className="nd-section-prompt" value={section.prompt || ''} onChange={(event) => updateSection(index, { prompt: event.target.value })} placeholder="Objetivo desta etapa" />
-                  <textarea value={section.note || ''} onChange={(event) => updateSection(index, { note: event.target.value })} placeholder="Escreva aqui..." />
-                  <button type="button" className="nd-remove-section" aria-label="Remover etapa" onClick={() => setDraft((current) => ({ ...current, sections: current.sections.filter((_, itemIndex) => itemIndex !== index) }))}><Trash2 size={14} /></button>
-                </article>
-              ))}
-            </section>
-          </main>
-        </div>
-
-        <footer className="nd-drawer-footer">
-          <button type="button" className="nd-secondary" onClick={onClose}>Fechar</button>
-          <button type="button" className="nd-primary" onClick={onSave} disabled={saving || uploading}><Save size={15} />{saving ? 'Salvando...' : 'Salvar card'}</button>
-        </footer>
-      </aside>
-    </div>
-  );
+function Editor({ card, templates, draft, setDraft, onClose, onSave, onReturnToIdeas, onUpload, onRemoveImage, saving, uploading }) {
+  const progress = progressOf(draft.sections);
+  const setSection = (index, patch) => setDraft((current) => ({ ...current, sections: current.sections.map((section, position) => position === index ? { ...section, ...patch } : section) }));
+  const applyTemplate = (key) => { const template = templates.find((item) => item.key === key); if (template) setDraft((current) => ({ ...current, templateKey: key, contentType: template.name, sections: template.sections.map((section) => ({ ...section, note: '', done: false })) })); };
+  return <div className="hub-modal-layer" onMouseDown={onClose}><section className="hub-editor" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()} onPaste={onUpload}><header><div className="hub-editor-heading"><span>{card.creator} / {draft.folder || 'Conteúdos'}</span><input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></div><div><button type="button" onClick={onClose}><X size={17} /></button></div></header><div className="hub-editor-body"><aside><label>Status<select value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))}>{DEVELOPMENT_STATUSES.map((status) => <option key={status} value={status}>{STATUS[status]?.label || status}</option>)}</select></label><label>Template<select value={draft.templateKey} onChange={(event) => applyTemplate(event.target.value)}>{templates.map((template) => <option key={template.key} value={template.key}>{template.name}</option>)}</select></label><label>Responsável<input value={draft.assignee} onChange={(event) => setDraft((current) => ({ ...current, assignee: event.target.value }))} /></label><label>Prioridade<select value={draft.priority} onChange={(event) => setDraft((current) => ({ ...current, priority: event.target.value }))}><option>Alta</option><option>Media</option><option>Baixa</option></select></label><label>Pasta<input value={draft.folder} onChange={(event) => setDraft((current) => ({ ...current, folder: event.target.value }))} /></label><label>Prazo<input type="date" value={draft.deadline || ''} onChange={(event) => setDraft((current) => ({ ...current, deadline: event.target.value }))} /></label><label>Publicação<input type="date" value={draft.publishDate || ''} onChange={(event) => setDraft((current) => ({ ...current, publishDate: event.target.value }))} /></label><div className="hub-editor-progress"><span><strong>{progress.pct}%</strong> concluído</span><i><b style={{ width: `${progress.pct}%` }} /></i></div>{card.notionUrl && <a href={card.notionUrl} target="_blank" rel="noreferrer">Abrir original no Notion <ExternalLink size={12} /></a>}</aside><main><section className="hub-doc-block"><h3>Briefing</h3><textarea value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Objetivo, público, ângulo, referências e observações..." /></section><section className="hub-doc-block"><div className="hub-block-title"><div><h3>Materiais</h3><span>Cole uma imagem com Ctrl+V ou envie um arquivo.</span></div><label><ImagePlus size={15} />{uploading ? 'Enviando...' : 'Adicionar'}<input type="file" accept="image/*" onChange={onUpload} /></label></div>{draft.attachments.length ? <div className="hub-media">{draft.attachments.map((item, index) => <figure key={item.url}><img src={item.url} alt={item.name || 'Material'} /><button type="button" onClick={() => onRemoveImage(item, index)}><Trash2 size={14} /></button></figure>)}</div> : <div className="hub-media-empty"><ImagePlus size={18} />Imagens, thumbnails, carrosséis e referências ficam aqui.</div>}</section><section className="hub-doc-block"><div className="hub-block-title"><div><h3>Conteúdo e etapas</h3><span>Estrutura baseada no template, totalmente editável.</span></div><button type="button" onClick={() => setDraft((current) => ({ ...current, sections: [...current.sections, { title: 'Novo bloco', prompt: '', note: '', done: false }] }))}><Plus size={14} />Bloco</button></div><div className="hub-sections">{draft.sections.map((section, index) => <article key={`${section.title}-${index}`} className={section.done ? 'done' : ''}><div><input type="checkbox" checked={Boolean(section.done)} onChange={(event) => setSection(index, { done: event.target.checked })} /><input value={section.title} onChange={(event) => setSection(index, { title: event.target.value })} /><button type="button" onClick={() => setDraft((current) => ({ ...current, sections: current.sections.filter((_, position) => position !== index) }))}><Trash2 size={13} /></button></div><input value={section.prompt || ''} onChange={(event) => setSection(index, { prompt: event.target.value })} placeholder="Orientação deste bloco" /><textarea value={section.note || ''} onChange={(event) => setSection(index, { note: event.target.value })} placeholder="Escreva aqui..." /></article>)}</div></section></main></div><footer><button type="button" onClick={onClose}>Fechar</button><button type="button" className="primary" onClick={onSave} disabled={saving || uploading}><Save size={15} />{saving ? 'Salvando...' : 'Salvar alterações'}</button></footer></section></div>;
 }
 
 export default function NotionDevelopmentBoard({ client, ideas = [], currentUser, updateState, onOpenStudio, onSchedule }) {
-  const [platform, setPlatform] = useState('all');
-  const [viewMode, setViewMode] = useState('pipeline');
   const [cards, setCards] = useState([]);
-  const [templates, setTemplates] = useState(templateFallbacks);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState('lead_magnet_post');
-  const [newTitle, setNewTitle] = useState('');
-  const [selectedCard, setSelectedCard] = useState(null);
-  const [editorDraft, setEditorDraft] = useState(null);
-  const [creating, setCreating] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [pointerCardId, setPointerCardId] = useState('');
-  const [source, setSource] = useState(null);
+  const [templates, setTemplates] = useState(FALLBACK_TEMPLATES);
+  const [view, setView] = useState('today');
+  const [platform, setPlatform] = useState('all');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  const loadBoard = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    setNotice('');
-    try {
-      if (!client?.functions?.invoke) throw new Error('Supabase nao esta conectado no frontend.');
-      const { data, error: functionError } = await client.functions.invoke('notion-development-board', {
-        body: { owner: 'victor' },
-      });
-      if (functionError) throw functionError;
-      if (!data?.success) throw new Error(data?.error || 'A funcao do Notion nao retornou sucesso.');
-      setCards((data.items || []).map(normalizeNotionContentPage));
-      if (Array.isArray(data.templates) && data.templates.length) setTemplates(data.templates);
-      setSource(data.source || null);
-      if (data.warning) setNotice(data.warning);
-    } catch (err) {
-      setError(err?.message || String(err));
-      setCards([]);
-    } finally {
-      setLoading(false);
-    }
+  const invoke = useCallback(async (body) => {
+    const { data, error: functionError } = await client.functions.invoke('notion-development-board', { body: { owner: 'victor', ...body } });
+    if (functionError) throw functionError;
+    if (!data?.success) throw new Error(data?.error || 'A operação não foi concluída.');
+    return data;
   }, [client]);
 
-  const createFromTemplate = useCallback(async () => {
+  const load = useCallback(async () => {
+    setLoading(true); setError('');
+    try { const data = await invoke({}); setCards((data.items || []).map(normalizeNotionContentPage)); if (data.templates?.length) setTemplates(data.templates); }
+    catch (err) { setError(err?.message || String(err)); }
+    finally { setLoading(false); }
+  }, [invoke]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const filtered = useMemo(() => cards.filter((card) => {
+    if (platform !== 'all' && !card.platforms?.includes(platform)) return false;
+    if (search && !`${card.title} ${card.campaign?.join(' ')}`.toLowerCase().includes(search.toLowerCase())) return false;
+    return card.status !== 'Cancelled';
+  }), [cards, platform, search]);
+
+  const createItem = async (templateKey, title) => {
     setCreating(true);
-    setError('');
+    try { const data = await invoke({ action: 'create_item', templateKey, title, assignedToFelipe: true }); const card = normalizeNotionContentPage(data.item); setCards((current) => [card, ...current]); setCreateOpen(false); openCard(card); }
+    catch (err) { setError(err?.message || String(err)); }
+    finally { setCreating(false); }
+  };
+
+  const createFromApprovedIdea = async (idea) => {
+    if (!idea) return;
+    setCreating(true);
     try {
-      if (!client?.functions?.invoke) throw new Error('Supabase nao esta conectado no frontend.');
-      const { data, error: functionError } = await client.functions.invoke('notion-development-board', {
-        body: {
-          owner: 'victor',
-          action: 'create_item',
-          templateKey: selectedTemplate,
-          title: newTitle,
-          assignedToFelipe: true,
-        },
-      });
-      if (functionError) throw functionError;
-      if (!data?.success) throw new Error(data?.error || 'Nao consegui criar o card.');
-      setNewTitle('');
+      const signal = `${idea.category || ''} ${idea.format || ''} ${idea.title || ''}`.toLowerCase();
+      const templateKey = signal.includes('youtube') || signal.includes('video') ? 'youtube_video' : signal.includes('lead magnet') ? 'lead_magnet_post' : 'linkedin_post';
+      const created = await invoke({ action: 'create_item', templateKey, title: idea.title, assignedToFelipe: true });
+      const description = [
+        idea.playbookAngle ? `Angulo Playbook: ${idea.playbookAngle}` : '',
+        idea.summary || '',
+        idea.sourceAuthor ? `Referencia: ${idea.sourceAuthor}` : '',
+        idea.linkedinUrl || '',
+      ].filter(Boolean).join('\n\n');
+      const attachments = idea.imageUrl ? [{ url: idea.imageUrl, name: 'Referencia original', type: 'image/external' }] : [];
+      const updated = await invoke({ action: 'update_item', id: created.item.id, description, attachments, folder: 'Ideias aprovadas', priority: 'Media', assignee: 'Felipe' });
+      const card = normalizeNotionContentPage(updated.item);
+      setCards((current) => [card, ...current]);
+      if (updateState) updateState((previous) => ({ ...previous, ideas: previous.ideas.map((item) => item.id === idea.id ? { ...item, manualStatus: 'em_producao' } : item) }));
       setCreateOpen(false);
-      await loadBoard();
+      await openCard(card);
     } catch (err) {
       setError(err?.message || String(err));
     } finally {
       setCreating(false);
     }
-  }, [client, loadBoard, newTitle, selectedTemplate]);
+  };
 
-  const openCard = useCallback(async (card) => {
-    let editableCard = card;
-    try {
-      if (card.sourceType === 'notion') {
-        const { data, error: functionError } = await client.functions.invoke('notion-development-board', {
-          body: { owner: 'victor', action: 'promote_item', id: card.id },
-        });
-        if (functionError) throw functionError;
-        if (!data?.success) throw new Error(data?.error || 'Nao consegui importar este card.');
-        editableCard = normalizeNotionContentPage(data.item);
-        setCards((current) => [editableCard, ...current.filter((item) => item.id !== card.id)]);
-      }
-      setSelectedCard(editableCard);
-      setEditorDraft({
-        title: editableCard.title,
-        status: editableCard.status,
-        publishDate: editableCard.publishDate || '',
-        templateKey: inferTemplate(editableCard, templates)?.key || 'linkedin_post',
-        description: editableCard.description || '',
-        sections: templateSectionsForCard(editableCard, templates),
-        attachments: editableCard.attachments || [],
-      });
-    } catch (err) {
-      setError(err?.message || String(err));
-    }
-  }, [client, templates]);
-
-  const saveCardSections = useCallback(async () => {
-    if (!selectedCard) return;
-    setSaving(true);
-    setError('');
-    try {
-      const { data, error: functionError } = await client.functions.invoke('notion-development-board', {
-        body: {
-          owner: 'victor',
-          action: 'update_item',
-          id: selectedCard.id,
-          title: editorDraft.title,
-          status: editorDraft.status,
-          publishDate: editorDraft.publishDate || null,
-          templateKey: editorDraft.templateKey,
-          description: editorDraft.description,
-          sections: editorDraft.sections,
-          attachments: editorDraft.attachments,
-        },
-      });
-      if (functionError) throw functionError;
-      if (!data?.success) throw new Error(data?.error || 'Nao consegui salvar o card.');
-      const normalized = normalizeNotionContentPage(data.item);
-      setCards((current) => current.map((card) => (card.id === normalized.id ? normalized : card)));
-      setSelectedCard(normalized);
-      setEditorDraft((current) => ({ ...current, sections: normalized.sections, attachments: normalized.attachments || [] }));
-    } catch (err) {
-      setError(err?.message || String(err));
-    } finally {
-      setSaving(false);
-    }
-  }, [client, editorDraft, selectedCard]);
-
-  const uploadImage = useCallback(async (event) => {
-    const file = event.clipboardData?.files?.[0] || event.target?.files?.[0];
-    if (!file || !file.type.startsWith('image/') || !selectedCard) return;
-    event.preventDefault?.();
-    setUploading(true);
-    try {
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result).split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      const { data, error: functionError } = await client.functions.invoke('notion-development-board', { body: { owner: 'victor', action: 'upload_attachment', id: selectedCard.id, name: file.name, mimeType: file.type, base64 } });
-      if (functionError) throw functionError;
-      if (!data?.success) throw new Error(data?.error || 'Nao consegui enviar a imagem.');
-      setEditorDraft((current) => ({ ...current, attachments: [...current.attachments, data.attachment] }));
-    } catch (err) {
-      setError(err?.message || String(err));
-    } finally {
-      setUploading(false);
-      if (event.target?.value) event.target.value = '';
-    }
-  }, [client, selectedCard]);
-
-  const removeImage = useCallback(async (attachment, index) => {
-    setEditorDraft((current) => ({ ...current, attachments: current.attachments.filter((_, itemIndex) => itemIndex !== index) }));
-    if (!attachment?.path) return;
-    try {
-      const { data, error: functionError } = await client.functions.invoke('notion-development-board', { body: { owner: 'victor', action: 'delete_attachment', path: attachment.path } });
-      if (functionError) throw functionError;
-      if (!data?.success) throw new Error(data?.error || 'Nao consegui remover a imagem.');
-    } catch (err) {
-      setError(err?.message || String(err));
-    }
-  }, [client]);
-
-  const moveCard = useCallback(async (card, status) => {
+  const openCard = async (card) => {
     try {
       let editable = card;
-      if (card.sourceType === 'notion') {
-        const { data, error: promoteError } = await client.functions.invoke('notion-development-board', { body: { owner: 'victor', action: 'promote_item', id: card.id } });
-        if (promoteError) throw promoteError;
-        editable = normalizeNotionContentPage(data.item);
-      }
-      const { data, error: updateError } = await client.functions.invoke('notion-development-board', { body: { owner: 'victor', action: 'update_item', id: editable.id, status } });
-      if (updateError) throw updateError;
-      const updated = normalizeNotionContentPage(data.item);
-      setCards((current) => [updated, ...current.filter((item) => item.id !== card.id && item.id !== updated.id)]);
-    } catch (err) {
-      setError(err?.message || String(err));
-    }
-  }, [client]);
+      if (card.sourceType === 'notion') { const data = await invoke({ action: 'promote_item', id: card.id }); editable = normalizeNotionContentPage(data.item); setCards((current) => [editable, ...current.filter((item) => item.id !== card.id)]); }
+      const template = templateFor(editable, templates);
+      setSelected(editable);
+      setDraft({ title: editable.title, status: editable.status, templateKey: template?.key || 'linkedin_post', description: editable.description || '', sections: sectionsFor(editable, templates), attachments: editable.attachments || [], assignee: editable.assignee || 'Felipe', priority: editable.priority || 'Media', folder: editable.folder || editable.platforms?.[0] || 'Conteúdos', deadline: editable.deadline || '', publishDate: editable.publishDate || '', contentType: editable.contentType || 'Post' });
+    } catch (err) { setError(err?.message || String(err)); }
+  };
 
-  const dragCard = useCallback((event, card) => {
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('application/x-content-card', card.id);
-  }, []);
+  const save = async () => {
+    setSaving(true);
+    try { const data = await invoke({ action: 'update_item', id: selected.id, title: draft.title, status: draft.status, templateKey: draft.templateKey, description: draft.description, sections: draft.sections, attachments: draft.attachments, assignee: draft.assignee, priority: draft.priority, folder: draft.folder, deadline: draft.deadline || null, publishDate: draft.publishDate || null, contentType: draft.contentType }); const updated = normalizeNotionContentPage(data.item); setCards((current) => current.map((card) => card.id === updated.id ? updated : card)); setSelected(updated); setDraft((current) => ({ ...current, sections: updated.sections, attachments: updated.attachments || [] })); }
+    catch (err) { setError(err?.message || String(err)); }
+    finally { setSaving(false); }
+  };
 
-  const dropCard = useCallback((event, status) => {
-    event.preventDefault();
-    const id = event.dataTransfer.getData('application/x-content-card');
-    const card = cards.find((item) => item.id === id);
-    if (card && card.status !== status) moveCard(card, status);
-  }, [cards, moveCard]);
+  const move = async (card, status) => {
+    const previous = cards;
+    setCards((current) => current.map((item) => item.id === card.id ? { ...item, status } : item));
+    try { let editable = card; if (card.sourceType === 'notion') { const promoted = await invoke({ action: 'promote_item', id: card.id }); editable = normalizeNotionContentPage(promoted.item); } const data = await invoke({ action: 'update_item', id: editable.id, status }); const updated = normalizeNotionContentPage(data.item); setCards((current) => [updated, ...current.filter((item) => item.id !== card.id && item.id !== updated.id)]); }
+    catch (err) { setCards(previous); setError(err?.message || String(err)); }
+  };
 
-  const pointerDropCard = useCallback((status) => {
-    const card = cards.find((item) => item.id === pointerCardId);
-    setPointerCardId('');
-    if (card && card.status !== status) moveCard(card, status);
-  }, [cards, moveCard, pointerCardId]);
+  const upload = async (event) => {
+    const file = event.clipboardData?.files?.[0] || event.target?.files?.[0];
+    if (!file?.type?.startsWith('image/') || !selected) return;
+    event.preventDefault?.(); setUploading(true);
+    try { const base64 = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.onerror = reject; reader.readAsDataURL(file); }); const data = await invoke({ action: 'upload_attachment', id: selected.id, name: file.name, mimeType: file.type, base64 }); setDraft((current) => ({ ...current, attachments: [...current.attachments, data.attachment] })); }
+    catch (err) { setError(err?.message || String(err)); }
+    finally { setUploading(false); }
+  };
 
-  useEffect(() => {
-    loadBoard();
-  }, [loadBoard]);
+  const removeImage = async (attachment, index) => {
+    setDraft((current) => ({ ...current, attachments: current.attachments.filter((_, position) => position !== index) }));
+    if (attachment.path) invoke({ action: 'delete_attachment', path: attachment.path }).catch((err) => setError(err?.message || String(err)));
+  };
 
-  const visibleCards = useMemo(() => filterCardsByPlatform(cards, platform), [cards, platform]);
-  const grouped = useMemo(() => groupCardsByStatus(visibleCards), [visibleCards]);
+  const views = [
+    ['today', LayoutDashboard, 'Hoje'],
+    ['board', ListFilter, 'Quadro'],
+    ['calendar', CalendarDays, 'Calendário'],
+    ['library', Library, 'Biblioteca'],
+    ['ideas', Lightbulb, 'Ideias aprovadas'],
+    ['notion', ExternalLink, 'Notion'],
+  ];
 
-  const boardStatuses = useMemo(() => DEVELOPMENT_STATUSES.filter((status) => {
-    if ((grouped[status] || []).length) return true;
-    return status !== 'Published';
-  }), [grouped]);
-
-  return (
-    <div className="notion-development">
-      <header className="nd-header">
-        <div>
-          <span className="nd-eyebrow">Victor Baggio</span>
-          <h1>Produção de conteúdo</h1>
-          <p>Planeje, produza e acompanhe cada peça em um só lugar.</p>
-        </div>
-        <div className="nd-header-actions">
-          <button type="button" className="nd-primary" onClick={() => setCreateOpen(true)}>
-            <Plus size={15} />
-            Novo conteudo
-          </button>
-          <button type="button" className="nd-refresh" onClick={loadBoard} disabled={loading}>
-            <RefreshCw size={15} className={loading ? 'spin' : ''} />
-            Atualizar
-          </button>
-        </div>
-      </header>
-
-      <div className="nd-toolbar">
-        <div className="nd-view-tabs" role="tablist" aria-label="Visualizacao">
-          {[
-            ['pipeline', KanbanSquare, 'Quadro'],
-            ['platform', LayoutList, 'Matriz por plataforma'],
-            ['calendar', Calendar, 'Calendário'],
-            ['ideas', Lightbulb, 'Ideias'],
-          ].map(([mode, Icon, label]) => (
-            <button
-              key={mode}
-              type="button"
-              className={viewMode === mode ? 'active' : ''}
-              onClick={() => setViewMode(mode)}
-              aria-pressed={viewMode === mode}
-            >
-              <Icon size={14} /> {label}
-            </button>
-          ))}
-        </div>
-        <div className="nd-toolbar-side">
-          <div className="nd-platform-tabs" role="group" aria-label="Filtrar por plataforma">
-            {['all', ...PLATFORM_ORDER].map((item) => (
-              <button key={item} type="button" className={platform === item ? 'active' : ''} onClick={() => setPlatform(item)}>
-                {platformLabels[item] || item}
-              </button>
-            ))}
-          </div>
-          {source?.pageUrl && <a className="nd-open-notion" href={source.pageUrl} target="_blank" rel="noreferrer" aria-label="Abrir Notion"><ExternalLink size={14} /></a>}
-        </div>
-      </div>
-
-      {error && (
-        <div className="nd-error">
-          <AlertCircle size={17} />
-          <div>
-            <strong>Nao consegui concluir a acao.</strong>
-            <span>{error}</span>
-          </div>
-        </div>
-      )}
-
-      {!error && notice && (
-        <div className="nd-notice">
-          <AlertCircle size={17} />
-          <div>
-            <strong>Sincronização com o Notion pausada</strong>
-            <span>O quadro continua funcionando com os dados salvos no sistema.</span>
-            <details><summary>Detalhes</summary><p>{notice}</p></details>
-          </div>
-        </div>
-      )}
-
-      {loading && !cards.length ? (
-        <div className="nd-loading"><RefreshCw className="spin" size={18} /> Carregando calendario...</div>
-      ) : (
-        viewMode === 'ideas' ? <IdeaProductionWorkspace ideas={ideas} currentUser={currentUser} updateState={updateState} onOpenStudio={onOpenStudio} onSchedule={onSchedule} /> :
-        viewMode === 'platform' ? <PlatformBoard cards={visibleCards} statuses={boardStatuses} onOpen={openCard} onDragStart={dragCard} onPointerStart={(card) => setPointerCardId(card.id)} onDropStatus={dropCard} onPointerDrop={pointerDropCard} /> :
-        viewMode === 'calendar' ? <CalendarView cards={visibleCards} onOpen={openCard} /> :
-        <section className="nd-board" aria-label="Kanban de desenvolvimento">
-          {boardStatuses.map((status) => {
-            const rows = grouped[status] || [];
-            return (
-              <div className={`nd-column status-${slug(status)}`} key={status} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropCard(event, status)} onPointerUp={() => pointerDropCard(status)}>
-                <div className="nd-column-header">
-                  <div>
-                    <strong>{statusLabels[status] || status}</strong>
-                    <small>{statusDetails[status] || 'Etapa do calendario'}</small>
-                  </div>
-                  <span>{rows.length}</span>
-                </div>
-                <div className="nd-column-body">
-                  {rows.length ? rows.map((card) => <BoardCard key={card.id} card={card} onOpen={openCard} onDragStart={dragCard} onPointerStart={(item) => setPointerCardId(item.id)} />) : (
-                    <div className="nd-empty">
-                      <Calendar size={15} />
-                      Sem cards
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </section>
-      )}
-
-      {createOpen && createPortal(
-        <CreateModal
-          templates={templates}
-          selectedTemplate={selectedTemplate}
-          setSelectedTemplate={setSelectedTemplate}
-          newTitle={newTitle}
-          setNewTitle={setNewTitle}
-          creating={creating}
-          onCreate={createFromTemplate}
-          onClose={() => setCreateOpen(false)}
-        />,
-        document.body,
-      )}
-
-      {selectedCard && editorDraft && createPortal(
-        <CardDrawer
-          card={selectedCard}
-          templates={templates}
-          draft={editorDraft}
-          setDraft={setEditorDraft}
-          saving={saving}
-          uploading={uploading}
-          onUpload={uploadImage}
-          onRemoveAttachment={removeImage}
-          onSave={saveCardSections}
-          onClose={() => setSelectedCard(null)}
-        />,
-        document.body,
-      )}
-    </div>
-  );
+  return <div className="content-hub">
+    <header className="hub-header"><div><span>Playbook Content OS</span><h1>Central de conteúdo</h1></div><div className="hub-actions"><button type="button" onClick={load} aria-label="Atualizar"><RefreshCw size={15} className={loading ? 'spin' : ''} /></button><button type="button" className="primary" onClick={() => setCreateOpen(true)}><Plus size={16} />Novo conteúdo</button></div></header>
+    <div className="hub-toolbar"><nav>{views.map(([key, Icon, label]) => <button type="button" key={key} className={view === key ? 'active' : ''} onClick={() => setView(key)}><Icon size={15} />{label}</button>)}</nav><div className="hub-filters"><label><Search size={14} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar conteúdo" /></label><select value={platform} onChange={(event) => setPlatform(event.target.value)}><option value="all">Todas as plataformas</option>{PLATFORM_ORDER.map((item) => <option key={item}>{item}</option>)}</select></div></div>
+    {error && <div className="hub-error"><CircleAlert size={16} /><span>{error}</span><button type="button" onClick={() => setError('')}><X size={14} /></button></div>}
+    {loading && !cards.length ? <div className="hub-loading"><RefreshCw className="spin" size={18} />Carregando central...</div> : <main className="hub-workspace">
+      {view === 'today' && <TodayView cards={filtered} onOpen={openCard} onCreate={() => setCreateOpen(true)} />}
+      {view === 'board' && <BoardView cards={filtered} onOpen={openCard} onMove={move} />}
+      {view === 'calendar' && <CalendarView cards={filtered} onOpen={openCard} />}
+      {view === 'library' && <LibraryView cards={filtered} onOpen={openCard} />}
+      {view === 'ideas' && <IdeaProductionWorkspace ideas={ideas} currentUser={currentUser} updateState={updateState} onOpenStudio={onOpenStudio} onSchedule={onSchedule} />}
+      {view === 'notion' && <NotionEmbedView />}
+    </main>}
+    {createOpen && createPortal(<CreateDialog templates={templates} ideas={ideas} onClose={() => setCreateOpen(false)} onCreate={createItem} onCreateFromIdea={createFromApprovedIdea} busy={creating} />, document.body)}
+    {selected && draft && createPortal(<Editor card={selected} templates={templates} draft={draft} setDraft={setDraft} onClose={() => { setSelected(null); setDraft(null); }} onSave={save} onUpload={upload} onRemoveImage={removeImage} saving={saving} uploading={uploading} />, document.body)}
+  </div>;
 }

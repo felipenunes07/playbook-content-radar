@@ -53,6 +53,7 @@ export function normalizeNotionContentPage(page) {
     return {
       id: page.id || page.title,
       title: page.title || 'Sem titulo',
+      creator: page.owner_name || 'Victor Baggio',
       notionUrl: '',
       contentUrl: page.content_url || '',
       status: page.status || 'Not started',
@@ -68,6 +69,11 @@ export function normalizeNotionContentPage(page) {
       attachments: Array.isArray(page.attachments) ? page.attachments : [],
       description: page.description || '',
       notionSourceId: page.notion_source_id || '',
+      priority: page.priority || 'Media',
+      deadline: page.deadline || '',
+      folder: page.folder || page.platform || 'Conteudos',
+      assignee: page.assignee || 'Felipe',
+      contentType: page.content_type || 'Post',
       sourceType: 'system',
     };
   }
@@ -76,6 +82,7 @@ export function normalizeNotionContentPage(page) {
     return {
       id: page.id || page.notion_page_url || page.title,
       title: page.title || 'Sem título',
+      creator: page.owner_name || 'Victor Baggio',
       notionUrl: page.notion_page_url || '',
       contentUrl: page.content_url || '',
       status: page.status || 'Not started',
@@ -90,6 +97,11 @@ export function normalizeNotionContentPage(page) {
       sections: [],
       attachments: [],
       description: '',
+      priority: 'Media',
+      deadline: page.publish_date || '',
+      folder: (Array.isArray(page.platforms) && page.platforms[0]) || 'Conteudos',
+      assignee: page.assigned_to_felipe ? 'Felipe' : '',
+      contentType: Array.isArray(page.campaigns) && page.campaigns.includes('Lead Magnet') ? 'Lead Magnet' : 'Post',
       sourceType: 'notion',
     };
   }
@@ -101,6 +113,7 @@ export function normalizeNotionContentPage(page) {
   return {
     id: page?.id || page?.url || title,
     title,
+    creator: 'Victor Baggio',
     notionUrl: page?.url || '',
     contentUrl: properties['URL/Link']?.url || properties['URL/Link'] || '',
     status: selectName(properties['Status ']) || selectName(properties.Status) || 'Not started',
@@ -115,6 +128,11 @@ export function normalizeNotionContentPage(page) {
     sections: [],
     attachments: [],
     description: '',
+    priority: 'Media',
+    deadline: dateStart(properties['Publish Date']),
+    folder: platforms[0] || 'Conteudos',
+    assignee: properties['ðŸŽ¯ Felipe']?.checkbox === true ? 'Felipe' : '',
+    contentType: multiSelectNames(properties.Campaign).includes('Lead Magnet') ? 'Lead Magnet' : 'Post',
     sourceType: 'notion',
   };
 }

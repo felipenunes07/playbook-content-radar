@@ -18,11 +18,9 @@ const PRODUCTION_TEMPLATES: Record<string, {
     platform: 'LinkedIn',
     campaign: 'Editorial',
     sections: [
-      { title: 'Explicacao', prompt: 'Qual ponto de vista esse post precisa defender?', done: false },
-      { title: 'Hook', prompt: 'Primeira linha com tensao, promessa ou contraste.', done: false },
-      { title: 'Texto', prompt: 'Rascunho do post em linguagem natural.', done: false },
-      { title: 'CTA', prompt: 'Proxima acao esperada: comentar, baixar, responder ou agendar.', done: false },
-      { title: 'Materiais', prompt: 'Prints, links, provas e referencias usados no post.', done: false },
+      { title: 'Explicacao', prompt: 'Contexto, objetivo e angulo do post.', done: false },
+      { title: 'Copy', prompt: 'Texto final do post, incluindo hook e CTA.', done: false },
+      { title: 'Midia', prompt: 'Imagem, carrossel, video ou referencia visual.', done: false },
     ],
   },
   lead_magnet_post: {
@@ -30,11 +28,12 @@ const PRODUCTION_TEMPLATES: Record<string, {
     platform: 'LinkedIn',
     campaign: 'Lead Magnet',
     sections: [
-      { title: 'Oferta', prompt: 'O que a pessoa recebe e por que vale pedir acesso.', done: false },
-      { title: 'Dor', prompt: 'Problema concreto que o lead magnet resolve.', done: false },
-      { title: 'Prova', prompt: 'Resultado, exemplo, print ou caso que sustenta a promessa.', done: false },
-      { title: 'Post', prompt: 'Texto final do LinkedIn com CTA claro.', done: false },
-      { title: 'Entrega', prompt: 'Link, arquivo, automacao ou fluxo de resposta.', done: false },
+      { title: 'Checklist de entrega', prompt: 'Notion publico, Tally, n8n e Lead Shark configurados.', done: false },
+      { title: 'Explicacao', prompt: 'Contexto, objetivo e oferta do material.', done: false },
+      { title: 'Copy do Post', prompt: 'Texto final do LinkedIn com CTA.', done: false },
+      { title: 'Midia do Post', prompt: 'Imagem, carrossel ou video do post.', done: false },
+      { title: 'Notion Page', prompt: 'Conteudo final do material e link publico.', done: false },
+      { title: 'Link do Tally', prompt: 'Formulario de captura e fluxo de entrega.', done: false },
     ],
   },
   youtube_video: {
@@ -45,8 +44,6 @@ const PRODUCTION_TEMPLATES: Record<string, {
       { title: 'Explicacao', prompt: 'Ideia central, publico e promessa do video.', done: false },
       { title: 'Script', prompt: 'Abertura, blocos principais, exemplos e fechamento.', done: false },
       { title: 'Materiais de Apoio/Descricao', prompt: 'Links, capitulos, descricao, exemplos e arquivos usados.', done: false },
-      { title: 'Titulo e Thumbnail', prompt: 'Opcoes de titulo, thumbnail e angulo de curiosidade.', done: false },
-      { title: 'Checklist de Publicacao', prompt: 'Descricao, tags, cards, tela final e link de CTA.', done: false },
     ],
   },
 };
@@ -216,6 +213,11 @@ async function createProductionItem(client: any, payload: Record<string, any>) {
       assigned_to_felipe: Boolean(payload.assignedToFelipe),
       sections: template.sections,
       source: 'system',
+      content_type: templateKey === 'youtube_video' ? 'Video' : templateKey === 'lead_magnet_post' ? 'Lead Magnet' : 'Post',
+      priority: String(payload.priority || 'Media'),
+      deadline: payload.deadline || null,
+      folder: String(payload.folder || template.platform),
+      assignee: String(payload.assignee || 'Felipe'),
     })
     .select('*')
     .single();
@@ -242,6 +244,11 @@ async function updateProductionItem(client: any, payload: Record<string, any>) {
     updates.platform = template.platform;
     updates.campaign = template.campaign;
   }
+  if (typeof payload.priority === 'string') updates.priority = payload.priority;
+  if (typeof payload.deadline === 'string' || payload.deadline === null) updates.deadline = payload.deadline || null;
+  if (typeof payload.folder === 'string') updates.folder = payload.folder;
+  if (typeof payload.assignee === 'string') updates.assignee = payload.assignee;
+  if (typeof payload.contentType === 'string') updates.content_type = payload.contentType;
 
   const { data, error } = await client
     .from('content_production_items')

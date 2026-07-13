@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.notion-development-board]
 verify_jwt = false
+
+[functions.generate-linkedin-copy]
+verify_jwt = false

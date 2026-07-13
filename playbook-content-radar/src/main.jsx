@@ -24,6 +24,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const ContentMetricsWorkspace = React.lazy(() => import('./contentMetrics/ContentMetricsWorkspace.jsx'));
 const NotionDevelopmentBoard = React.lazy(() => import('./notionDevelopment/NotionDevelopmentBoard.jsx'));
 const IdeaProductionWorkspace = React.lazy(() => import('./production/IdeaProductionWorkspace.jsx'));
+const CollaborativeStudioModal = React.lazy(() => import('./production/CollaborativeStudioModal.jsx'));
 
 // Custom Linkedin logo component for brand header
 const LinkedinIcon = ({ size = 24, ...props }) => (
@@ -1639,13 +1640,17 @@ function App() {
 
       {/* Editorial Publisher Studio Modal */}
       {studioIdea && (
-        <PublisherStudioModal
-          idea={studioIdea}
-          currentUser={user}
-          onClose={() => setStudioIdea(null)}
-          updateState={updateState}
-          addToast={addToast}
-        />
+        <React.Suspense fallback={<div className="pub-studio-backdrop"><div style={{ color: '#fff', fontWeight: 700 }}>Carregando estúdio...</div></div>}>
+          <CollaborativeStudioModal
+            idea={studioIdea}
+            currentUser={user}
+            client={supabase}
+            onClose={() => setStudioIdea(null)}
+            onSchedule={(idea) => { setStudioIdea(null); setSchedulingIdea(idea); }}
+            updateState={updateState}
+            addToast={addToast}
+          />
+        </React.Suspense>
       )}
 
       {/* Toast alert portal */}
@@ -4778,7 +4783,7 @@ function SchedulerModal({ idea: initialIdea, preselectedDate, unscheduledIdeas =
         <div className="scheduler-modal-footer">
           {initialIdea?.scheduledAt && (
             <button className="scheduler-btn unschedule" onClick={handleUnschedule}>
-              Desagendar
+              Remover do calendário
             </button>
           )}
           <button className="scheduler-btn cancel" onClick={onClose}>
@@ -5380,6 +5385,20 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
       date.getFullYear() === today.getFullYear();
   };
 
+  const removeFromCalendar = (idea, event) => {
+    event?.stopPropagation();
+    if (!confirm(`Remover “${idea.title}” do calendário?\n\nO conteúdo continuará salvo na área de Produção.`)) return;
+    updateState(prev => ({
+      ...prev,
+      ideas: prev.ideas.map(item => item.id === idea.id ? {
+        ...item,
+        scheduledAt: null,
+        scheduledAssignee: null
+      } : item)
+    }));
+    addToast('Post removido do calendário. O conteúdo continua salvo em Produção.', 'success');
+  };
+
   return (
     <section>
       <div className="admin-view-header" style={{ marginBottom: '24px' }}>
@@ -5516,7 +5535,7 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                         className={`calendar-scheduled-card assignee-${post.scheduledAssignee?.toLowerCase() || 'victor'}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          onOpenStudio(post);
+                          onScheduleIdea(post);
                         }}
                         title={`Responsável: ${post.scheduledAssignee} | Clique para gerenciar`}
                       >
@@ -5530,6 +5549,15 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                             e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(post.scheduledAssignee)}&background=0a66c2&color=fff&bold=true`;
                           }}
                         />
+                        <button
+                          type="button"
+                          className="calendar-scheduled-remove"
+                          onClick={(event) => removeFromCalendar(post, event)}
+                          aria-label={`Remover ${post.title} do calendário`}
+                          title="Remover do calendário"
+                        >
+                          <Trash2 size={11} />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -5629,7 +5657,7 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                     key={post.id}
                     className="calendar-sidebar-item"
                     style={{ cursor: 'pointer' }}
-                    onClick={() => onOpenStudio(post)}
+                    onClick={() => onScheduleIdea(post)}
                   >
                     <div className="item-info">
                       <span className="item-title" title={post.title}>{post.title}</span>
@@ -5640,15 +5668,25 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
                       </div>
                     </div>
                     {currentUser === 'Felipe' && (
-                      <button
-                        type="button"
-                        className="calendar-sidebar-action-btn"
-                        style={{ border: 'none', background: 'transparent', padding: '4px', display: 'flex', color: '#64748b' }}
-                        onClick={() => onScheduleIdea(post)}
-                        title="Editar agendamento"
-                      >
-                        <ExternalLink size={14} />
-                      </button>
+                      <div className="calendar-sidebar-scheduled-actions">
+                        <button
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); onScheduleIdea(post); }}
+                          title="Editar agendamento"
+                          aria-label={`Editar agendamento de ${post.title}`}
+                        >
+                          <Calendar size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          onClick={(event) => removeFromCalendar(post, event)}
+                          title="Remover do calendário"
+                          aria-label={`Remover ${post.title} do calendário`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))

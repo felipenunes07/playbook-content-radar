@@ -3331,6 +3331,62 @@ kbd {
   box-shadow: 0 2px 4px rgba(0,0,0,0.06);
 }
 
+.calendar-scheduled-remove {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: currentColor;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity .15s ease, background .15s ease, color .15s ease;
+}
+
+.calendar-scheduled-card:hover .calendar-scheduled-remove,
+.calendar-scheduled-remove:focus-visible {
+  opacity: .72;
+}
+
+.calendar-scheduled-remove:hover {
+  opacity: 1;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.calendar-sidebar-scheduled-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.calendar-sidebar-scheduled-actions button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.calendar-sidebar-scheduled-actions button:hover {
+  background: #eaf4ff;
+  color: #0a66c2;
+}
+
+.calendar-sidebar-scheduled-actions button.danger:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
 /* Assignee visual styling presets */
 .calendar-scheduled-card.assignee-victor {
   background: #eaf7f0;
@@ -5584,6 +5640,11 @@ kbd {
   .calendar-published-card .title-text,
   .calendar-scheduled-card .title-text {
     display: none;
+  }
+  .calendar-scheduled-remove {
+    width: 18px;
+    height: 18px;
+    opacity: .75;
   }
   .calendar-sidebar-card {
     padding: 14px;
