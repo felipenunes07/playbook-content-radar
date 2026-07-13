@@ -16,8 +16,11 @@ const isLiked = (idea) => idea.victorVote === 'like' || idea.fernandoVote === 'l
 const hasMaterial = (idea) => Boolean(idea.finalPostText || idea.finalImageUrl);
 const inProduction = (idea) => idea.computedStatus === 'em_producao' || hasMaterial(idea) || idea.scheduledAt;
 
-const stageOf = (idea) => {
+export const stageOf = (idea) => {
   if (idea.scheduledAt) return 'scheduled';
+  // O status operacional explícito tem prioridade sobre a existência de rascunho.
+  // Salvar uma copy durante a produção não significa que Victor já deve revisá-la.
+  if (idea.computedStatus === 'em_producao' || idea.manualStatus === 'em_producao') return 'production';
   if (hasMaterial(idea)) return 'review';
   if (inProduction(idea)) return 'production';
   return 'queue';
