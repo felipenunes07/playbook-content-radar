@@ -74,7 +74,7 @@ function VoteProof({ idea }) {
   );
 }
 
-function EditorialInspector({ idea, currentUser, onBring, onReturnToQueue, onOpenStudio, onSchedule }) {
+function EditorialInspector({ idea, currentUser, onBring, onReturnToQueue, onOpenStudio, onSchedule, onSendToReview }) {
   if (!idea) return null;
   const stage = stageOf(idea);
   const StageIcon = stageMeta[stage].icon;
@@ -145,6 +145,7 @@ function EditorialInspector({ idea, currentUser, onBring, onReturnToQueue, onOpe
               <button type="button" className="ipw-primary-action" onClick={() => onOpenStudio(idea)}><FilePenLine size={15} /> {material ? 'Abrir material' : 'Continuar adaptação'}</button>
             )}
             {stage !== 'queue' && stage !== 'scheduled' && <button type="button" className="ipw-secondary-action" onClick={() => onSchedule(idea)}><CalendarDays size={15} /> Programar</button>}
+            {stage === 'production' && material && <button type="button" className="ipw-review-action" onClick={() => onSendToReview(idea)}><CheckCircle2 size={15} /> Enviar para revisão</button>}
             {stage !== 'queue' && stage !== 'scheduled' && <button type="button" className="ipw-return-action" onClick={() => onReturnToQueue(idea)}><ArrowRight size={15} /> Voltar para fila de ideias</button>}
           </div>
         </footer>
@@ -194,6 +195,15 @@ export default function IdeaProductionWorkspace({ ideas, currentUser, updateStat
     setSelectedId(idea.id);
   };
 
+  const sendToReview = (idea) => {
+    updateState((previous) => ({
+      ...previous,
+      ideas: previous.ideas.map((item) => item.id === idea.id ? { ...item, manualStatus: 'aprovado' } : item),
+    }));
+    setActiveStage('review');
+    setSelectedId(idea.id);
+  };
+
   const nextMessage = grouped.review.length
     ? `${grouped.review.length} ${grouped.review.length === 1 ? 'material espera' : 'materiais esperam'} a revisão do Victor`
     : grouped.production.length
@@ -233,7 +243,7 @@ export default function IdeaProductionWorkspace({ ideas, currentUser, updateStat
         </aside>
 
         <main className="ipw-focus-area">
-          {selectedIdea ? <EditorialInspector idea={selectedIdea} currentUser={currentUser} onBring={bringToProduction} onReturnToQueue={returnToQueue} onOpenStudio={onOpenStudio} onSchedule={onSchedule} /> : (
+          {selectedIdea ? <EditorialInspector idea={selectedIdea} currentUser={currentUser} onBring={bringToProduction} onReturnToQueue={returnToQueue} onSendToReview={sendToReview} onOpenStudio={onOpenStudio} onSchedule={onSchedule} /> : (
             <div className="ipw-focus-empty"><Sparkles size={24} /><strong>Etapa concluída</strong><span>Não há materiais para mostrar aqui agora.</span></div>
           )}
         </main>
