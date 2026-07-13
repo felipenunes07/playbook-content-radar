@@ -132,7 +132,7 @@ function CopiesPanel({ variants, selectedId, contextCount, generating, onSelect,
             </div>
           </nav>
           {selected && (
-            <div className="cs-copy-editor">
+            <div className={`cs-copy-editor ${selected.ai ? 'has-ai-rationale' : ''}`}>
               <div className="cs-copy-toolbar">
                 <input value={selected.title} onChange={(event) => onChange(selected.id, { title: event.target.value })} aria-label="Nome da variação" />
                 <div><button type="button" onClick={() => onDuplicate(selected)} title="Duplicar"><Copy size={14} /></button>{variants.length > 1 && <button type="button" onClick={() => onDelete(selected.id)} title="Excluir"><Trash2 size={14} /></button>}</div>
