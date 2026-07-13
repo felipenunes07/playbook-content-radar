@@ -55,16 +55,18 @@ function OriginalPost({ idea }) {
   );
 }
 
-function OverviewPanel({ workspace, coverUploading, materialUploading, sourceUploading, onChangeDelivery, onUploadCover, onUploadMaterial, onRemoveMaterial, onUploadSource, onRemoveSource, onNavigate }) {
+function OverviewPanel({ workspace, coverUploading, materialUploading, sourceUploading, onChangeDelivery, onUploadCover, onUploadMaterial, onRemoveMaterial, onUploadSource, onRemoveSource, onAddReferenceLink, onRemoveReferenceLink, onNavigate }) {
   const brief = workspace.brief || {};
+  const [referenceUrl, setReferenceUrl] = useState('');
   const delivery = { tallyUrl: 'https://tally.so/', notionMaterialUrl: '', coverUrl: '', coverPath: '', materials: [], ...(brief.delivery || {}) };
   const copyVariants = workspace.copy_variants || [];
   const creativeVariants = workspace.creative_variants || [];
   const selectedCopy = copyVariants.find((item) => item.id === workspace.selected_copy_id) || copyVariants[0];
   const approval = (workspace.approvals || []).slice().reverse().find((item) => item.decision === 'approved');
+  const referenceLinks = workspace.reference_links || [];
   const approved = Boolean(approval);
   const realTally = Boolean(delivery.tallyUrl && delivery.tallyUrl.replace(/\/$/, '') !== 'https://tally.so');
-  const materialReady = Boolean(delivery.notionMaterialUrl || delivery.materials.length || workspace.attachments?.length || workspace.source_materials?.length);
+  const materialReady = Boolean(delivery.notionMaterialUrl || delivery.materials.length || workspace.attachments?.length || workspace.source_materials?.length || referenceLinks.length);
   const stages = [
     { label: 'Referência e material', detail: `${(workspace.attachments?.length || 0) + (workspace.source_materials?.length || 0) + delivery.materials.length} arquivo(s)`, ready: materialReady, action: 'overview' },
     { label: 'Entrega ao aluno', detail: realTally || delivery.notionMaterialUrl ? 'Links configurados' : 'Configurar Tally/Notion', ready: realTally && materialReady, action: 'overview' },
@@ -75,7 +77,7 @@ function OverviewPanel({ workspace, coverUploading, materialUploading, sourceUpl
   const completed = stages.filter((item) => item.ready).length;
   const progress = Math.round((completed / stages.length) * 100);
   const nextAction = stages.find((item) => !item.ready);
-  const contextCount = 1 + (workspace.attachments?.length || 0) + (workspace.source_materials?.length || 0) + delivery.materials.length + (delivery.notionMaterialUrl ? 1 : 0) + (realTally ? 1 : 0) + (delivery.coverUrl ? 1 : 0);
+  const contextCount = 1 + (workspace.attachments?.length || 0) + (workspace.source_materials?.length || 0) + referenceLinks.length + delivery.materials.length + (delivery.notionMaterialUrl ? 1 : 0) + (realTally ? 1 : 0) + (delivery.coverUrl ? 1 : 0);
   return (
     <section className="cs-tab-panel cs-overview-panel">
       <header className="cs-overview-quiet-head">
@@ -97,7 +99,8 @@ function OverviewPanel({ workspace, coverUploading, materialUploading, sourceUpl
           </div>
           <section className="cs-reference-materials">
             <header><div><span>Material da referência</span><strong>Arquivos recebidos do autor do post</strong></div><label><input type="file" multiple accept="image/*,.pdf,.txt,.md,.csv,.json,.docx" onChange={onUploadSource} /><Upload size={13} /> {sourceUploading ? 'Lendo...' : 'Adicionar arquivos'}</label></header>
-            <div>{(workspace.source_materials || []).map((material) => { const Icon = fileIcon(material.type); return <article key={material.id}><span>{material.type?.startsWith('image/') ? <img src={material.url} alt="" /> : <Icon size={15} />}</span><div><strong>{material.name}</strong><small>{material.extractionStatus === 'ready' ? 'Texto lido pela IA' : material.extractionStatus === 'visual' ? 'Imagem pronta para análise' : humanSize(material.size)}</small></div><a href={material.url} target="_blank" rel="noreferrer"><ExternalLink size={12} /></a><button type="button" onClick={() => onRemoveSource(material)}><Trash2 size={12} /></button></article>; })}{!(workspace.source_materials || []).length && <p>Suba aqui PDF, DOCX, texto ou imagem que veio junto do conteúdo original.</p>}</div>
+            <form className="cs-reference-link-form" onSubmit={(event) => { event.preventDefault(); if (onAddReferenceLink(referenceUrl)) setReferenceUrl(''); }}><Link2 size={14} /><input type="url" value={referenceUrl} onChange={(event) => setReferenceUrl(event.target.value)} placeholder="Cole um link de material de referência" /><button type="submit">Adicionar link</button></form>
+            <div>{referenceLinks.map((link) => <article key={link.id || link.url}><span><Link2 size={15} /></span><div><strong>{link.title || 'Link de referência'}</strong><small>{link.url || link}</small></div><a href={link.url || link} target="_blank" rel="noreferrer"><ExternalLink size={12} /></a><button type="button" onClick={() => onRemoveReferenceLink(link)}><Trash2 size={12} /></button></article>)}{(workspace.source_materials || []).map((material) => { const Icon = fileIcon(material.type); return <article key={material.id}><span>{material.type?.startsWith('image/') ? <img src={material.url} alt="" /> : <Icon size={15} />}</span><div><strong>{material.name}</strong><small>{material.extractionStatus === 'ready' ? 'Texto lido pela IA' : material.extractionStatus === 'visual' ? 'Imagem pronta para análise' : humanSize(material.size)}</small></div><a href={material.url} target="_blank" rel="noreferrer"><ExternalLink size={12} /></a><button type="button" onClick={() => onRemoveSource(material)}><Trash2 size={12} /></button></article>; })}{!(workspace.source_materials || []).length && !referenceLinks.length && <p>Suba um arquivo ou cole um link de material que veio junto do conteúdo original.</p>}</div>
           </section>
           {delivery.materials.length > 0 && <div className="cs-overview-context-files">{delivery.materials.map((material) => { const Icon = fileIcon(material.type); return <article key={material.id}><Icon size={14} /><div><strong>{material.name}</strong><span>{material.extractionStatus === 'ready' ? 'Conteúdo lido pela IA' : humanSize(material.size)}</span></div><a href={material.url} target="_blank" rel="noreferrer"><ExternalLink size={12} /></a><button type="button" onClick={() => onRemoveMaterial(material)}><Trash2 size={12} /></button></article>; })}</div>}
           <footer><Bot size={14} /><span>Na etapa de copy, a IA reúne automaticamente o original, estes materiais, Notion/Tally, criativos e anotações do workspace.</span></footer>
@@ -429,6 +432,22 @@ export default function CollaborativeStudioModal({ idea, currentUser, client, on
     updateWorkspace((current) => ({ ...current, source_materials: (current.source_materials || []).filter((item) => item.id !== material.id) }));
   };
 
+  const addReferenceLink = (rawUrl) => {
+    try {
+      const url = new URL(rawUrl.trim());
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('protocol');
+      if ((workspace.reference_links || []).some((link) => (link.url || link) === url.href)) { addToast('Este link já foi adicionado.', 'error'); return false; }
+      updateWorkspace((current) => ({ ...current, reference_links: [...(current.reference_links || []), { id: uid(), url: url.href, title: url.hostname.replace(/^www\./, '') }] }));
+      addToast('Link de referência adicionado ao contexto da IA.', 'success');
+      return true;
+    } catch {
+      addToast('Cole um link válido começando com http:// ou https://.', 'error');
+      return false;
+    }
+  };
+
+  const removeReferenceLink = (link) => updateWorkspace((current) => ({ ...current, reference_links: (current.reference_links || []).filter((item) => (item.id || item.url || item) !== (link.id || link.url || link)) }));
+
   const generateFirstCopy = async () => {
     setGeneratingCopy(true);
     try {
@@ -615,7 +634,7 @@ export default function CollaborativeStudioModal({ idea, currentUser, client, on
               {loading ? <div className="cs-loading"><span /><strong>Carregando desenvolvimento...</strong></div> : (
                 <AnimatePresence mode="wait">
                   <motion.div key={activeTab} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }} transition={{ duration: .15 }} className="cs-panel-motion">
-                    {activeTab === 'overview' && <OverviewPanel workspace={{ ...workspace, copy_variants: variants }} coverUploading={coverUploading} materialUploading={materialUploading} sourceUploading={sourceUploading} onChangeDelivery={(field, value) => updateWorkspace((current) => ({ ...current, brief: { ...(current.brief || {}), delivery: { tallyUrl: 'https://tally.so/', notionMaterialUrl: '', coverUrl: '', coverPath: '', materials: [], ...(current.brief?.delivery || {}), [field]: value } } }))} onUploadCover={uploadDeliveryCover} onUploadMaterial={uploadDeliveryMaterials} onRemoveMaterial={removeDeliveryMaterial} onUploadSource={uploadSourceFiles} onRemoveSource={removeSourceMaterial} onNavigate={setActiveTab} />}
+                    {activeTab === 'overview' && <OverviewPanel workspace={{ ...workspace, copy_variants: variants }} coverUploading={coverUploading} materialUploading={materialUploading} sourceUploading={sourceUploading} onChangeDelivery={(field, value) => updateWorkspace((current) => ({ ...current, brief: { ...(current.brief || {}), delivery: { tallyUrl: 'https://tally.so/', notionMaterialUrl: '', coverUrl: '', coverPath: '', materials: [], ...(current.brief?.delivery || {}), [field]: value } } }))} onUploadCover={uploadDeliveryCover} onUploadMaterial={uploadDeliveryMaterials} onRemoveMaterial={removeDeliveryMaterial} onUploadSource={uploadSourceFiles} onRemoveSource={removeSourceMaterial} onAddReferenceLink={addReferenceLink} onRemoveReferenceLink={removeReferenceLink} onNavigate={setActiveTab} />}
                     {activeTab === 'copies' && <CopiesPanel variants={variants} selectedId={selectedId} contextCount={generationContextCount} generating={generatingCopy} sendingForReview={sendingForReview} onSelect={(id) => updateWorkspace({ selected_copy_id: id })} onChange={changeVariant} onAdd={addVariant} onDuplicate={duplicateVariant} onDelete={deleteVariant} onGenerate={generateFirstCopy} onSendReview={sendForReview} />}
                     {activeTab === 'creatives' && <CreativesPanel creatives={workspace.creative_variants || []} selectedId={workspace.selected_creative_id} uploading={uploading} onSelect={(id) => updateWorkspace({ selected_creative_id: id })} onUpload={uploadCreativeFiles} onChange={changeCreative} onRemove={removeCreative} />}
                     {activeTab === 'preview' && <LinkedInPreview idea={idea} workspace={{ ...workspace, copy_variants: variants }} currentUser={currentUser} onSelectCopy={(id) => updateWorkspace({ selected_copy_id: id })} onSelectCreative={(id) => updateWorkspace({ selected_creative_id: id || null })} onApprove={approveCombination} onSchedule={handleSchedule} />}
