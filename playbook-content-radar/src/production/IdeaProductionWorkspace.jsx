@@ -18,6 +18,7 @@ const inProduction = (idea) => idea.computedStatus === 'em_producao' || hasMater
 
 export const stageOf = (idea) => {
   if (idea.scheduledAt) return 'scheduled';
+  if (idea.manualStatus === 'fila') return 'queue';
   // O status operacional explícito tem prioridade sobre a existência de rascunho.
   // Salvar uma copy durante a produção não significa que Victor já deve revisá-la.
   if (idea.computedStatus === 'em_producao' || idea.manualStatus === 'em_producao') return 'production';
@@ -144,7 +145,7 @@ function EditorialInspector({ idea, currentUser, onBring, onReturnToQueue, onOpe
               <button type="button" className="ipw-primary-action" onClick={() => onOpenStudio(idea)}><FilePenLine size={15} /> {material ? 'Abrir material' : 'Continuar adaptação'}</button>
             )}
             {stage !== 'queue' && stage !== 'scheduled' && <button type="button" className="ipw-secondary-action" onClick={() => onSchedule(idea)}><CalendarDays size={15} /> Programar</button>}
-            {stage === 'production' && <button type="button" className="ipw-return-action" onClick={() => onReturnToQueue(idea)}><ArrowRight size={15} /> Voltar para fila de ideias</button>}
+            {stage !== 'queue' && stage !== 'scheduled' && <button type="button" className="ipw-return-action" onClick={() => onReturnToQueue(idea)}><ArrowRight size={15} /> Voltar para fila de ideias</button>}
           </div>
         </footer>
       </motion.article>
@@ -187,7 +188,7 @@ export default function IdeaProductionWorkspace({ ideas, currentUser, updateStat
   const returnToQueue = (idea) => {
     updateState((previous) => ({
       ...previous,
-      ideas: previous.ideas.map((item) => item.id === idea.id ? { ...item, manualStatus: 'aprovado' } : item),
+      ideas: previous.ideas.map((item) => item.id === idea.id ? { ...item, manualStatus: 'fila' } : item),
     }));
     setActiveStage('queue');
     setSelectedId(idea.id);

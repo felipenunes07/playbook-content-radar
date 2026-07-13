@@ -113,13 +113,13 @@ function OverviewPanel({ workspace, coverUploading, materialUploading, sourceUpl
   );
 }
 
-function CopiesPanel({ variants, selectedId, contextCount, generating, onSelect, onChange, onAdd, onDuplicate, onDelete, onGenerate }) {
+function CopiesPanel({ variants, selectedId, contextCount, generating, sendingForReview, onSelect, onChange, onAdd, onDuplicate, onDelete, onGenerate, onSendReview }) {
   const selected = variants.find((item) => item.id === selectedId) || variants[0];
   return (
     <section className="cs-tab-panel cs-copies-panel">
       <header className="cs-writer-command">
         <div className="cs-writer-identity"><span><Bot size={18} /></span><div><small>Última etapa • LinkedIn Writer</small><strong>Copy final baseada no pacote completo</strong><p>{contextCount} fontes reunidas automaticamente: original, material do aluno, links, arquivos, criativos e anotações.</p></div></div>
-        <button type="button" onClick={onGenerate} disabled={generating}><Sparkles size={15} /> {generating ? 'Lendo o pacote e escrevendo...' : 'Gerar copy com IA'}</button>
+        <div className="cs-writer-actions"><button type="button" className="cs-review-action" onClick={onSendReview} disabled={sendingForReview || !selected?.text?.trim()}><CheckCircle2 size={15} /> {sendingForReview ? 'Enviando para revisão...' : 'Enviar para revisão'}</button><button type="button" onClick={onGenerate} disabled={generating}><Sparkles size={15} /> {generating ? 'Lendo o pacote e escrevendo...' : 'Gerar copy com IA'}</button></div>
       </header>
       <div className="cs-copy-desk">
           <nav className="cs-variant-rail">
@@ -292,6 +292,7 @@ export default function CollaborativeStudioModal({ idea, currentUser, client, on
   const [materialUploading, setMaterialUploading] = useState(false);
   const [sourceUploading, setSourceUploading] = useState(false);
   const [generatingCopy, setGeneratingCopy] = useState(false);
+  const [sendingForReview, setSendingForReview] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const dirtyRef = useRef(false);
@@ -317,7 +318,7 @@ export default function CollaborativeStudioModal({ idea, currentUser, client, on
     return () => { active = false; client.removeChannel(channel); };
   }, [client, idea.id, initial]);
 
-  const saveWorkspace = async (closeAfter = false, workspaceOverride = null) => {
+  const saveWorkspace = async (closeAfter = false, workspaceOverride = null, statusOverride = 'em_producao') => {
     setSaving(true);
     const source = workspaceOverride || workspace;
     const sourceVariants = source.copy_variants?.length ? source.copy_variants : variants;
@@ -345,11 +346,22 @@ export default function CollaborativeStudioModal({ idea, currentUser, client, on
       addToast('O workspace ficou salvo nesta sessão, mas a migration do Supabase ainda precisa ser aplicada.', 'error');
     } else {
       setDirty(false);
-      updateState((previous) => ({ ...previous, ideas: previous.ideas.map((item) => item.id === idea.id ? { ...item, finalPostText: sourceSelectedVariant?.text || '', manualStatus: 'em_producao' } : item) }));
+      updateState((previous) => ({ ...previous, ideas: previous.ideas.map((item) => item.id === idea.id ? { ...item, finalPostText: sourceSelectedVariant?.text || '', manualStatus: statusOverride } : item) }));
       addToast('Workspace colaborativo salvo para todo o time.', 'success');
       if (closeAfter) onClose();
     }
     setSaving(false);
+  };
+
+  const sendForReview = async () => {
+    if (!selectedVariant?.text?.trim()) return;
+    setSendingForReview(true);
+    try {
+      await saveWorkspace(false, workspace, 'aprovado');
+      addToast('Material enviado para a fila de revisão do Victor.', 'success');
+    } finally {
+      setSendingForReview(false);
+    }
   };
 
   const changeVariant = (id, patch) => updateWorkspace((current) => ({ ...current, copy_variants: variants.map((item) => item.id === id ? { ...item, ...patch, updatedBy: currentUser, updatedAt: nowIso() } : item) }));
@@ -604,7 +616,7 @@ export default function CollaborativeStudioModal({ idea, currentUser, client, on
                 <AnimatePresence mode="wait">
                   <motion.div key={activeTab} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }} transition={{ duration: .15 }} className="cs-panel-motion">
                     {activeTab === 'overview' && <OverviewPanel workspace={{ ...workspace, copy_variants: variants }} coverUploading={coverUploading} materialUploading={materialUploading} sourceUploading={sourceUploading} onChangeDelivery={(field, value) => updateWorkspace((current) => ({ ...current, brief: { ...(current.brief || {}), delivery: { tallyUrl: 'https://tally.so/', notionMaterialUrl: '', coverUrl: '', coverPath: '', materials: [], ...(current.brief?.delivery || {}), [field]: value } } }))} onUploadCover={uploadDeliveryCover} onUploadMaterial={uploadDeliveryMaterials} onRemoveMaterial={removeDeliveryMaterial} onUploadSource={uploadSourceFiles} onRemoveSource={removeSourceMaterial} onNavigate={setActiveTab} />}
-                    {activeTab === 'copies' && <CopiesPanel variants={variants} selectedId={selectedId} contextCount={generationContextCount} generating={generatingCopy} onSelect={(id) => updateWorkspace({ selected_copy_id: id })} onChange={changeVariant} onAdd={addVariant} onDuplicate={duplicateVariant} onDelete={deleteVariant} onGenerate={generateFirstCopy} />}
+                    {activeTab === 'copies' && <CopiesPanel variants={variants} selectedId={selectedId} contextCount={generationContextCount} generating={generatingCopy} sendingForReview={sendingForReview} onSelect={(id) => updateWorkspace({ selected_copy_id: id })} onChange={changeVariant} onAdd={addVariant} onDuplicate={duplicateVariant} onDelete={deleteVariant} onGenerate={generateFirstCopy} onSendReview={sendForReview} />}
                     {activeTab === 'creatives' && <CreativesPanel creatives={workspace.creative_variants || []} selectedId={workspace.selected_creative_id} uploading={uploading} onSelect={(id) => updateWorkspace({ selected_creative_id: id })} onUpload={uploadCreativeFiles} onChange={changeCreative} onRemove={removeCreative} />}
                     {activeTab === 'preview' && <LinkedInPreview idea={idea} workspace={{ ...workspace, copy_variants: variants }} currentUser={currentUser} onSelectCopy={(id) => updateWorkspace({ selected_copy_id: id })} onSelectCreative={(id) => updateWorkspace({ selected_creative_id: id || null })} onApprove={approveCombination} onSchedule={handleSchedule} />}
                     {activeTab === 'materials' && <MaterialsPanel attachments={workspace.attachments || []} uploading={uploading} onUpload={uploadFiles} onRemove={removeAttachment} onCanvas={addAssetToCanvas} />}

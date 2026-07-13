@@ -13,4 +13,8 @@ describe('stageOf', () => {
   it('mantém agendamento como etapa de maior prioridade', () => {
     expect(stageOf({ computedStatus: 'em_producao', finalPostText: 'Copy', scheduledAt: '2026-07-23' })).toBe('scheduled');
   });
+
+  it('retorna para a fila mesmo quando o material final jÃ¡ existe', () => {
+    expect(stageOf({ manualStatus: 'fila', finalPostText: 'Copy pronta' })).toBe('queue');
+  });
 });
