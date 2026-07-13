@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import './collaborativeStudio.css';
 import { extractSourceMaterial } from './extractSourceMaterial.js';
+import victorPhoto from '../assets/victor.png';
 
 const nowIso = () => new Date().toISOString();
 const uid = () => (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -210,7 +211,7 @@ function LinkedInPreview({ idea, workspace, currentUser, onSelectCopy, onSelectC
       <div className="cs-preview-layout">
         <div className="cs-linkedin-stage">
           <article className="cs-linkedin-card">
-            <header><span className="cs-linkedin-avatar">V</span><div><strong>Victor Baggio</strong><span>Founder da Playbook Lab · 2º</span><small>Agora · 🌐</small></div><b>•••</b></header>
+            <header><span className="cs-linkedin-avatar"><img src={victorPhoto} alt="Victor Baggio" /></span><div><strong>Victor Baggio</strong><span>Founder da Playbook Lab · 2º</span><small>Agora · 🌐</small></div><b>•••</b></header>
             <div className="cs-linkedin-copy">{copy?.text || 'Selecione ou escreva uma variação de copy para visualizar o post completo aqui.'}</div>
             {creative?.imageUrl && <img src={creative.imageUrl} alt={creative.title || 'Criativo selecionado'} />}
             <div className="cs-linkedin-reactions"><span>👍💡❤️ 126</span><span>18 comentários · 7 compartilhamentos</span></div>
@@ -219,8 +220,12 @@ function LinkedInPreview({ idea, workspace, currentUser, onSelectCopy, onSelectC
         </div>
         <aside className="cs-approval-panel">
           <div className={`cs-approval-status ${approved ? 'approved' : ''}`}>{approved ? <CheckCircle2 size={19} /> : <UserRound size={19} />}<div><strong>{approved ? 'Combinação aprovada' : 'Aguardando decisão final'}</strong><span>{approved ? `${approved.approver} aprovou em ${shortDate(approved.createdAt)}` : 'Victor escolhe a copy e o criativo que devem ser publicados.'}</span></div></div>
-          <div className="cs-selection-summary"><span>Seleção atual</span><strong>{copy?.title || 'Nenhuma copy'}</strong><strong>{creative?.title || 'Sem criativo selecionado'}</strong></div>
-          <button type="button" className="cs-approve-button" disabled={!copy || currentUser !== 'Victor'} onClick={() => onApprove(copy, creative)}><CheckCircle2 size={15} /> {currentUser === 'Victor' ? 'Aprovar esta combinação' : 'A aprovação final é do Victor'}</button>
+          <div className="cs-decision-options">
+            <section><header><span>1</span><div><strong>Escolha a copy</strong><small>{variants.length} versão(ões)</small></div></header><div>{variants.map((item, index) => <button type="button" key={item.id} className={item.id === copyId ? 'selected' : ''} onClick={() => onSelectCopy(item.id)}><b>V{index + 1}</b><span><strong>{item.title || `Versão ${index + 1}`}</strong><small>{item.text ? `${item.text.length} caracteres` : 'Em branco'}</small></span>{item.id === copyId && <Check size={13} />}</button>)}</div></section>
+            <section><header><span>2</span><div><strong>Escolha o criativo</strong><small>{creatives.length} opção(ões)</small></div></header><div className="cs-decision-creative-list"><button type="button" className={!creativeId ? 'selected' : ''} onClick={() => onSelectCreative('')}><b>—</b><span><strong>Sem criativo</strong><small>Publicar somente texto</small></span>{!creativeId && <Check size={13} />}</button>{creatives.map((item, index) => <button type="button" key={item.id} className={item.id === creativeId ? 'selected' : ''} onClick={() => onSelectCreative(item.id)}>{item.imageUrl ? <img src={item.imageUrl} alt="" /> : <b>C{index + 1}</b>}<span><strong>{item.title || `Criativo ${index + 1}`}</strong><small>{item.description || 'Imagem pronta para o post'}</small></span>{item.id === creativeId && <Check size={13} />}</button>)}</div></section>
+          </div>
+          <div className="cs-selection-summary"><span>Combinação escolhida</span><strong>{copy?.title || 'Nenhuma copy'}</strong><strong>{creative?.title || 'Sem criativo selecionado'}</strong></div>
+          <button type="button" className="cs-approve-button" disabled={!copy} onClick={() => onApprove(copy, creative)}><CheckCircle2 size={15} /> {currentUser === 'Victor' ? 'Aprovar esta combinação' : 'Sugerir esta combinação ao Victor'}</button>
           {approved && <button type="button" className="cs-schedule-button" onClick={onSchedule}><CalendarDays size={15} /> Programar publicação</button>}
           <div className="cs-decision-history"><span>Decisões e sugestões</span>{approvals.slice().reverse().map((item) => <article key={item.id}><strong>{item.approver}</strong><span>{item.decision === 'approved' ? 'aprovou' : 'sugeriu'} {item.copyTitle}{item.creativeTitle ? ` + ${item.creativeTitle}` : ''}</span><small>{shortDate(item.createdAt)}</small></article>)}{!approvals.length && <p>Nenhuma decisão registrada ainda.</p>}</div>
         </aside>
