@@ -94,15 +94,15 @@ async function qualifyWithProvider(provider: LlmProvider, prompt: string, deadli
   }, deadlineAt);
   const body = await response.json();
   if (response.status === 429) {
-    throw new RateLimitError(body?.error?.message || 'Classification API 429', retryAfterSecondsFromBody(body));
+    throw new RateLimitError(body?.error?.message || JSON.stringify(body) || 'Classification API 429', retryAfterSecondsFromBody(body));
   }
   // 5xx do provedor (503 overloaded / 500 / UNAVAILABLE) é transitório, não é erro do
   // lead: trata como rate limit pra o lead voltar pra fila e o fluxo esperar+seguir
   // em vez de queimar o lead como 'error'. O importante é terminar a lista.
   if (response.status >= 500) {
-    throw new RateLimitError(body?.error?.message || `Classification API ${response.status}`, retryAfterSecondsFromBody(body));
+    throw new RateLimitError(body?.error?.message || JSON.stringify(body) || `Classification API ${response.status}`, retryAfterSecondsFromBody(body));
   }
-  if (!response.ok) throw new Error(`${body?.error?.message || 'Classification API'} (${response.status})`);
+  if (!response.ok) throw new Error(`${body?.error?.message || JSON.stringify(body) || 'Classification API'} (${response.status})`);
   const parsed = parseLlmJson(body);
   // aprovado/rejeitado → qualified/disqualified. "revisar" foi extinto a pedido do
   // Felipe (05/07): limítrofe vira aprovado e o Victor decide na lista — se algum
@@ -299,9 +299,11 @@ Deno.serve(async (request) => {
     let qualified = 0;
     let llmCalls = 0;
     let rateLimited = false;
+    let lastRateLimitError: string | null = null;
     // Metadados de ritmo pro front montar a estimativa/espera (Task 2 do plano
     // safe-lead-analysis-queue): o Gemini free não manda Retry-After utilizável,
     // então usamos uma janela conservadora fixa em vez de tentar parsear o header.
+    const providers = requireClassificationProviders();
     const hasPrincipal = providers.some((p) => p.label === 'principal');
     let retryAfterSeconds = GEMINI_RETRY_AFTER_SECONDS;
     const secondsPerLeadEstimate = hasPrincipal ? 3 : GEMINI_ESTIMATED_SECONDS_PER_LEAD;
@@ -372,10 +374,12 @@ Deno.serve(async (request) => {
         if (lead.first_seen_post_id) affectedPosts.add(lead.first_seen_post_id);
       } catch (leadError) {
         const message = errorMessage(leadError);
+        console.error(`Erro na qualificação do lead ${lead.id}:`, leadError);
         // Rate limit do LLM não é culpa do lead: volta pra fila (pending) e encerra
         // o lote — o próximo lote tenta de novo quando a janela de rate limit virar.
         if (leadError instanceof RateLimitError || /\b429\b|\b50[03]\b|RESOURCE_EXHAUSTED|quota|rate|overloaded|unavailable/i.test(message)) {
           rateLimited = true;
+          lastRateLimitError = message;
           retryAfterSeconds = leadError instanceof RateLimitError ? leadError.retryAfterSeconds : GEMINI_RETRY_AFTER_SECONDS;
           await client.from('leads').update({ enrichment_status: 'pending', enrichment_error: null }).eq('id', lead.id);
           break;
@@ -409,6 +413,7 @@ Deno.serve(async (request) => {
       prefiltered: junior.length,
       qualified,
       rateLimited,
+      rateLimitErrorReason: lastRateLimitError,
       retryAfterSeconds: rateLimited ? retryAfterSeconds : GEMINI_RETRY_AFTER_SECONDS,
       recommendedBatchSize,
       estimatedSecondsPerLead: secondsPerLeadEstimate,

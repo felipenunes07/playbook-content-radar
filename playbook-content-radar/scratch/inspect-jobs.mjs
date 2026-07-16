@@ -7,18 +7,15 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 async function run() {
   console.log('Querying prospecting_jobs...');
-  const { data, error } = await supabase
-    .from('collection_runs')
-    .select('*')
-    .eq('source', 'prospect_enrich')
-    .gt('items_processed', 0)
-    .order('started_at', { ascending: false })
-    .limit(10);
+  const { count, error } = await supabase
+    .from('leads')
+    .select('*', { count: 'exact', head: true })
+    .eq('enrichment_status', 'pending');
 
   if (error) {
-    console.error('Error querying prospecting_jobs:', error);
+    console.error('Error querying leads:', error);
   } else {
-    console.log(JSON.stringify(data, null, 2));
+    console.log('Pending leads count:', count);
   }
 }
 
