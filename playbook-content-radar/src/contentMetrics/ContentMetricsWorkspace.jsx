@@ -159,7 +159,7 @@ function shiftUtcMonths(date, months) {
 }
 
 function defaultDateFilters(rows = []) {
-  const dates = rows.map((row) => validUtcDate(row?.published_at)).filter(Boolean).sort((a, b) => b - a);
+  const dates = rows.map((row) => validUtcDate(row?.published_at || row?.metric_date)).filter(Boolean).sort((a, b) => b - a);
   const latest = dates[0] || new Date();
   return { from: isoDate(shiftUtcMonths(latest, -12)), to: isoDate(latest) };
 }
@@ -168,7 +168,8 @@ function defaultContentFilters(data) {
   return defaultDateFilters([
     ...(data?.linkedin || []),
     ...(data?.youtube || []),
-    ...(data?.instagram || [])
+    ...(data?.instagram || []),
+    ...(data?.growth || [])
   ]);
 }
 

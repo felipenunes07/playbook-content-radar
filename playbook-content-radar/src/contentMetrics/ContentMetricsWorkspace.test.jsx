@@ -225,4 +225,16 @@ describe('ContentMetricsWorkspace', () => {
     expect(screen.getByLabelText('Buscar vídeo')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Vídeos publicados por mês' })).toBeInTheDocument();
   });
+
+  it('defaults content date filter to the latest date from either posts or growth metrics', async () => {
+    const testData = {
+      ...data,
+      growth: [
+        { account_id: 'a1', owner_name: 'Victor Baggio', platform: 'linkedin', metric_date: '2026-03-15', followers: 20000 }
+      ]
+    };
+    render(<ContentMetricsWorkspace initialData={testData} initialSection="overview" />);
+    expect(await screen.findByLabelText('Data inicial')).toHaveValue('2025-03-15');
+    expect(screen.getByLabelText('Data final')).toHaveValue('2026-03-15');
+  });
 });
