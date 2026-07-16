@@ -12,6 +12,7 @@ import {
   filterYoutube,
   groupPerformance,
   rankContent,
+  summarizeBookingsByMaterial,
 } from './analytics.js';
 
 const posts = [
@@ -35,6 +36,29 @@ describe('filterContent', () => {
   it('returns all rows for empty filters and none for a non-matching selection', () => {
     expect(filterContent(posts, {})).toHaveLength(3);
     expect(filterContent(posts, { owner: 'Felipe' })).toEqual([]);
+  });
+});
+
+describe('summarizeBookingsByMaterial', () => {
+  const now = new Date('2026-07-16T12:00:00Z');
+  const bookings = [
+    { lead_magnet: 'claude_pequenos_negocios', status: 'ACCEPTED', start_time: '2026-08-04T20:00:00Z', created_at: '2026-07-16T17:31:00Z' },
+    { lead_magnet: 'claude_pequenos_negocios', status: 'ACCEPTED', start_time: '2026-07-10T20:00:00Z', created_at: '2026-07-09T10:00:00Z' },
+    { lead_magnet: 'claude_pequenos_negocios', status: 'CANCELLED', start_time: '2026-08-01T20:00:00Z', created_at: '2026-07-12T10:00:00Z' },
+    { lead_magnet: 'prospeccao_instagram', status: 'ACCEPTED', start_time: '2026-08-20T20:00:00Z', created_at: '2026-07-15T10:00:00Z' },
+    { lead_magnet: null, status: 'ACCEPTED', start_time: null, created_at: '2026-07-01T10:00:00Z' },
+  ];
+
+  it('counts active, cancelled and upcoming meetings per material, sorted by active desc', () => {
+    expect(summarizeBookingsByMaterial(bookings, now)).toEqual([
+      { lead_magnet: 'claude_pequenos_negocios', total: 3, active: 2, cancelled: 1, upcoming: 1, lastBookingAt: '2026-07-16T17:31:00Z' },
+      { lead_magnet: 'prospeccao_instagram', total: 1, active: 1, cancelled: 0, upcoming: 1, lastBookingAt: '2026-07-15T10:00:00Z' },
+      { lead_magnet: '(sem material)', total: 1, active: 1, cancelled: 0, upcoming: 0, lastBookingAt: '2026-07-01T10:00:00Z' },
+    ]);
+  });
+
+  it('returns an empty array for no bookings', () => {
+    expect(summarizeBookingsByMaterial([], now)).toEqual([]);
   });
 });
 

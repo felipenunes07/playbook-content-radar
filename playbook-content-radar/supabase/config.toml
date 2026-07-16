@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.generate-linkedin-copy]
 verify_jwt = false
+
+[functions.cal-bookings]
+verify_jwt = false

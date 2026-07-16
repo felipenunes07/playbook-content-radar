@@ -15,6 +15,7 @@ const empty = {
   leadComments: [],
   prospectSettings: null,
   goals: [],
+  bookings: [],
 };
 
 function latestDate(rows, fallback) {
@@ -66,7 +67,7 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
     const linkedinResult = await supabase.from('v_latest_linkedin_post_metrics').select('*');
     if (linkedinResult.error) throw new Error(linkedinResult.error.message || 'Falha ao ler métricas do LinkedIn');
 
-    const [youtubeResult, instagramResult, accountsResult, importsResult, runsResult, accountMetricsResult, prospectingResult, leadsResult, leadOutreachResult, leadCommentsResult, prospectSettingsResult, goalsResult] = await Promise.all([
+    const [youtubeResult, instagramResult, accountsResult, importsResult, runsResult, accountMetricsResult, prospectingResult, leadsResult, leadOutreachResult, leadCommentsResult, prospectSettingsResult, goalsResult, bookingsResult] = await Promise.all([
       supabase.from('v_latest_youtube_video_metrics').select('*'),
       supabase.from('v_latest_instagram_post_metrics').select('*'),
       supabase.from('content_accounts').select('*'),
@@ -79,6 +80,7 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
       supabase.from('lead_comments').select('lead_id, post_id, comment_text, commented_at, created_at'),
       supabase.from('prospect_settings').select('*'),
       supabase.from('content_goals').select('*'),
+      supabase.from('lead_magnet_bookings').select('booking_uid, lead_magnet, lead_name, lead_email, status, trigger_event, start_time, created_at, utm_source, utm_campaign'),
     ]);
     const accounts = accountsResult.data || [];
     const growth = buildAccountGrowth(accountMetricsResult.data || [], accounts);
@@ -100,6 +102,8 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory }
       leadComments: leadCommentsResult.data || [],
       prospectSettings: prospectSettingsResult.data?.[0] || null,
       goals: goalsResult.data || [],
+      // Reservas do Cal.com (reuniões via lead magnet). Mais recentes primeiro.
+      bookings: (bookingsResult.data || []).slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))),
       freshness: latestDate(linkedinResult.data || []),
       warning: [youtubeResult, accountsResult, importsResult, runsResult, accountMetricsResult, prospectingResult]
         .map((result) => result.error?.message)

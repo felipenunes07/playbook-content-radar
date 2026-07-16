@@ -475,5 +475,32 @@ export function buildMonthlyComparison(items, options = {}) {
   };
 }
 
+// Agrupa as reservas do Cal.com (lead_magnet_bookings) por material. Uma reserva
+// cancelada não conta como reunião ativa; "upcoming" é a que ainda vai acontecer.
+// `now` é injetável pra o cálculo de futuro ser determinístico nos testes.
+export function summarizeBookingsByMaterial(bookings = [], now = new Date()) {
+  const reference = validDate(now) || new Date();
+  const byMaterial = new Map();
+  for (const booking of Array.isArray(bookings) ? bookings : []) {
+    const key = booking.lead_magnet || '(sem material)';
+    if (!byMaterial.has(key)) {
+      byMaterial.set(key, { lead_magnet: key, total: 0, active: 0, cancelled: 0, upcoming: 0, lastBookingAt: null });
+    }
+    const row = byMaterial.get(key);
+    row.total += 1;
+    const cancelled = String(booking.status || '').toUpperCase() === 'CANCELLED';
+    if (cancelled) {
+      row.cancelled += 1;
+    } else {
+      row.active += 1;
+      const start = validDate(booking.start_time);
+      if (start && start.getTime() > reference.getTime()) row.upcoming += 1;
+    }
+    const created = booking.created_at || null;
+    if (created && (!row.lastBookingAt || String(created) > String(row.lastBookingAt))) row.lastBookingAt = created;
+  }
+  return Array.from(byMaterial.values()).sort((a, b) => b.active - a.active || b.total - a.total);
+}
+
 
 

@@ -54,6 +54,7 @@ import {
   rankContent,
   isoWeekKey,
   weekLabel,
+  summarizeBookingsByMaterial,
 } from './analytics.js';
 import { loadContentMetrics } from './repository.js';
 import { METRICS_SECTIONS } from './routes.js';
@@ -302,6 +303,80 @@ function ExecutiveCards({ summary, monthly }) {
         : <em className="cm-delta neutral">{card.note}</em>}
     </div>
   ))}</div>;
+}
+
+function formatBookingDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+// Resumo de reuniões (Cal.com) agrupadas por material/lead magnet. Lê data.bookings
+// carregado direto do Supabase (tabela lead_magnet_bookings) — sem tagging manual:
+// a atribuição vem do campo lead_magnet do link usado no agendamento.
+function MeetingsByMaterial({ bookings }) {
+  const rows = Array.isArray(bookings) ? bookings : [];
+  const summary = useMemo(() => summarizeBookingsByMaterial(rows), [rows]);
+  const totals = summary.reduce(
+    (acc, row) => ({ active: acc.active + row.active, upcoming: acc.upcoming + row.upcoming }),
+    { active: 0, upcoming: 0 },
+  );
+  const recent = rows.slice(0, 8);
+  const bookingStatus = (status) => {
+    const cancelled = String(status || '').toUpperCase() === 'CANCELLED';
+    return <span style={{ color: cancelled ? 'var(--cm-danger, #dc2626)' : 'var(--cm-success, #16a34a)', fontWeight: 600 }}>{cancelled ? 'Cancelada' : 'Agendada'}</span>;
+  };
+  return (
+    <section className="cm-panel">
+      <div className="cm-section-heading">
+        <div>
+          <span className="cm-eyebrow">Atribuição</span>
+          <h2>Reuniões por material</h2>
+        </div>
+        <small>{totals.active} reuni{totals.active === 1 ? 'ão' : 'ões'} · {totals.upcoming} futura{totals.upcoming === 1 ? '' : 's'}</small>
+      </div>
+      {!summary.length ? (
+        <div className="cm-empty">Nenhuma reunião agendada ainda. Assim que alguém marcar pelo link de um material (Cal.com), a reunião aparece aqui automaticamente.</div>
+      ) : (
+        <>
+          <div className="cm-table-wrap">
+            <table className="cm-table">
+              <thead><tr><th>Material (lead magnet)</th><th style={{ textAlign: 'center' }}>Reuniões</th><th style={{ textAlign: 'center' }}>Futuras</th><th style={{ textAlign: 'center' }}>Canceladas</th><th>Última reserva</th></tr></thead>
+              <tbody>
+                {summary.map((row) => (
+                  <tr key={row.lead_magnet}>
+                    <td><strong>{row.lead_magnet}</strong></td>
+                    <td style={{ textAlign: 'center' }}>{row.active}</td>
+                    <td style={{ textAlign: 'center' }}>{row.upcoming}</td>
+                    <td style={{ textAlign: 'center' }}>{row.cancelled || '—'}</td>
+                    <td>{formatBookingDate(row.lastBookingAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="cm-table-note">Atribuição pelo campo <code>lead_magnet</code> do link do Cal.com. Uma reunião = uma reserva; canceladas não entram na contagem de reuniões.</p>
+          {recent.length > 0 && (
+            <div className="cm-table-wrap" style={{ marginTop: 12 }}>
+              <table className="cm-table">
+                <thead><tr><th>Reservas recentes</th><th>Material</th><th>Data da reunião</th><th style={{ textAlign: 'center' }}>Status</th></tr></thead>
+                <tbody>
+                  {recent.map((booking) => (
+                    <tr key={booking.booking_uid}>
+                      <td>{booking.lead_name || '—'}</td>
+                      <td>{booking.lead_magnet || '—'}</td>
+                      <td>{formatBookingDate(booking.start_time)}</td>
+                      <td style={{ textAlign: 'center' }}>{bookingStatus(booking.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
 }
 
 function Overview({ filtered, allPosts, data, filters, setFilters }) {
@@ -692,6 +767,8 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
       </div>
       <TopContentTable rows={rankContent(interactiveFiltered, 'engagement_score', activeFilterLabel ? 100 : 10)} showViews={selectedPlatform !== 'linkedin' && selectedPlatform !== 'instagram'} />
     </section>
+
+    <MeetingsByMaterial bookings={data.bookings} />
 
     <div className="cm-analysis-grid">
       <section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Formato</span><h2>Formato por média de score</h2></div></div><PerformanceBars rows={groupPerformance(interactiveFiltered, 'format')} valueKey="averageScore" label="Score médio/post" /></section>
