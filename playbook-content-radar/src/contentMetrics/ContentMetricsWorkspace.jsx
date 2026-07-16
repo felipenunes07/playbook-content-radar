@@ -1253,12 +1253,27 @@ function LeadsSection({ data, client, onNotice, onReload }) {
     return list;
   }, [leads, postFilter, creatorFilter, commentByLead, postsById]);
 
-  const counts = useMemo(() => ({
-    qualified: filteredLeads.filter((l) => leadStatusSets.qualified.includes(l.qualification_status)).length,
-    pending: filteredLeads.filter((l) => l.qualification_status === 'pending').length,
-    disqualified: filteredLeads.filter((l) => l.qualification_status === 'disqualified').length,
-    all: filteredLeads.length,
-  }), [filteredLeads]);
+  const counts = useMemo(() => {
+    let qualified = 0;
+    let pending = 0;
+    let disqualified = 0;
+    filteredLeads.forEach((l) => {
+      const status = outreachByLead[l.id]?.status === 'ignored' ? 'disqualified' : l.qualification_status;
+      if (leadStatusSets.qualified.includes(status)) {
+        qualified += 1;
+      } else if (status === 'pending') {
+        pending += 1;
+      } else if (status === 'disqualified') {
+        disqualified += 1;
+      }
+    });
+    return {
+      qualified,
+      pending,
+      disqualified,
+      all: filteredLeads.length,
+    };
+  }, [filteredLeads, outreachByLead]);
 
   // Quantos leads cada post tem e quantos ainda faltam analisar (enrichment
   // pendente). "analisado" = já passou pelo enriquecimento (enriched/skipped/error).
@@ -1300,7 +1315,13 @@ function LeadsSection({ data, client, onNotice, onReload }) {
   };
 
   const visible = useMemo(() => {
-    let list = filter === 'all' ? filteredLeads : filteredLeads.filter((l) => (leadStatusSets[filter] || []).includes(l.qualification_status));
+    let list = filteredLeads;
+    if (filter !== 'all') {
+      list = filteredLeads.filter((l) => {
+        const status = outreachByLead[l.id]?.status === 'ignored' ? 'disqualified' : l.qualification_status;
+        return (leadStatusSets[filter] || []).includes(status);
+      });
+    }
     const sorted = [...list].sort((a, b) => {
       const av = sortValue(a, sortConfig.key);
       const bv = sortValue(b, sortConfig.key);
@@ -1309,7 +1330,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
       return 0;
     });
     return sorted;
-  }, [filteredLeads, filter, sortConfig, commentByLead, postHookById]);
+  }, [filteredLeads, filter, sortConfig, commentByLead, postHookById, outreachByLead]);
 
   const requestSort = (key) => {
     setSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc' }));
