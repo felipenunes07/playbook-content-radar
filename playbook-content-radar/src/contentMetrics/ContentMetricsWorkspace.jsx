@@ -91,7 +91,7 @@ function formatDuration(seconds) {
 
 export function buildLeadAnalysisPlan({ pending = 0, batchSize = LEAD_ANALYSIS_DEFAULT_BATCH, secondsPerLead = LEAD_ANALYSIS_SECONDS_PER_LEAD, retryAfterSeconds = LEAD_ANALYSIS_RETRY_SECONDS } = {}) {
   const safePending = Math.max(0, Math.trunc(Number(pending) || 0));
-  const safeBatch = Math.max(1, Math.min(5, Math.trunc(Number(batchSize) || LEAD_ANALYSIS_DEFAULT_BATCH)));
+  const safeBatch = Math.max(1, Math.min(30, Math.trunc(Number(batchSize) || LEAD_ANALYSIS_DEFAULT_BATCH)));
   const safeSecondsPerLead = Math.max(8, Math.trunc(Number(secondsPerLead) || LEAD_ANALYSIS_SECONDS_PER_LEAD));
   const safeRetry = Math.max(30, Math.trunc(Number(retryAfterSeconds) || LEAD_ANALYSIS_RETRY_SECONDS));
   const estimatedSeconds = safePending * safeSecondsPerLead;

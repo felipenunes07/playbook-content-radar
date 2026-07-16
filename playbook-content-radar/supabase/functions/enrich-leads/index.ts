@@ -200,7 +200,7 @@ Deno.serve(async (request) => {
     const { data: settings } = await client.from('prospect_settings').select('icp_rules').eq('id', true).maybeSingle();
     const icpRules = settings?.icp_rules || null;
 
-    const limit = Math.max(1, Math.min(20, Number(body.limit || 10)));
+    const limit = Math.max(1, Math.min(50, Number(body.limit || 10)));
     // Escopo opcional: quando o front filtra por um post, manda os leadIds daquele
     // post e a análise processa (e conta o "remaining") só esse subconjunto. Sem
     // leadIds, roda a fila inteira como antes.
@@ -302,9 +302,10 @@ Deno.serve(async (request) => {
     // Metadados de ritmo pro front montar a estimativa/espera (Task 2 do plano
     // safe-lead-analysis-queue): o Gemini free não manda Retry-After utilizável,
     // então usamos uma janela conservadora fixa em vez de tentar parsear o header.
+    const hasPrincipal = providers.some((p) => p.label === 'principal');
     let retryAfterSeconds = GEMINI_RETRY_AFTER_SECONDS;
-    const secondsPerLeadEstimate = GEMINI_ESTIMATED_SECONDS_PER_LEAD;
-    const recommendedBatchSize = GEMINI_SAFE_BATCH_SIZE;
+    const secondsPerLeadEstimate = hasPrincipal ? 3 : GEMINI_ESTIMATED_SECONDS_PER_LEAD;
+    const recommendedBatchSize = hasPrincipal ? 15 : GEMINI_SAFE_BATCH_SIZE;
     const errors: Array<{ lead: string; error: string }> = [];
     const affectedPosts = new Set<string>();
     for (const lead of toEnrich) {
@@ -342,8 +343,8 @@ Deno.serve(async (request) => {
           post_theme: leadComment?.postId ? hookByPost.get(leadComment.postId) || null : null,
         };
 
-        // Espaça as chamadas pro LLM (tier free do Gemini: ~10 req/min).
-        if (llmCalls > 0) await wait(6500);
+        // Espaça as chamadas pro LLM se estiver usando o Gemini/fallback (free tier: ~10 req/min).
+        if (llmCalls > 0 && !hasPrincipal) await wait(6500);
         llmCalls += 1;
         const result = await qualifyLead(payload, deadlineAt, icpRules);
         const { error: updateError } = await client.from('leads').update({
