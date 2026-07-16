@@ -1622,7 +1622,10 @@ function LeadsSection({ data, client, onNotice, onReload }) {
                 const comment = commentByLead[lead.id];
                 const analyzing = analyzingIds.has(lead.id);
                 return (
-                  <tr key={lead.id} className={analyzing ? 'cm-prospect-running-row' : undefined} style={(prospected || ignored) ? { opacity: 0.55 } : undefined}>
+                  <tr key={lead.id}
+                    className={`${analyzing ? 'cm-prospect-running-row' : ''} ${prospected ? 'cm-row-prospected' : ''}`}
+                    style={(prospected || ignored) ? { opacity: 0.65 } : undefined}
+                  >
                     <td>
                       <strong>{lead.full_name || lead.public_identifier || '—'}</strong>
                       {lead.profile_url && <a className="cm-open" href={lead.profile_url} target="_blank" rel="noreferrer" aria-label={`Abrir perfil de ${lead.full_name || 'lead'}`} style={{ marginLeft: 6, display: 'inline-flex', verticalAlign: 'middle' }}><ExternalLink size={13} /></a>}

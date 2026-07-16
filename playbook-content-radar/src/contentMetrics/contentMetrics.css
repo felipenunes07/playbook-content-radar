@@ -298,3 +298,7 @@ tr.cm-prospect-running-row td {
   animation: cmProgressSlide 0.9s linear infinite;
   transition: width 0.6s ease;
 }
+
+tr.cm-row-prospected td {
+  background-color: #e7f6ee !important;
+}
