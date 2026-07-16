@@ -1231,13 +1231,6 @@ function LeadsSection({ data, client, onNotice, onReload }) {
     return map;
   }, [postsById]);
 
-  const counts = useMemo(() => ({
-    qualified: leads.filter((l) => leadStatusSets.qualified.includes(l.qualification_status)).length,
-    pending: leads.filter((l) => l.qualification_status === 'pending').length,
-    disqualified: leads.filter((l) => l.qualification_status === 'disqualified').length,
-    all: leads.length,
-  }), [leads]);
-
   // Comentário mais recente de cada lead (o "comentário feito" da lista do escopo).
   const commentByLead = useMemo(() => {
     const map = {};
@@ -1250,6 +1243,22 @@ function LeadsSection({ data, client, onNotice, onReload }) {
 
   // Post de origem de um lead: o comentário mais recente ganha do first_seen.
   const leadPostId = (lead) => commentByLead[lead.id]?.post_id || lead.first_seen_post_id;
+
+  // Leads filtrados apenas pelo post/criador (sem o filtro de status da aba ativa).
+  // Usado para calcular a contagem de cada aba baseada no post filtrado.
+  const filteredLeads = useMemo(() => {
+    let list = leads;
+    if (postFilter) list = list.filter((l) => leadPostId(l) === postFilter);
+    if (creatorFilter) list = list.filter((l) => postsById[leadPostId(l)]?.owner === creatorFilter);
+    return list;
+  }, [leads, postFilter, creatorFilter, commentByLead, postsById]);
+
+  const counts = useMemo(() => ({
+    qualified: filteredLeads.filter((l) => leadStatusSets.qualified.includes(l.qualification_status)).length,
+    pending: filteredLeads.filter((l) => l.qualification_status === 'pending').length,
+    disqualified: filteredLeads.filter((l) => l.qualification_status === 'disqualified').length,
+    all: filteredLeads.length,
+  }), [filteredLeads]);
 
   // Quantos leads cada post tem e quantos ainda faltam analisar (enrichment
   // pendente). "analisado" = já passou pelo enriquecimento (enriched/skipped/error).
@@ -1291,9 +1300,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
   };
 
   const visible = useMemo(() => {
-    let list = filter === 'all' ? leads : leads.filter((l) => (leadStatusSets[filter] || []).includes(l.qualification_status));
-    if (postFilter) list = list.filter((l) => leadPostId(l) === postFilter);
-    if (creatorFilter) list = list.filter((l) => postsById[leadPostId(l)]?.owner === creatorFilter);
+    let list = filter === 'all' ? filteredLeads : filteredLeads.filter((l) => (leadStatusSets[filter] || []).includes(l.qualification_status));
     const sorted = [...list].sort((a, b) => {
       const av = sortValue(a, sortConfig.key);
       const bv = sortValue(b, sortConfig.key);
@@ -1302,7 +1309,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
       return 0;
     });
     return sorted;
-  }, [leads, filter, postFilter, creatorFilter, commentByLead, postsById, sortConfig]);
+  }, [filteredLeads, filter, sortConfig, commentByLead, postHookById]);
 
   const requestSort = (key) => {
     setSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc' }));

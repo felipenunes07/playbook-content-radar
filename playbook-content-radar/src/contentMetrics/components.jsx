@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit3, ExternalLink, FileText, History, Image as ImageIcon, Info, Play, RefreshCw, Search, Sparkles, Video } from 'lucide-react';
+import { Check, Edit3, ExternalLink, FileText, History, Image as ImageIcon, Info, Play, RefreshCw, Search, Sparkles, Video } from 'lucide-react';
 
 const integer = new Intl.NumberFormat('pt-BR');
 const date = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
@@ -158,6 +158,7 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
   const [sortConfig, setSortConfig] = React.useState({ key: showProspecting ? 'published_at' : 'engagement_score', direction: 'desc' });
   const [showLegend, setShowLegend] = React.useState(false);
   const isRunning = (id) => Boolean(runningIds && runningIds.has(id));
+  const isProspected = (id) => prospecting[id]?.status === 'success' || prospecting[id]?.status === 'partial';
   // Todo post do LinkedIn é prospectável: mesmo sem post_url, a função reconstrói a
   // URL a partir do id da activity. Só precisa do id da linha pra chamar a função.
   const canProspect = (row) => getPlatformLabel(row) === 'LinkedIn' && Boolean(row.id) && typeof onProspect === 'function';
@@ -324,14 +325,20 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
                           {canProspect(row) && (
                             <button
                               type="button"
-                              className="cm-prospect-btn"
+                              className={`cm-prospect-btn${isProspected(row.id) ? ' completed' : ''}`}
                               aria-label={`Prospectar comentaristas de ${row.hook || 'post'}`}
-                              title="Raspar comentários e cruzar com o banco de leads"
-                              disabled={isRunning(row.id)}
+                              title={isProspected(row.id) ? "Post já prospectado" : "Raspar comentários e cruzar com o banco de leads"}
+                              disabled={isRunning(row.id) || isProspected(row.id)}
                               onClick={() => onProspect(row)}
                             >
-                              {isRunning(row.id) ? <RefreshCw size={13} className="spin" /> : <Play size={13} />}
-                              {isRunning(row.id) ? 'Rodando…' : 'Prospectar'}
+                              {isRunning(row.id) ? (
+                                <RefreshCw size={13} className="spin" />
+                              ) : isProspected(row.id) ? (
+                                <Check size={13} />
+                              ) : (
+                                <Play size={13} />
+                              )}
+                              {isRunning(row.id) ? 'Rodando…' : isProspected(row.id) ? 'Prospectado' : 'Prospectar'}
                             </button>
                           )}
                           {linkedinPostUrl(row) && (
