@@ -221,37 +221,46 @@
 .tw-spin { animation: tw-spin .8s linear infinite; }
 @keyframes tw-spin { to { transform: rotate(360deg); } }
 
-.tw-daily { width: min(780px, 100%); min-height: 430px; margin: 0 auto; overflow: hidden; background: white; border: 1px solid var(--tw-line); border-radius: 16px; box-shadow: 0 7px 25px rgba(25,35,52,.05); }
-.tw-daily-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 24px 26px 18px; border-bottom: 1px solid #eceef1; }
-.tw-daily-header .tw-eyebrow { color: #526baf; }
-.tw-daily-header h2 { margin: 6px 0 4px; color: #172033; font-family: Georgia, "Times New Roman", serif; font-size: 25px; font-weight: 600; letter-spacing: -.02em; }
-.tw-daily-header p { margin: 0; color: #7d8798; font-size: 11px; }
-.tw-daily-summary { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 75px; height: 62px; color: #2948ae; background: #f1f4ff; border: 1px solid #dce4ff; border-radius: 12px; }
-.tw-daily-summary strong { font-size: 18px; line-height: 1; }
-.tw-daily-summary span { margin-top: 5px; color: #7886ae; font-size: 8.5px; font-weight: 700; }
-.tw-daily-add { display: flex; align-items: center; gap: 10px; margin: 17px 26px 10px; padding: 7px 8px 7px 11px; background: #fafbfc; border: 1px solid #dfe3ea; border-radius: 11px; transition: border-color .16s, box-shadow .16s; }
+.tw-daily { width: 100%; min-height: 430px; overflow: hidden; background: white; border: 1px solid var(--tw-line); border-radius: 14px; box-shadow: 0 5px 20px rgba(25,35,52,.04); }
+.tw-daily-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 17px 20px; background: #fbfcfe; border-bottom: 1px solid #e8ebf0; }
+.tw-daily-title { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.tw-daily-date-icon { display: grid; flex: 0 0 auto; place-items: center; width: 38px; height: 38px; color: #2948ae; background: #edf1ff; border: 1px solid #dce4ff; border-radius: 10px; }
+.tw-daily-header h2 { margin: 0; color: #20293a; font-size: 16px; font-weight: 800; letter-spacing: -.01em; }
+.tw-daily-header p { margin: 3px 0 0; color: #818b9b; font-size: 10.5px; text-transform: capitalize; }
+.tw-daily-summary { display: flex; align-items: center; gap: 12px; min-width: 220px; }
+.tw-daily-summary-copy { display: flex; flex: 0 0 auto; align-items: baseline; gap: 5px; }
+.tw-daily-summary strong { color: #263a7d; font-size: 11px; line-height: 1; }
+.tw-daily-summary span { color: #7c8799; font-size: 9.5px; font-weight: 650; }
+.tw-daily-content { padding: 20px; }
+.tw-daily-add { display: flex; align-items: center; gap: 10px; padding: 8px 9px; background: #f8f9fc; border: 1px solid #dfe3ea; border-radius: 11px; transition: border-color .16s, box-shadow .16s; }
 .tw-daily-add:focus-within { border-color: #8da1e1; box-shadow: 0 0 0 3px rgba(49,87,213,.08); }
+.tw-daily-add-icon { display: grid; flex: 0 0 auto; place-items: center; width: 30px; height: 30px; color: #2948ae; background: #e9eeff; border-radius: 8px; }
 .tw-daily-empty-check { display: block; flex: 0 0 auto; width: 19px; height: 19px; background: white; border: 1.5px solid #aeb7c6; border-radius: 6px; }
-.tw-daily-add input { flex: 1; min-width: 0; padding: 7px 0; color: #303b4d; background: transparent; border: 0; outline: 0; font-size: 12px; }
+.tw-daily-add input { flex: 1; min-width: 0; padding: 7px 0; color: #303b4d; background: transparent; border: 0; outline: 0; font-size: 12.5px; }
 .tw-daily-add input::placeholder { color: #9da5b2; }
-.tw-daily-add button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; color: white; background: #2948ae; border: 0; border-radius: 8px; font-size: 9.5px; font-weight: 800; cursor: pointer; }
+.tw-daily-add button { min-height: 32px; padding: 0 14px; color: white; background: #2948ae; border: 0; border-radius: 8px; font-size: 10px; font-weight: 800; cursor: pointer; }
 .tw-daily-add button:disabled { opacity: .45; cursor: default; }
-.tw-daily-progress { height: 3px; margin: 0 26px 12px; overflow: hidden; background: #edf0f4; border-radius: 999px; }
+.tw-daily-progress { flex: 1; height: 5px; overflow: hidden; background: #e6e9ef; border-radius: 999px; }
 .tw-daily-progress span { display: block; height: 100%; background: #23a176; border-radius: inherit; transition: width .22s ease; }
-.tw-daily-list { display: flex; flex-direction: column; gap: 4px; padding: 0 26px 22px; }
-.tw-daily-item { display: flex; align-items: center; gap: 10px; min-height: 43px; padding: 5px 7px; border-bottom: 1px solid #f0f1f3; border-radius: 8px; }
-.tw-daily-item:hover { background: #f8f9fb; }
+.tw-daily-list-head { display: flex; align-items: center; justify-content: space-between; margin: 21px 2px 9px; }
+.tw-daily-list-head strong { color: #354054; font-size: 11px; }
+.tw-daily-list-head span { color: #929baa; font-size: 9.5px; font-weight: 650; }
+.tw-daily-list { display: flex; flex-direction: column; gap: 7px; }
+.tw-daily-item { display: flex; align-items: center; gap: 11px; min-height: 49px; padding: 6px 10px 6px 13px; background: white; border: 1px solid #e3e6eb; border-radius: 10px; transition: border-color .16s, box-shadow .16s, transform .16s; }
+.tw-daily-item:hover { border-color: #ccd3df; box-shadow: 0 3px 10px rgba(25,35,52,.045); transform: translateY(-1px); }
 .tw-daily-item input { flex: 1; min-width: 0; padding: 7px 0; color: #354054; background: transparent; border: 0; outline: 0; font-size: 12px; }
 .tw-daily-item.done input { color: #929baa; text-decoration: line-through; }
+.tw-daily-item-status { flex: 0 0 auto; padding: 4px 7px; color: #6c7990; background: #f2f4f7; border-radius: 6px; font-size: 8.5px; font-weight: 750; }
+.tw-daily-item.done .tw-daily-item-status { color: #27815f; background: #e9f7f1; }
 .tw-daily-delete { display: grid; flex: 0 0 auto; place-items: center; width: 28px; height: 28px; padding: 0; color: #a0a8b5; background: transparent; border: 0; border-radius: 7px; opacity: 0; cursor: pointer; }
 .tw-daily-item:hover .tw-daily-delete,
 .tw-daily-delete:focus-visible { opacity: 1; }
 .tw-daily-delete:hover { color: #be344b; background: #fff0f2; }
-.tw-daily-empty { display: flex; flex-direction: column; align-items: center; padding: 58px 20px; color: #929baa; text-align: center; }
-.tw-daily-empty .tw-daily-empty-check { width: 25px; height: 25px; border-color: #c7ced9; }
+.tw-daily-empty { display: flex; flex-direction: column; align-items: center; padding: 58px 20px; color: #929baa; background: #fafbfc; border: 1px dashed #d9dee7; border-radius: 11px; text-align: center; }
+.tw-daily-empty .tw-daily-empty-check { display: grid; place-items: center; width: 28px; height: 28px; color: #8c97a8; border-color: #c7ced9; }
 .tw-daily-empty strong { margin-top: 12px; color: #586477; font-size: 12px; }
 .tw-daily-empty p { margin: 5px 0 0; font-size: 10px; }
-.tw-daily-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 26px; color: #929baa; border-top: 1px solid #eceef1; font-size: 9px; }
+.tw-daily-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 20px; color: #929baa; background: #fbfcfe; border-top: 1px solid #eceef1; font-size: 9px; }
 .tw-daily-footer > span { display: inline-flex; align-items: center; gap: 5px; }
 
 .tw-notebook {
@@ -421,14 +430,13 @@
   .tw-column { min-height: 320px; scroll-snap-align: start; }
   .tw-column-body { min-height: 215px; }
   .tw-daily { min-height: 390px; }
-  .tw-daily-header { padding: 20px 17px 15px; }
-  .tw-daily-header h2 { font-size: 23px; }
-  .tw-daily-summary { min-width: 66px; height: 57px; }
-  .tw-daily-add { margin: 14px 14px 9px; }
+  .tw-daily-header { align-items: flex-start; flex-direction: column; gap: 13px; padding: 15px; }
+  .tw-daily-summary { width: 100%; min-width: 0; }
+  .tw-daily-content { padding: 14px; }
   .tw-daily-add button { width: 34px; padding: 0; justify-content: center; }
   .tw-daily-add button { font-size: 0; }
-  .tw-daily-progress { margin: 0 14px 10px; }
-  .tw-daily-list { padding: 0 14px 18px; }
+  .tw-daily-add button::before { content: '+'; font-size: 16px; }
+  .tw-daily-item-status { display: none; }
   .tw-daily-delete { opacity: 1; }
   .tw-daily-footer { padding: 10px 15px; }
   .tw-daily-footer > span { display: none; }
