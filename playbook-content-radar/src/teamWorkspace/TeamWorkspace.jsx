@@ -17,12 +17,16 @@ import {
   CheckCircle2,
   Circle,
   Clock3,
+  FileText,
   LayoutDashboard,
   Lightbulb,
+  LoaderCircle,
   MoreHorizontal,
+  Paperclip,
   Pencil,
   Plus,
   Trash2,
+  UploadCloud,
   Video,
   Wifi,
   X
@@ -43,6 +47,8 @@ const NOTE_KINDS = {
 
 const priorityLabel = { low: 'Baixa', normal: 'Normal', high: 'Alta' };
 const TEAM_WORKSPACE_ROOT_ID = 'team-workspace-root';
+const STORAGE_BUCKET = 'content-production';
+const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
 function createId() {
   return globalThis.crypto?.randomUUID?.() || `team-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -51,6 +57,69 @@ function createId() {
 function upsertById(rows, row) {
   const exists = rows.some((item) => item.id === row.id);
   return exists ? rows.map((item) => item.id === row.id ? { ...item, ...row } : item) : [row, ...rows];
+}
+
+function safeFileName(name = 'arquivo') {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-');
+}
+
+function formatFileSize(bytes = 0) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+}
+
+function isImageFile(file) {
+  return file?.type?.startsWith('image/');
+}
+
+function eventFiles(event) {
+  return Array.from(event?.dataTransfer?.files || event?.clipboardData?.files || event?.target?.files || []);
+}
+
+function AttachmentGallery({ attachments = [], onRemove, compact = false }) {
+  if (!attachments.length) return null;
+  const visibleAttachments = compact ? attachments.slice(0, 3) : attachments;
+  return (
+    <div className={`tw-attachments ${compact ? 'compact' : ''}`}>
+      {visibleAttachments.map((file) => (
+        <div key={file.id} className={`tw-attachment ${isImageFile(file) ? 'image' : 'file'}`}>
+          <a href={file.url} target="_blank" rel="noreferrer" title={`Abrir ${file.name}`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+            {isImageFile(file) ? <img src={file.url} alt={file.name} /> : <span className="tw-file-icon"><FileText size={compact ? 14 : 18} /></span>}
+            <span className="tw-attachment-copy"><strong>{file.name}</strong>{!compact && <small>{formatFileSize(file.size)}</small>}</span>
+          </a>
+          {onRemove && <button type="button" aria-label={`Remover ${file.name}`} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); onRemove(file); }}><X size={13} /></button>}
+        </div>
+      ))}
+      {compact && attachments.length > visibleAttachments.length && <span className="tw-attachment-more">+{attachments.length - visibleAttachments.length}</span>}
+    </div>
+  );
+}
+
+function FileDropzone({ onFiles, uploading, compact = false }) {
+  const inputRef = useRef(null);
+  const [over, setOver] = useState(false);
+  const receive = (event) => {
+    const files = eventFiles(event);
+    if (files.length) onFiles(files);
+    if (event.target?.value) event.target.value = '';
+  };
+  return (
+    <div
+      className={`tw-file-dropzone ${over ? 'over' : ''} ${compact ? 'compact' : ''}`}
+      onDragEnter={(event) => { event.preventDefault(); setOver(true); }}
+      onDragOver={(event) => event.preventDefault()}
+      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOver(false); }}
+      onDrop={(event) => { event.preventDefault(); setOver(false); receive(event); }}
+    >
+      <input ref={inputRef} type="file" multiple hidden onChange={receive} />
+      <button type="button" disabled={uploading} onClick={() => inputRef.current?.click()}>
+        {uploading ? <LoaderCircle size={16} className="tw-spin" /> : <UploadCloud size={16} />}
+        <span>{uploading ? 'Enviando…' : compact ? 'Anexar arquivo' : 'Solte arquivos ou prints aqui'}</span>
+        {!compact && <small>ou clique para escolher · até 25 MB</small>}
+      </button>
+    </div>
+  );
 }
 
 function formatDate(date) {
@@ -85,10 +154,13 @@ function UserAvatar({ name, avatars, size = 28 }) {
   );
 }
 
-function TaskCard({ task, avatars, onEdit, onDelete, onToggleDone, overlay = false }) {
+function TaskCard({ task, avatars, onEdit, onDelete, onToggleDone, onAttach, onRemoveAttachment, uploading = false, overlay = false }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [fileOver, setFileOver] = useState(false);
+  const fileInputRef = useRef(null);
   const pointerStartRef = useRef(null);
   const draggedRef = useRef(false);
+  const attachments = Array.isArray(task.attachments) ? task.attachments : [];
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
     data: { task },
@@ -103,6 +175,17 @@ function TaskCard({ task, avatars, onEdit, onDelete, onToggleDone, overlay = fal
       ref={setNodeRef}
       style={style}
       className={`tw-task-card ${task.status === 'done' ? 'completed' : ''} ${isDragging ? 'dragging' : ''} ${overlay ? 'overlay' : ''}`}
+      onDragEnter={(event) => { if (event.dataTransfer?.types?.includes('Files')) { event.preventDefault(); event.stopPropagation(); setFileOver(true); } }}
+      onDragOver={(event) => { if (event.dataTransfer?.types?.includes('Files')) { event.preventDefault(); event.stopPropagation(); } }}
+      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFileOver(false); }}
+      onDrop={(event) => {
+        const files = eventFiles(event);
+        if (!files.length || overlay) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setFileOver(false);
+        onAttach?.(task.id, files);
+      }}
       onPointerDownCapture={(event) => { pointerStartRef.current = { x: event.clientX, y: event.clientY }; draggedRef.current = false; }}
       onPointerUpCapture={(event) => {
         if (!pointerStartRef.current) return;
@@ -126,9 +209,11 @@ function TaskCard({ task, avatars, onEdit, onDelete, onToggleDone, overlay = fal
             {menuOpen && (
               <div className="tw-card-menu" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
                 <button type="button" onClick={() => { setMenuOpen(false); onEdit?.(task); }}><Pencil size={13} /> Editar</button>
+                <button type="button" onClick={() => { setMenuOpen(false); fileInputRef.current?.click(); }}><Paperclip size={13} /> Anexar arquivo</button>
                 <button type="button" className="danger" onClick={() => { setMenuOpen(false); onDelete?.(task); }}><Trash2 size={13} /> Excluir</button>
               </div>
             )}
+            <input ref={fileInputRef} type="file" multiple hidden onChange={(event) => { const files = eventFiles(event); if (files.length) onAttach?.(task.id, files); event.target.value = ''; }} />
           </div>
         )}
       </div>
@@ -145,6 +230,7 @@ function TaskCard({ task, avatars, onEdit, onDelete, onToggleDone, overlay = fal
         <h3>{task.title}</h3>
       </div>
       {task.description && <p>{task.description}</p>}
+      <AttachmentGallery attachments={attachments} onRemove={overlay ? null : (file) => onRemoveAttachment?.(task.id, file)} compact />
       <footer>
         <div className="tw-card-person">
           <UserAvatar name={task.assignee} avatars={avatars} size={25} />
@@ -156,11 +242,13 @@ function TaskCard({ task, avatars, onEdit, onDelete, onToggleDone, overlay = fal
           </span>
         )}
       </footer>
+      {fileOver && <div className="tw-card-file-overlay"><UploadCloud size={20} /><span>Solte para anexar</span></div>}
+      {uploading && <div className="tw-card-uploading"><LoaderCircle size={15} className="tw-spin" /> Enviando arquivo…</div>}
     </article>
   );
 }
 
-function KanbanColumn({ column, tasks, avatars, onEdit, onDelete, onToggleDone, onAdd }) {
+function KanbanColumn({ column, tasks, avatars, onEdit, onDelete, onToggleDone, onAttach, onRemoveAttachment, uploadingTarget, onAdd }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   const Icon = column.icon;
   return (
@@ -173,7 +261,7 @@ function KanbanColumn({ column, tasks, avatars, onEdit, onDelete, onToggleDone, 
         <span className="tw-column-count">{tasks.length}</span>
       </header>
       <div className="tw-column-body">
-        {tasks.map((task) => <TaskCard key={task.id} task={task} avatars={avatars} onEdit={onEdit} onDelete={onDelete} onToggleDone={onToggleDone} />)}
+        {tasks.map((task) => <TaskCard key={task.id} task={task} avatars={avatars} onEdit={onEdit} onDelete={onDelete} onToggleDone={onToggleDone} onAttach={onAttach} onRemoveAttachment={onRemoveAttachment} uploading={uploadingTarget === `task:${task.id}`} />)}
         {tasks.length === 0 && (
           <div className="tw-column-empty"><Check size={18} /><span>Solte uma tarefa aqui</span></div>
         )}
@@ -185,7 +273,7 @@ function KanbanColumn({ column, tasks, avatars, onEdit, onDelete, onToggleDone, 
   );
 }
 
-function TaskModal({ task, initialStatus, currentUser, onClose, onSave, onDelete, busy }) {
+function TaskModal({ task, initialStatus, currentUser, onClose, onSave, onDelete, onAttach, onRemoveAttachment, busy, uploading }) {
   const [form, setForm] = useState(() => ({
     title: task?.title || '',
     description: task?.description || '',
@@ -202,6 +290,10 @@ function TaskModal({ task, initialStatus, currentUser, onClose, onSave, onDelete
       <form
         className="tw-task-modal"
         onMouseDown={(event) => event.stopPropagation()}
+        onPaste={(event) => {
+          const files = eventFiles(event);
+          if (task && files.length) { event.preventDefault(); onAttach(task.id, files); }
+        }}
         onSubmit={(event) => { event.preventDefault(); if (form.title.trim()) onSave(form); }}
       >
         <header>
@@ -222,6 +314,15 @@ function TaskModal({ task, initialStatus, currentUser, onClose, onSave, onDelete
           <label className="tw-field"><span>Prioridade</span><select value={form.priority} onChange={(event) => update('priority', event.target.value)}><option value="low">Baixa</option><option value="normal">Normal</option><option value="high">Alta</option></select></label>
           <label className="tw-field"><span>Prazo</span><input type="date" value={form.due_date} onChange={(event) => update('due_date', event.target.value)} /></label>
         </div>
+        <div className="tw-modal-attachments">
+          <div className="tw-modal-section-title"><span>Anexos</span>{task && <em>Cole um print com Ctrl+V</em>}</div>
+          {task ? (
+            <>
+              <AttachmentGallery attachments={Array.isArray(task.attachments) ? task.attachments : []} onRemove={(file) => onRemoveAttachment(task.id, file)} />
+              <FileDropzone onFiles={(files) => onAttach(task.id, files)} uploading={uploading} compact />
+            </>
+          ) : <p>Crie a tarefa e depois arraste o arquivo diretamente sobre o card.</p>}
+        </div>
         <div className="tw-modal-meta">Criada por {task?.created_by || currentUser}</div>
         <footer>
           {task ? <button type="button" className="tw-delete-button" disabled={busy} onClick={() => onDelete(task)}><Trash2 size={15} /> Excluir</button> : <span />}
@@ -232,9 +333,11 @@ function TaskModal({ task, initialStatus, currentUser, onClose, onSave, onDelete
   );
 }
 
-function Notebook({ notes, activeId, setActiveId, draft, onDraftChange, onCreate, onDelete, saveState, avatars }) {
+function Notebook({ notes, activeId, setActiveId, draft, onDraftChange, onCreate, onDelete, onAttach, onRemoveAttachment, uploadingTarget, saveState, avatars }) {
   const active = notes.find((note) => note.id === activeId);
   const checklist = Array.isArray(draft.checklist) ? draft.checklist : [];
+  const attachments = Array.isArray(draft.attachments) ? draft.attachments : [];
+  const [fileOver, setFileOver] = useState(false);
   const updateChecklist = (id, patch) => onDraftChange({ ...draft, checklist: checklist.map((item) => item.id === id ? { ...item, ...patch } : item) });
   const addChecklistItem = () => onDraftChange({ ...draft, checklist: [...checklist, { id: createId(), text: '', done: false }] });
   const removeChecklistItem = (id) => onDraftChange({ ...draft, checklist: checklist.filter((item) => item.id !== id) });
@@ -261,7 +364,23 @@ function Notebook({ notes, activeId, setActiveId, draft, onDraftChange, onCreate
         </div>
       </aside>
 
-      <section className="tw-editor">
+      <section
+        className={`tw-editor ${fileOver ? 'file-over' : ''}`}
+        onPaste={(event) => {
+          const files = eventFiles(event);
+          if (active && files.length) { event.preventDefault(); onAttach(active.id, files); }
+        }}
+        onDragEnter={(event) => { if (active && event.dataTransfer?.types?.includes('Files')) { event.preventDefault(); setFileOver(true); } }}
+        onDragOver={(event) => { if (active && event.dataTransfer?.types?.includes('Files')) event.preventDefault(); }}
+        onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFileOver(false); }}
+        onDrop={(event) => {
+          const files = eventFiles(event);
+          if (!active || !files.length) return;
+          event.preventDefault();
+          setFileOver(false);
+          onAttach(active.id, files);
+        }}
+      >
         {active ? (
           <>
             <header className="tw-editor-topbar">
@@ -293,6 +412,11 @@ function Notebook({ notes, activeId, setActiveId, draft, onDraftChange, onCreate
                 </div>
                 <button type="button" className="tw-checklist-add" onClick={addChecklistItem}><Plus size={14} /> Adicionar item</button>
               </section>
+              <section className="tw-note-attachments" aria-label="Arquivos da anotação">
+                <div className="tw-checklist-head"><strong>Anexos</strong>{attachments.length > 0 && <span>{attachments.length} {attachments.length === 1 ? 'arquivo' : 'arquivos'}</span>}</div>
+                <AttachmentGallery attachments={attachments} onRemove={(file) => onRemoveAttachment(active.id, file)} />
+                <FileDropzone onFiles={(files) => onAttach(active.id, files)} uploading={uploadingTarget === `note:${active.id}`} />
+              </section>
             </div>
             <footer className="tw-editor-footer">
               <span><Wifi size={13} /> Quem estiver nesta página vê suas mudanças ao vivo</span>
@@ -302,6 +426,7 @@ function Notebook({ notes, activeId, setActiveId, draft, onDraftChange, onCreate
         ) : (
           <div className="tw-editor-placeholder"><div><BookOpenText size={30} /><h2>Um lugar para pensar</h2><p>Registre reuniões, decisões, ideias e tudo que você precisa lembrar.</p><button type="button" className="tw-primary-button" onClick={onCreate}><Plus size={15} /> Criar primeira nota</button></div></div>
         )}
+        {fileOver && <div className="tw-editor-file-overlay"><UploadCloud size={26} /><strong>Solte para guardar nesta anotação</strong></div>}
       </section>
     </div>
   );
@@ -312,7 +437,7 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
   const [tasks, setTasks] = useState([]);
   const [notes, setNotes] = useState([]);
   const [activeNoteId, setActiveNoteId] = useState(null);
-  const [draft, setDraft] = useState({ title: '', content: '', kind: 'day', checklist: [] });
+  const [draft, setDraft] = useState({ title: '', content: '', kind: 'day', checklist: [], attachments: [] });
   const [activeTask, setActiveTask] = useState(null);
   const [modal, setModal] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -323,6 +448,7 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
   const [onlineUsers, setOnlineUsers] = useState([currentUser]);
   const [onlineCount, setOnlineCount] = useState(1);
   const [remoteCursors, setRemoteCursors] = useState({});
+  const [uploadingTarget, setUploadingTarget] = useState('');
   const workspaceRef = useRef(null);
   const channelRef = useRef(null);
   const lastCursorSentRef = useRef(0);
@@ -406,9 +532,9 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
       })
       .on('broadcast', { event: 'note-draft' }, ({ payload }) => {
         if (!payload || payload.sessionId === sessionIdRef.current) return;
-        const incoming = { id: payload.id, title: payload.title, content: payload.content, kind: payload.kind, checklist: payload.checklist || [], updated_by: payload.updatedBy, updated_at: payload.updatedAt };
+        const incoming = { id: payload.id, title: payload.title, content: payload.content, kind: payload.kind, checklist: payload.checklist || [], attachments: payload.attachments || [], updated_by: payload.updatedBy, updated_at: payload.updatedAt };
         setNotes((rows) => upsertById(rows, incoming));
-        if (activeNoteIdRef.current === payload.id) setDraft({ title: payload.title, content: payload.content, kind: payload.kind, checklist: payload.checklist || [] });
+        if (activeNoteIdRef.current === payload.id) setDraft({ title: payload.title, content: payload.content, kind: payload.kind, checklist: payload.checklist || [], attachments: payload.attachments || [] });
       })
       .on('broadcast', { event: 'tasks-sync' }, ({ payload }) => {
         if (!payload || payload.sessionId === sessionIdRef.current || !Array.isArray(payload.tasks)) return;
@@ -464,7 +590,7 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
       if (Array.isArray(data.attachments)) {
         setNotes(data.attachments);
         const active = data.attachments.find((note) => note.id === activeNoteIdRef.current);
-        if (active) setDraft({ title: active.title || '', content: active.content || '', kind: active.kind || 'day', checklist: Array.isArray(active.checklist) ? active.checklist : [] });
+        if (active) setDraft({ title: active.title || '', content: active.content || '', kind: active.kind || 'day', checklist: Array.isArray(active.checklist) ? active.checklist : [], attachments: Array.isArray(active.attachments) ? active.attachments : [] });
       }
     }, 2500);
     return () => window.clearInterval(interval);
@@ -472,7 +598,7 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
 
   const selectedNote = notes.find((note) => note.id === activeNoteId);
   useEffect(() => {
-    if (selectedNote) setDraft({ title: selectedNote.title || '', content: selectedNote.content || '', kind: selectedNote.kind || 'day', checklist: Array.isArray(selectedNote.checklist) ? selectedNote.checklist : [] });
+    if (selectedNote) setDraft({ title: selectedNote.title || '', content: selectedNote.content || '', kind: selectedNote.kind || 'day', checklist: Array.isArray(selectedNote.checklist) ? selectedNote.checklist : [], attachments: Array.isArray(selectedNote.attachments) ? selectedNote.attachments : [] });
   }, [activeNoteId]);
 
   useEffect(() => () => clearTimeout(saveTimerRef.current), []);
@@ -482,6 +608,130 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
   const openNewTask = (status = 'todo') => setModal({ type: 'new', status });
   const openTask = (task) => setModal({ type: 'edit', task });
   const broadcastTasks = (nextTasks) => channelRef.current?.send({ type: 'broadcast', event: 'tasks-sync', payload: { tasks: nextTasks, sessionId: sessionIdRef.current } });
+  const broadcastNote = (note) => channelRef.current?.send({
+    type: 'broadcast',
+    event: 'note-draft',
+    payload: {
+      id: note.id,
+      title: note.title || '',
+      content: note.content || '',
+      kind: note.kind || 'day',
+      checklist: note.checklist || [],
+      attachments: note.attachments || [],
+      updatedBy: note.updated_by || currentUser,
+      updatedAt: note.updated_at || new Date().toISOString(),
+      sessionId: sessionIdRef.current
+    }
+  });
+
+  const attachFiles = async (recordType, recordId, incomingFiles) => {
+    const files = Array.from(incomingFiles || []);
+    if (!files.length || uploadingTarget) return;
+    setError('');
+    setUploadingTarget(`${recordType}:${recordId}`);
+    const added = [];
+    const failed = [];
+
+    for (const file of files) {
+      if (file.size > MAX_FILE_SIZE) { failed.push(`${file.name}: ultrapassa 25 MB`); continue; }
+      const path = `${TEAM_WORKSPACE_ROOT_ID}/team-workspace/${recordType}/${recordId}/${Date.now()}-${createId().slice(0, 8)}-${safeFileName(file.name)}`;
+      const { error: uploadError } = await client.storage.from(STORAGE_BUCKET).upload(path, file, { contentType: file.type || undefined, upsert: false });
+      if (uploadError) { failed.push(file.name); continue; }
+      const { data } = client.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+      added.push({ id: createId(), name: file.name, path, url: data.publicUrl, type: file.type || 'application/octet-stream', size: file.size, uploaded_by: currentUser, created_at: new Date().toISOString() });
+    }
+
+    if (added.length && recordType === 'task') {
+      const previous = tasksRef.current;
+      const current = previous.find((task) => task.id === recordId);
+      if (current) {
+        const nextTask = { ...current, attachments: [...(current.attachments || []), ...added], updated_at: new Date().toISOString() };
+        const nextTasks = upsertById(previous, nextTask);
+        setTasks(nextTasks);
+        setModal((value) => value?.task?.id === recordId ? { ...value, task: nextTask } : value);
+        broadcastTasks(nextTasks);
+        const saveError = await persistWorkspace(nextTasks, notesRef.current);
+        if (saveError) {
+          setTasks(previous);
+          setModal((value) => value?.task?.id === recordId ? { ...value, task: current } : value);
+          broadcastTasks(previous);
+          await client.storage.from(STORAGE_BUCKET).remove(added.map((file) => file.path));
+          failed.push('não foi possível salvar os anexos da tarefa');
+        }
+      }
+    }
+
+    if (added.length && recordType === 'note') {
+      clearTimeout(saveTimerRef.current);
+      const previous = notesRef.current;
+      const current = previous.find((note) => note.id === recordId);
+      if (current) {
+        const nextNote = { ...current, attachments: [...(current.attachments || []), ...added], updated_by: currentUser, updated_at: new Date().toISOString() };
+        const nextNotes = upsertById(previous, nextNote);
+        setNotes(nextNotes);
+        if (activeNoteIdRef.current === recordId) setDraft({ title: nextNote.title || '', content: nextNote.content || '', kind: nextNote.kind || 'day', checklist: nextNote.checklist || [], attachments: nextNote.attachments || [] });
+        broadcastNote(nextNote);
+        setSaveState('saving');
+        const saveError = await persistWorkspace(tasksRef.current, nextNotes);
+        setSaveState(saveError ? 'error' : 'saved');
+        if (saveError) {
+          setNotes(previous);
+          if (activeNoteIdRef.current === recordId) setDraft({ title: current.title || '', content: current.content || '', kind: current.kind || 'day', checklist: current.checklist || [], attachments: current.attachments || [] });
+          await client.storage.from(STORAGE_BUCKET).remove(added.map((file) => file.path));
+          failed.push('não foi possível salvar os anexos da anotação');
+        }
+      }
+    }
+
+    if (failed.length) setError(`Alguns arquivos não foram enviados: ${failed.join(', ')}.`);
+    setUploadingTarget('');
+  };
+
+  const removeAttachment = async (recordType, recordId, file) => {
+    setError('');
+    if (recordType === 'task') {
+      const previous = tasksRef.current;
+      const current = previous.find((task) => task.id === recordId);
+      if (!current) return;
+      const nextTask = { ...current, attachments: (current.attachments || []).filter((item) => item.id !== file.id), updated_at: new Date().toISOString() };
+      const nextTasks = upsertById(previous, nextTask);
+      setTasks(nextTasks);
+      setModal((value) => value?.task?.id === recordId ? { ...value, task: nextTask } : value);
+      broadcastTasks(nextTasks);
+      const saveError = await persistWorkspace(nextTasks, notesRef.current);
+      if (saveError) {
+        setTasks(previous);
+        setModal((value) => value?.task?.id === recordId ? { ...value, task: current } : value);
+        broadcastTasks(previous);
+        setError('Não consegui remover o anexo da tarefa.');
+        return;
+      }
+    } else {
+      clearTimeout(saveTimerRef.current);
+      const previous = notesRef.current;
+      const current = previous.find((note) => note.id === recordId);
+      if (!current) return;
+      const nextNote = { ...current, attachments: (current.attachments || []).filter((item) => item.id !== file.id), updated_by: currentUser, updated_at: new Date().toISOString() };
+      const nextNotes = upsertById(previous, nextNote);
+      setNotes(nextNotes);
+      if (activeNoteIdRef.current === recordId) setDraft({ title: nextNote.title || '', content: nextNote.content || '', kind: nextNote.kind || 'day', checklist: nextNote.checklist || [], attachments: nextNote.attachments || [] });
+      broadcastNote(nextNote);
+      setSaveState('saving');
+      const saveError = await persistWorkspace(tasksRef.current, nextNotes);
+      setSaveState(saveError ? 'error' : 'saved');
+      if (saveError) {
+        setNotes(previous);
+        if (activeNoteIdRef.current === recordId) setDraft({ title: current.title || '', content: current.content || '', kind: current.kind || 'day', checklist: current.checklist || [], attachments: current.attachments || [] });
+        broadcastNote(current);
+        setError('Não consegui remover o anexo da anotação.');
+        return;
+      }
+    }
+    if (file.path) {
+      const { error: storageError } = await client.storage.from(STORAGE_BUCKET).remove([file.path]);
+      if (storageError) setError('O anexo saiu da tela, mas não foi possível removê-lo do armazenamento agora.');
+    }
+  };
 
   const saveTask = async (form) => {
     setBusy(true);
@@ -510,7 +760,11 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
     broadcastTasks(nextTasks);
     const deleteError = await persistWorkspace(nextTasks, notesRef.current);
     if (deleteError) { setTasks(previous); broadcastTasks(previous); setError('Não consegui excluir essa tarefa.'); }
-    else setModal(null);
+    else {
+      const paths = (task.attachments || []).map((file) => file.path).filter(Boolean);
+      if (paths.length) await client.storage.from(STORAGE_BUCKET).remove(paths);
+      setModal(null);
+    }
     setBusy(false);
   };
 
@@ -530,7 +784,7 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
   const createNote = async () => {
     setError('');
     const now = new Date().toISOString();
-    const note = { id: createId(), title: 'Nova anotação', content: '', kind: 'day', checklist: [], created_by: currentUser, updated_by: currentUser, created_at: now, updated_at: now };
+    const note = { id: createId(), title: 'Nova anotação', content: '', kind: 'day', checklist: [], attachments: [], created_by: currentUser, updated_by: currentUser, created_at: now, updated_at: now };
     const previous = notesRef.current;
     const nextNotes = upsertById(previous, note);
     setNotes(nextNotes);
@@ -565,6 +819,8 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
     const deleteError = await persistWorkspace(tasksRef.current, remaining);
     if (deleteError) { setNotes(previous); setActiveNoteId(note.id); setError('Não consegui excluir a anotação.'); }
     else {
+      const paths = (note.attachments || []).map((file) => file.path).filter(Boolean);
+      if (paths.length) await client.storage.from(STORAGE_BUCKET).remove(paths);
       setSaveState('saved');
     }
   };
@@ -632,16 +888,16 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
         <div className="tw-loading"><span /><p>Preparando o espaço compartilhado…</p></div>
       ) : section === 'kanban' ? (
         <DndContext sensors={sensors} onDragStart={({ active }) => setActiveTask(tasks.find((task) => task.id === active.id) || null)} onDragCancel={() => setActiveTask(null)} onDragEnd={({ active, over }) => { const task = tasks.find((item) => item.id === active.id); setActiveTask(null); if (task && over && STATUSES.some((status) => status.id === over.id)) moveTask(task, String(over.id)); }}>
-          <div className="tw-board">{STATUSES.map((column) => <KanbanColumn key={column.id} column={column} tasks={grouped[column.id]} avatars={avatars} onEdit={openTask} onDelete={deleteTask} onToggleDone={toggleTaskDone} onAdd={openNewTask} />)}</div>
+          <div className="tw-board">{STATUSES.map((column) => <KanbanColumn key={column.id} column={column} tasks={grouped[column.id]} avatars={avatars} onEdit={openTask} onDelete={deleteTask} onToggleDone={toggleTaskDone} onAttach={(taskId, files) => attachFiles('task', taskId, files)} onRemoveAttachment={(taskId, file) => removeAttachment('task', taskId, file)} uploadingTarget={uploadingTarget} onAdd={openNewTask} />)}</div>
           <DragOverlay>{activeTask ? <TaskCard task={activeTask} avatars={avatars} overlay /> : null}</DragOverlay>
         </DndContext>
       ) : (
-        <Notebook notes={notes} activeId={activeNoteId} setActiveId={setActiveNoteId} draft={draft} onDraftChange={changeDraft} onCreate={createNote} onDelete={deleteNote} saveState={saveState} avatars={avatars} />
+        <Notebook notes={notes} activeId={activeNoteId} setActiveId={setActiveNoteId} draft={draft} onDraftChange={changeDraft} onCreate={createNote} onDelete={deleteNote} onAttach={(noteId, files) => attachFiles('note', noteId, files)} onRemoveAttachment={(noteId, file) => removeAttachment('note', noteId, file)} uploadingTarget={uploadingTarget} saveState={saveState} avatars={avatars} />
       )}
 
-      {modal && <TaskModal task={modal.task} initialStatus={modal.status} currentUser={currentUser} onClose={() => setModal(null)} onSave={saveTask} onDelete={deleteTask} busy={busy} />}
+      {modal && <TaskModal task={modal.task} initialStatus={modal.status} currentUser={currentUser} onClose={() => setModal(null)} onSave={saveTask} onDelete={deleteTask} onAttach={(taskId, files) => attachFiles('task', taskId, files)} onRemoveAttachment={(taskId, file) => removeAttachment('task', taskId, file)} busy={busy} uploading={uploadingTarget === `task:${modal.task?.id}`} />}
     </div>
   );
 }
 
-export { STATUSES, NOTE_KINDS, upsertById };
+export { STATUSES, NOTE_KINDS, formatFileSize, safeFileName, upsertById };

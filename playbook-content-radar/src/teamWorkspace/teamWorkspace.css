@@ -206,6 +206,8 @@
 .tw-task-card h3 { flex: 1; margin: 0; color: #20293a; font-size: 13px; font-weight: 760; line-height: 1.35; }
 .tw-task-card.completed h3 { color: #7c8594; text-decoration: line-through; }
 .tw-task-card > p { display: -webkit-box; overflow: hidden; -webkit-line-clamp: 2; -webkit-box-orient: vertical; margin: 6px 0 0; color: #778194; font-size: 10.5px; line-height: 1.45; }
+.tw-card-file-overlay { position: absolute; z-index: 25; inset: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; color: #2948ae; background: rgba(239,243,255,.96); border: 1.5px dashed #8195dc; border-radius: 9px; font-size: 10px; font-weight: 800; pointer-events: none; }
+.tw-card-uploading { position: absolute; z-index: 24; right: 8px; bottom: 8px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; color: #2948ae; background: #eef2ff; border: 1px solid #d5defb; border-radius: 7px; box-shadow: 0 3px 10px rgba(41,72,174,.13); font-size: 9px; font-weight: 800; }
 .tw-task-card footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; padding-top: 8px; border-top: 1px solid #f0f1f4; }
 .tw-card-person { display: flex; align-items: center; gap: 6px; min-width: 0; color: #687287; font-size: 9.5px; font-weight: 700; }
 .tw-due { display: inline-flex; align-items: center; gap: 4px; color: #788195; font-size: 9.5px; font-weight: 700; }
@@ -216,6 +218,7 @@
 
 .tw-loading { min-height: 400px; display: grid; place-items: center; align-content: center; gap: 10px; color: #7a8497; font-size: 12px; }
 .tw-loading span { width: 24px; height: 24px; border: 2px solid #d8deed; border-top-color: var(--tw-blue); border-radius: 50%; animation: tw-spin .8s linear infinite; }
+.tw-spin { animation: tw-spin .8s linear infinite; }
 @keyframes tw-spin { to { transform: rotate(360deg); } }
 
 .tw-notebook {
@@ -252,7 +255,7 @@
 .tw-notes-empty strong { margin-top: 10px; color: #596477; font-size: 12px; }
 .tw-notes-empty span { margin-top: 5px; font-size: 10px; line-height: 1.45; }
 
-.tw-editor { display: flex; flex-direction: column; min-width: 0; background: #fff; }
+.tw-editor { position: relative; display: flex; flex-direction: column; min-width: 0; background: #fff; }
 .tw-editor-topbar { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 8px 13px; border-bottom: 1px solid #eceef1; }
 .tw-kind-picker { display: flex; gap: 4px; }
 .tw-kind-picker button { display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; color: #7b8495; background: transparent; border: 0; border-radius: 7px; font-size: 9.5px; font-weight: 700; cursor: pointer; }
@@ -285,6 +288,9 @@
 .tw-checklist-remove:hover { color: #be344b; background: #fff0f2; }
 .tw-checklist-add { display: inline-flex; align-items: center; gap: 6px; margin-top: 5px; padding: 6px 4px; color: #657289; background: transparent; border: 0; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer; }
 .tw-checklist-add:hover { color: #2948ae; }
+.tw-note-attachments { margin-top: 12px; padding-top: 14px; border-top: 1px solid #eceef2; }
+.tw-editor-file-overlay { position: absolute; z-index: 30; inset: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #2948ae; background: rgba(244,247,255,.96); border: 2px dashed #8195dc; border-radius: 12px; pointer-events: none; }
+.tw-editor-file-overlay strong { font-size: 12px; }
 .tw-editor-footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 10px 15px; color: #939baa; border-top: 1px solid #eceef1; font-size: 9px; }
 .tw-editor-footer > span { display: flex; align-items: center; gap: 5px; }
 .tw-note-delete { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; color: #a16a72; background: transparent; border: 0; border-radius: 6px; font-size: 9px; cursor: pointer; }
@@ -298,6 +304,38 @@
 .tw-remote-cursor { position: absolute; display: flex; align-items: flex-start; transform: translate(-3px, -2px); transition: left 45ms linear, top 45ms linear; }
 .tw-remote-cursor svg { width: 21px; height: 21px; overflow: visible; fill: #7c3aed; stroke: white; stroke-width: 1.2px; filter: drop-shadow(0 2px 3px rgba(33,22,69,.22)); }
 .tw-remote-cursor span { margin: 15px 0 0 -2px; padding: 3px 6px; color: white; background: #7c3aed; border-radius: 3px 7px 7px 7px; box-shadow: 0 3px 9px rgba(33,22,69,.15); font-size: 9px; font-weight: 800; white-space: nowrap; }
+
+.tw-attachments { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 7px; margin: 7px 0 9px; }
+.tw-attachment { position: relative; min-width: 0; overflow: hidden; background: #f8f9fb; border: 1px solid #e2e6ec; border-radius: 9px; }
+.tw-attachment > a { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 50px; padding: 5px; color: inherit; text-decoration: none; }
+.tw-attachment > a:hover { background: #f2f5fb; }
+.tw-attachment img { flex: 0 0 auto; width: 42px; height: 42px; object-fit: cover; background: #e8ebf0; border-radius: 6px; }
+.tw-file-icon { display: grid; flex: 0 0 auto; place-items: center; width: 42px; height: 42px; color: #526585; background: #e9edf4; border-radius: 6px; }
+.tw-attachment-copy { min-width: 0; padding-right: 18px; }
+.tw-attachment-copy strong,
+.tw-attachment-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-attachment-copy strong { color: #3c485c; font-size: 9.5px; }
+.tw-attachment-copy small { margin-top: 3px; color: #949caa; font-size: 8.5px; }
+.tw-attachment > button { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 21px; height: 21px; padding: 0; color: #8791a2; background: rgba(255,255,255,.9); border: 0; border-radius: 5px; opacity: 0; cursor: pointer; }
+.tw-attachment:hover > button,
+.tw-attachment > button:focus-visible { opacity: 1; }
+.tw-attachment > button:hover { color: #be344b; background: #fff0f2; }
+.tw-attachments.compact { display: flex; gap: 5px; margin: 8px 0 0; }
+.tw-attachments.compact .tw-attachment { flex: 0 0 auto; width: 42px; height: 42px; border-radius: 7px; }
+.tw-attachments.compact .tw-attachment > a { width: 100%; min-height: 0; height: 100%; padding: 3px; }
+.tw-attachments.compact .tw-attachment img,
+.tw-attachments.compact .tw-file-icon { width: 34px; height: 34px; }
+.tw-attachments.compact .tw-attachment-copy { display: none; }
+.tw-attachments.compact .tw-attachment > button { top: 1px; right: 1px; width: 18px; height: 18px; }
+.tw-attachment-more { display: grid; place-items: center; width: 42px; height: 42px; color: #667289; background: #f0f2f5; border: 1px solid #e1e5eb; border-radius: 7px; font-size: 9px; font-weight: 800; }
+.tw-file-dropzone { margin-top: 8px; border: 1px dashed #cbd3df; border-radius: 9px; transition: border-color .16s, background .16s; }
+.tw-file-dropzone.over { background: #f1f4ff; border-color: #7188d4; }
+.tw-file-dropzone > button { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; width: 100%; min-height: 64px; padding: 9px; color: #68758b; background: transparent; border: 0; cursor: pointer; }
+.tw-file-dropzone > button:hover { color: #2948ae; }
+.tw-file-dropzone > button:disabled { opacity: .6; cursor: wait; }
+.tw-file-dropzone > button span { font-size: 10px; font-weight: 750; }
+.tw-file-dropzone > button small { flex-basis: 100%; color: #99a1ae; font-size: 8.5px; }
+.tw-file-dropzone.compact > button { justify-content: flex-start; min-height: 34px; padding: 7px 9px; }
 
 .tw-modal-backdrop { position: fixed; inset: 0; z-index: 4000; display: grid; place-items: center; padding: 18px; background: rgba(17,24,39,.38); backdrop-filter: blur(4px); }
 .tw-task-modal { width: min(610px, 100%); max-height: calc(100vh - 36px); overflow-y: auto; padding: 21px; background: white; border: 1px solid rgba(255,255,255,.5); border-radius: 17px; box-shadow: 0 28px 70px rgba(17,24,39,.24); }
@@ -314,6 +352,11 @@
 .tw-field input:focus,
 .tw-field textarea:focus,
 .tw-field select:focus { border-color: #8da1e1; box-shadow: 0 0 0 3px rgba(49,87,213,.09); }
+.tw-modal-attachments { margin: 0 0 14px; padding: 11px; background: #fafbfc; border: 1px solid #e5e8ed; border-radius: 10px; }
+.tw-modal-section-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tw-modal-section-title span { color: #5f6879; font-size: 10px; font-weight: 750; }
+.tw-modal-section-title em { color: #959daa; font-size: 8.5px; font-style: normal; }
+.tw-modal-attachments > p { margin: 7px 0 0; color: #8b94a3; font-size: 9.5px; }
 .tw-modal-meta { margin: -2px 0 18px; color: #949ba8; font-size: 9px; }
 .tw-task-modal > footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding-top: 15px; border-top: 1px solid #eceef1; }
 .tw-task-modal > footer > div { display: flex; gap: 8px; }
@@ -353,5 +396,7 @@
   .tw-task-modal > footer { align-items: stretch; flex-direction: column-reverse; }
   .tw-task-modal > footer > div { display: grid; grid-template-columns: 1fr 1fr; }
   .tw-delete-button { width: 100%; }
-  .tw-checklist-remove { opacity: 1; }
+  .tw-checklist-remove,
+  .tw-attachment > button { opacity: 1; }
+  .tw-attachments { grid-template-columns: 1fr; }
 }
