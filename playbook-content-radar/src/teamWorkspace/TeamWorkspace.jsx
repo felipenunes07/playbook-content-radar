@@ -97,7 +97,7 @@ function AttachmentGallery({ attachments = [], onRemove, compact = false }) {
   );
 }
 
-function FileDropzone({ onFiles, uploading, compact = false }) {
+function FileDropzone({ onFiles, uploading, compact = false, label, hint }) {
   const inputRef = useRef(null);
   const [over, setOver] = useState(false);
   const receive = (event) => {
@@ -115,8 +115,9 @@ function FileDropzone({ onFiles, uploading, compact = false }) {
     >
       <input ref={inputRef} type="file" multiple hidden onChange={receive} />
       <button type="button" disabled={uploading} onClick={() => inputRef.current?.click()}>
-        {uploading ? <LoaderCircle size={16} className="tw-spin" /> : <UploadCloud size={16} />}
-        <span>{uploading ? 'Enviando…' : compact ? 'Anexar arquivo' : 'Solte arquivos ou prints aqui'}</span>
+        {uploading ? <LoaderCircle size={16} className="tw-spin" /> : compact ? <Paperclip size={15} /> : <UploadCloud size={16} />}
+        <span>{uploading ? 'Enviando…' : label || (compact ? 'Anexar arquivo' : 'Solte arquivos ou prints aqui')}</span>
+        {compact && hint && !uploading && <small>{hint}</small>}
         {!compact && <small>ou clique para escolher · até 25 MB</small>}
       </button>
     </div>
@@ -479,10 +480,10 @@ function Notebook({ notes, activeId, setActiveId, draft, onDraftChange, onCreate
                 </div>
                 <button type="button" className="tw-checklist-add" onClick={addChecklistItem}><Plus size={14} /> Adicionar item</button>
               </section>
-              <section className="tw-note-attachments" aria-label="Arquivos da anotação">
-                <div className="tw-checklist-head"><strong>Anexos</strong>{attachments.length > 0 && <span>{attachments.length} {attachments.length === 1 ? 'arquivo' : 'arquivos'}</span>}</div>
+              <section className={`tw-note-attachments ${attachments.length ? 'has-files' : ''}`} aria-label="Arquivos da anotação">
+                <div className="tw-checklist-head"><strong><Paperclip size={13} /> Arquivos</strong>{attachments.length > 0 && <span>{attachments.length} {attachments.length === 1 ? 'arquivo' : 'arquivos'}</span>}</div>
                 <AttachmentGallery attachments={attachments} onRemove={(file) => onRemoveAttachment(active.id, file)} />
-                <FileDropzone onFiles={(files) => onAttach(active.id, files)} uploading={uploadingTarget === `note:${active.id}`} />
+                <FileDropzone onFiles={(files) => onAttach(active.id, files)} uploading={uploadingTarget === `note:${active.id}`} compact label={attachments.length ? 'Adicionar outro' : 'Anexar arquivo ou print'} hint="arraste ou cole aqui" />
               </section>
             </div>
             <footer className="tw-editor-footer">
