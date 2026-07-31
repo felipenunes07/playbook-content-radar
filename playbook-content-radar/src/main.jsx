@@ -6,7 +6,7 @@ import {
   Search, Download, Trash2, AlertCircle, MessageSquare, FileText,
   CheckCircle2, XCircle, AlertTriangle, ArrowLeft, Archive,
   ThumbsUp, ThumbsDown, Lightbulb, MoreHorizontal, Calendar,
-  TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock, Users, Target
+  TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock, Users, Target, ListTodo
 } from 'lucide-react';
 import './styles.css';
 import { createClient } from '@supabase/supabase-js';
@@ -25,6 +25,7 @@ const ContentMetricsWorkspace = React.lazy(() => import('./contentMetrics/Conten
 const NotionDevelopmentBoard = React.lazy(() => import('./notionDevelopment/NotionDevelopmentBoard.jsx'));
 const IdeaProductionWorkspace = React.lazy(() => import('./production/IdeaProductionWorkspace.jsx'));
 const CollaborativeStudioModal = React.lazy(() => import('./production/CollaborativeStudioModal.jsx'));
+const TeamWorkspace = React.lazy(() => import('./teamWorkspace/TeamWorkspace.jsx'));
 
 // Custom Linkedin logo component for brand header
 const LinkedinIcon = ({ size = 24, ...props }) => (
@@ -115,6 +116,7 @@ const SendIcon = ({ size = 18, ...props }) => (
 );
 
 const STORAGE_KEY = 'playbook-content-radar-v3';
+const TEAM_WORKSPACE_ROOT_ID = 'team-workspace-root';
 
 // Avatares dos curadores agora vêm de arquivos locais (src/assets), e não mais de
 // URLs assinadas do LinkedIn (media.licdn.com), que expiram a cada ~30 dias e
@@ -812,8 +814,11 @@ function App() {
 
       if (votesErr) throw votesErr;
 
+      // O registro abaixo sustenta a área de tarefas/notas e não é uma pauta de conteúdo.
+      const visibleDbIdeas = (dbIdeas || []).filter((item) => item.id !== TEAM_WORKSPACE_ROOT_ID);
+
       // Seed Supabase with starter ideas if it's empty
-      if (!dbIdeas || dbIdeas.length === 0) {
+      if (visibleDbIdeas.length === 0) {
         const formattedSeed = seedIdeas.map(idea => ({
           id: idea.id,
           title: idea.title,
@@ -847,13 +852,13 @@ function App() {
             .from('ideas')
             .select('*')
             .order('created_at', { ascending: false });
-          setState({ ideas: freshIdeas || [], votes: [] });
+          setState({ ideas: (freshIdeas || []).filter((item) => item.id !== TEAM_WORKSPACE_ROOT_ID), votes: [] });
           return;
         }
       }
 
       // Map postgres snake_case to camelCase variables
-      const mappedIdeas = (dbIdeas || []).map(item => ({
+      const mappedIdeas = visibleDbIdeas.map(item => ({
         id: item.id,
         createdAt: item.created_at,
         title: item.title,
@@ -1166,6 +1171,12 @@ function App() {
                   <BarChart3 size={16} /> Dashboard
                 </button>
                 <button
+                  className={view === 'team-workspace' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('team-workspace')}
+                >
+                  <ListTodo size={16} /> Tarefas & Notas
+                </button>
+                <button
                   className={view === 'metrics' ? 'nav-link active' : 'nav-link'}
                   onClick={() => openMetrics(metricsSection)}
                 >
@@ -1409,6 +1420,11 @@ function App() {
               addToast={addToast}
             />
           )}
+          {view === 'team-workspace' && user === 'Felipe' && (
+            <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Abrindo tarefas e anotações…</div>}>
+              <TeamWorkspace client={supabase} currentUser={user} avatars={USER_AVATARS} />
+            </React.Suspense>
+          )}
           {view === 'data' && user === 'Felipe' && (
             <DataExportView state={state} ideas={enrichedIdeas} addToast={addToast} />
           )}
@@ -1524,6 +1540,15 @@ function App() {
               >
                 <BarChart3 size={18} />
                 <span>Dashboard</span>
+              </button>
+
+              <button
+                type="button"
+                className={view === 'team-workspace' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => leaveMetrics('team-workspace')}
+              >
+                <ListTodo size={18} />
+                <span>Tarefas</span>
               </button>
 
               <button
