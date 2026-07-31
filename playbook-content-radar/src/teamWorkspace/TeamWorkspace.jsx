@@ -20,6 +20,7 @@ import {
   FileText,
   LayoutDashboard,
   Lightbulb,
+  ListTodo,
   LoaderCircle,
   MoreHorizontal,
   Paperclip,
@@ -136,6 +137,72 @@ function relativeTime(value) {
   if (seconds < 3600) return `há ${Math.floor(seconds / 60)} min`;
   if (seconds < 86400) return `há ${Math.floor(seconds / 3600)} h`;
   return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(value));
+}
+
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function DailyChecklist({ items, onAdd, onToggle, onChange, onDelete, saveState, inputRef }) {
+  const [newItem, setNewItem] = useState('');
+  const ordered = [...items].sort((a, b) => Number(a.done) - Number(b.done) || Number(a.position) - Number(b.position));
+  const completed = items.filter((item) => item.done).length;
+  const dateText = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date());
+  const add = () => {
+    const text = newItem.trim();
+    if (!text) return;
+    onAdd(text);
+    setNewItem('');
+  };
+
+  return (
+    <section className="tw-daily">
+      <header className="tw-daily-header">
+        <div>
+          <span className="tw-eyebrow">{dateText}</span>
+          <h2>O que vou fazer hoje</h2>
+          <p>Uma lista rápida para manter o foco durante o dia.</p>
+        </div>
+        <div className="tw-daily-summary">
+          <strong>{completed}/{items.length}</strong>
+          <span>concluídas</span>
+        </div>
+      </header>
+
+      <form className="tw-daily-add" onSubmit={(event) => { event.preventDefault(); add(); }}>
+        <span className="tw-daily-empty-check" aria-hidden="true" />
+        <input ref={inputRef} id="tw-daily-new" autoFocus value={newItem} onChange={(event) => setNewItem(event.target.value)} placeholder="Adicionar algo para fazer hoje…" aria-label="Nova tarefa do dia" maxLength={240} />
+        <button type="submit" disabled={!newItem.trim()}><Plus size={15} /> Adicionar</button>
+      </form>
+
+      {items.length > 0 && <div className="tw-daily-progress" role="progressbar" aria-label="Progresso das tarefas do dia" aria-valuemin="0" aria-valuemax={items.length} aria-valuenow={completed}><span style={{ width: `${Math.round((completed / items.length) * 100)}%` }} /></div>}
+
+      <div className="tw-daily-list">
+        {ordered.map((item) => (
+          <div key={item.id} className={`tw-daily-item ${item.done ? 'done' : ''}`}>
+            <button type="button" className={`tw-note-check ${item.done ? 'checked' : ''}`} aria-label={item.done ? `Reabrir ${item.text}` : `Concluir ${item.text}`} onClick={() => onToggle(item)}>{item.done && <Check size={13} strokeWidth={3} />}</button>
+            <input value={item.text} onChange={(event) => onChange(item, event.target.value)} aria-label="Tarefa do dia" maxLength={240} />
+            <button type="button" className="tw-daily-delete" aria-label={`Excluir ${item.text || 'item'}`} onClick={() => onDelete(item)}><Trash2 size={14} /></button>
+          </div>
+        ))}
+        {items.length === 0 && (
+          <div className="tw-daily-empty">
+            <span className="tw-daily-empty-check" />
+            <strong>Seu dia começa em branco</strong>
+            <p>Adicione a primeira coisa que você precisa fazer hoje.</p>
+          </div>
+        )}
+      </div>
+
+      <footer className="tw-daily-footer">
+        <span><Wifi size={13} /> A lista também é atualizada ao vivo</span>
+        <div className={`tw-save-state ${saveState}`}><span className="tw-save-dot" />{saveState === 'saving' ? 'Salvando…' : saveState === 'error' ? 'Erro ao salvar' : 'Salvo'}</div>
+      </footer>
+    </section>
+  );
 }
 
 function UserAvatar({ name, avatars, size = 28 }) {
@@ -436,6 +503,7 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
   const [section, setSection] = useState('kanban');
   const [tasks, setTasks] = useState([]);
   const [notes, setNotes] = useState([]);
+  const [dailyItems, setDailyItems] = useState([]);
   const [activeNoteId, setActiveNoteId] = useState(null);
   const [draft, setDraft] = useState({ title: '', content: '', kind: 'day', checklist: [], attachments: [] });
   const [activeTask, setActiveTask] = useState(null);
@@ -444,6 +512,7 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saveState, setSaveState] = useState('saved');
+  const [dailySaveState, setDailySaveState] = useState('saved');
   const [connection, setConnection] = useState('connecting');
   const [onlineUsers, setOnlineUsers] = useState([currentUser]);
   const [onlineCount, setOnlineCount] = useState(1);
@@ -453,10 +522,14 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
   const channelRef = useRef(null);
   const lastCursorSentRef = useRef(0);
   const saveTimerRef = useRef(null);
+  const dailySaveTimerRef = useRef(null);
+  const dailyInputRef = useRef(null);
   const activeNoteIdRef = useRef(null);
   const tasksRef = useRef([]);
   const notesRef = useRef([]);
+  const dailyItemsRef = useRef([]);
   const saveStateRef = useRef('saved');
+  const dailySaveStateRef = useRef('saved');
   const lastRemoteUpdateRef = useRef('');
   const sessionIdRef = useRef(`${currentUser}-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }));
@@ -464,12 +537,14 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
   activeNoteIdRef.current = activeNoteId;
   tasksRef.current = tasks;
   notesRef.current = notes;
+  dailyItemsRef.current = dailyItems;
   saveStateRef.current = saveState;
+  dailySaveStateRef.current = dailySaveState;
 
-  const persistWorkspace = async (nextTasks = tasksRef.current, nextNotes = notesRef.current) => {
+  const persistWorkspace = async (nextTasks = tasksRef.current, nextNotes = notesRef.current, nextDailyItems = dailyItemsRef.current) => {
     const { error: persistError } = await client
       .from('idea_development_workspaces')
-      .update({ copy_variants: nextTasks, attachments: nextNotes, updated_by: currentUser, updated_at: new Date().toISOString() })
+      .update({ copy_variants: nextTasks, attachments: nextNotes, canvas_blocks: nextDailyItems, updated_by: currentUser, updated_at: new Date().toISOString() })
       .eq('idea_id', TEAM_WORKSPACE_ROOT_ID);
     return persistError;
   };
@@ -479,7 +554,7 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
     setError('');
     let result = await client
       .from('idea_development_workspaces')
-      .select('copy_variants, attachments, updated_at')
+      .select('copy_variants, attachments, canvas_blocks, updated_at')
       .eq('idea_id', TEAM_WORKSPACE_ROOT_ID)
       .maybeSingle();
 
@@ -504,7 +579,7 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
       const { error: ideaError } = await client.from('ideas').upsert(rootIdea, { onConflict: 'id' });
       if (!ideaError) {
         await client.from('idea_development_workspaces').insert({ idea_id: TEAM_WORKSPACE_ROOT_ID, copy_variants: [], attachments: [], canvas_blocks: [], feedback: [], updated_by: currentUser });
-        result = await client.from('idea_development_workspaces').select('copy_variants, attachments, updated_at').eq('idea_id', TEAM_WORKSPACE_ROOT_ID).maybeSingle();
+        result = await client.from('idea_development_workspaces').select('copy_variants, attachments, canvas_blocks, updated_at').eq('idea_id', TEAM_WORKSPACE_ROOT_ID).maybeSingle();
       } else result = { data: null, error: ideaError };
     }
 
@@ -512,8 +587,10 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
     else {
       const loadedTasks = Array.isArray(result.data.copy_variants) ? result.data.copy_variants : [];
       const loadedNotes = Array.isArray(result.data.attachments) ? result.data.attachments : [];
+      const loadedDailyItems = Array.isArray(result.data.canvas_blocks) ? result.data.canvas_blocks : [];
       setTasks(loadedTasks);
       setNotes(loadedNotes);
+      setDailyItems(loadedDailyItems);
       lastRemoteUpdateRef.current = result.data.updated_at || '';
       setActiveNoteId((current) => current || loadedNotes[0]?.id || null);
     }
@@ -529,6 +606,7 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
         lastRemoteUpdateRef.current = next.updated_at || '';
         if (Array.isArray(next.copy_variants)) setTasks(next.copy_variants);
         if (Array.isArray(next.attachments)) setNotes(next.attachments);
+        if (Array.isArray(next.canvas_blocks) && dailySaveStateRef.current !== 'saving') setDailyItems(next.canvas_blocks);
       })
       .on('broadcast', { event: 'note-draft' }, ({ payload }) => {
         if (!payload || payload.sessionId === sessionIdRef.current) return;
@@ -539,6 +617,10 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
       .on('broadcast', { event: 'tasks-sync' }, ({ payload }) => {
         if (!payload || payload.sessionId === sessionIdRef.current || !Array.isArray(payload.tasks)) return;
         setTasks(payload.tasks);
+      })
+      .on('broadcast', { event: 'daily-sync' }, ({ payload }) => {
+        if (!payload || payload.sessionId === sessionIdRef.current || !Array.isArray(payload.items)) return;
+        setDailyItems(payload.items);
       })
       .on('broadcast', { event: 'cursor-move' }, ({ payload }) => {
         if (!payload || payload.sessionId === sessionIdRef.current) return;
@@ -578,15 +660,16 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
   // as telas próximas em sincronia sem exigir refresh manual.
   useEffect(() => {
     const interval = window.setInterval(async () => {
-      if (saveStateRef.current === 'saving') return;
+      if (saveStateRef.current === 'saving' || dailySaveStateRef.current === 'saving') return;
       const { data } = await client
         .from('idea_development_workspaces')
-        .select('copy_variants, attachments, updated_at')
+        .select('copy_variants, attachments, canvas_blocks, updated_at')
         .eq('idea_id', TEAM_WORKSPACE_ROOT_ID)
         .maybeSingle();
       if (!data || !data.updated_at || data.updated_at === lastRemoteUpdateRef.current) return;
       lastRemoteUpdateRef.current = data.updated_at;
       if (Array.isArray(data.copy_variants)) setTasks(data.copy_variants);
+      if (Array.isArray(data.canvas_blocks)) setDailyItems(data.canvas_blocks);
       if (Array.isArray(data.attachments)) {
         setNotes(data.attachments);
         const active = data.attachments.find((note) => note.id === activeNoteIdRef.current);
@@ -601,7 +684,7 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
     if (selectedNote) setDraft({ title: selectedNote.title || '', content: selectedNote.content || '', kind: selectedNote.kind || 'day', checklist: Array.isArray(selectedNote.checklist) ? selectedNote.checklist : [], attachments: Array.isArray(selectedNote.attachments) ? selectedNote.attachments : [] });
   }, [activeNoteId]);
 
-  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
+  useEffect(() => () => { clearTimeout(saveTimerRef.current); clearTimeout(dailySaveTimerRef.current); }, []);
 
   const grouped = useMemo(() => Object.fromEntries(STATUSES.map((status) => [status.id, tasks.filter((task) => task.status === status.id).sort((a, b) => Number(b.position) - Number(a.position))])), [tasks]);
 
@@ -623,6 +706,38 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
       sessionId: sessionIdRef.current
     }
   });
+  const broadcastDaily = (items) => channelRef.current?.send({ type: 'broadcast', event: 'daily-sync', payload: { items, sessionId: sessionIdRef.current } });
+
+  const saveDailyItems = async (nextItems, debounce = false) => {
+    const previous = dailyItemsRef.current;
+    setDailyItems(nextItems);
+    broadcastDaily(nextItems);
+    setDailySaveState('saving');
+    clearTimeout(dailySaveTimerRef.current);
+
+    const persist = async () => {
+      const saveError = await persistWorkspace(tasksRef.current, notesRef.current, nextItems);
+      if (saveError) {
+        setDailyItems(previous);
+        broadcastDaily(previous);
+        setDailySaveState('error');
+        setError('Não consegui salvar sua lista de hoje.');
+      } else setDailySaveState('saved');
+    };
+
+    if (debounce) dailySaveTimerRef.current = window.setTimeout(persist, 500);
+    else await persist();
+  };
+
+  const addDailyItem = (text) => {
+    const now = new Date().toISOString();
+    const item = { id: createId(), text, done: false, day: localDateKey(), position: Date.now(), created_by: currentUser, created_at: now, updated_at: now };
+    saveDailyItems([...dailyItemsRef.current, item]);
+  };
+
+  const toggleDailyItem = (item) => saveDailyItems(dailyItemsRef.current.map((row) => row.id === item.id ? { ...row, done: !row.done, updated_at: new Date().toISOString() } : row));
+  const changeDailyItem = (item, text) => saveDailyItems(dailyItemsRef.current.map((row) => row.id === item.id ? { ...row, text, updated_at: new Date().toISOString() } : row), true);
+  const deleteDailyItem = (item) => saveDailyItems(dailyItemsRef.current.filter((row) => row.id !== item.id));
 
   const attachFiles = async (recordType, recordId, incomingFiles) => {
     const files = Array.from(incomingFiles || []);
@@ -826,6 +941,8 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
   };
 
   const completed = tasks.filter((task) => task.status === 'done').length;
+  const todayDailyItems = dailyItems.filter((item) => item.day === localDateKey());
+  const todayDailyCompleted = todayDailyItems.filter((item) => item.done).length;
 
   const shareCursor = (event) => {
     if (!channelRef.current || Date.now() - lastCursorSentRef.current < 45) return;
@@ -872,13 +989,17 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
       </header>
 
       <div className="tw-toolbar">
-        <div className="tw-tabs" role="tablist" aria-label="Tarefas e caderno">
+        <div className="tw-tabs" role="tablist" aria-label="Tarefas, meu dia e caderno">
           <button type="button" role="tab" aria-selected={section === 'kanban'} className={section === 'kanban' ? 'active' : ''} onClick={() => setSection('kanban')}><LayoutDashboard size={16} /> Kanban <span>{tasks.length}</span></button>
+          <button type="button" role="tab" aria-selected={section === 'daily'} className={section === 'daily' ? 'active' : ''} onClick={() => setSection('daily')}><ListTodo size={16} /> Meu dia <span>{todayDailyItems.length}</span></button>
           <button type="button" role="tab" aria-selected={section === 'notes'} className={section === 'notes' ? 'active' : ''} onClick={() => setSection('notes')}><BookOpenText size={16} /> Caderno <span>{notes.length}</span></button>
         </div>
         <div className="tw-toolbar-actions">
           {section === 'kanban' && tasks.length > 0 && <span className="tw-progress-copy"><CheckCircle2 size={15} /> {completed} de {tasks.length} concluídas</span>}
-          <button type="button" className="tw-primary-button" onClick={section === 'kanban' ? () => openNewTask('todo') : createNote}><Plus size={15} /> {section === 'kanban' ? 'Nova tarefa' : 'Nova anotação'}</button>
+          {section === 'daily' && todayDailyItems.length > 0 && <span className="tw-progress-copy"><CheckCircle2 size={15} /> {todayDailyCompleted} de {todayDailyItems.length} concluídas</span>}
+          {section === 'kanban' && <button type="button" className="tw-primary-button" onClick={() => openNewTask('todo')}><Plus size={15} /> Nova tarefa</button>}
+          {section === 'daily' && <button type="button" className="tw-primary-button" onClick={() => dailyInputRef.current?.focus()}><Plus size={15} /> Novo item</button>}
+          {section === 'notes' && <button type="button" className="tw-primary-button" onClick={createNote}><Plus size={15} /> Nova anotação</button>}
         </div>
       </div>
 
@@ -891,8 +1012,10 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
           <div className="tw-board">{STATUSES.map((column) => <KanbanColumn key={column.id} column={column} tasks={grouped[column.id]} avatars={avatars} onEdit={openTask} onDelete={deleteTask} onToggleDone={toggleTaskDone} onAttach={(taskId, files) => attachFiles('task', taskId, files)} onRemoveAttachment={(taskId, file) => removeAttachment('task', taskId, file)} uploadingTarget={uploadingTarget} onAdd={openNewTask} />)}</div>
           <DragOverlay>{activeTask ? <TaskCard task={activeTask} avatars={avatars} overlay /> : null}</DragOverlay>
         </DndContext>
-      ) : (
+      ) : section === 'notes' ? (
         <Notebook notes={notes} activeId={activeNoteId} setActiveId={setActiveNoteId} draft={draft} onDraftChange={changeDraft} onCreate={createNote} onDelete={deleteNote} onAttach={(noteId, files) => attachFiles('note', noteId, files)} onRemoveAttachment={(noteId, file) => removeAttachment('note', noteId, file)} uploadingTarget={uploadingTarget} saveState={saveState} avatars={avatars} />
+      ) : (
+        <DailyChecklist items={todayDailyItems} onAdd={addDailyItem} onToggle={toggleDailyItem} onChange={changeDailyItem} onDelete={deleteDailyItem} saveState={dailySaveState} inputRef={dailyInputRef} />
       )}
 
       {modal && <TaskModal task={modal.task} initialStatus={modal.status} currentUser={currentUser} onClose={() => setModal(null)} onSave={saveTask} onDelete={deleteTask} onAttach={(taskId, files) => attachFiles('task', taskId, files)} onRemoveAttachment={(taskId, file) => removeAttachment('task', taskId, file)} busy={busy} uploading={uploadingTarget === `task:${modal.task?.id}`} />}
@@ -900,4 +1023,4 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
   );
 }
 
-export { STATUSES, NOTE_KINDS, formatFileSize, safeFileName, upsertById };
+export { STATUSES, NOTE_KINDS, formatFileSize, localDateKey, safeFileName, upsertById };
