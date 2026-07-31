@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NOTE_KINDS, STATUSES, upsertById } from './TeamWorkspace.jsx';
+import { NOTE_KINDS, STATUSES, formatFileSize, safeFileName, upsertById } from './TeamWorkspace.jsx';
 
 describe('TeamWorkspace helpers', () => {
   it('keeps the three requested kanban stages in order', () => {
@@ -15,5 +15,14 @@ describe('TeamWorkspace helpers', () => {
     expect(upsertById(added, { id: 'task-1', title: 'Versão final' })).toEqual([
       { id: 'task-1', title: 'Versão final' }
     ]);
+  });
+
+  it('normalizes attachment names for storage paths', () => {
+    expect(safeFileName('Print reunião ção.png')).toBe('Print-reuniao-cao.png');
+  });
+
+  it('formats attachment sizes for the interface', () => {
+    expect(formatFileSize(1536)).toBe('2 KB');
+    expect(formatFileSize(2.5 * 1024 * 1024)).toBe('2.5 MB');
   });
 });
