@@ -151,6 +151,8 @@ function DailyChecklist({ items, onAdd, onToggle, onChange, onDelete, saveState,
   const [newItem, setNewItem] = useState('');
   const ordered = [...items].sort((a, b) => Number(a.done) - Number(b.done) || Number(a.position) - Number(b.position));
   const completed = items.filter((item) => item.done).length;
+  const pending = items.length - completed;
+  const progress = items.length ? Math.round((completed / items.length) * 100) : 0;
   const dateText = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date());
   const add = () => {
     const text = newItem.trim();
@@ -162,40 +164,53 @@ function DailyChecklist({ items, onAdd, onToggle, onChange, onDelete, saveState,
   return (
     <section className="tw-daily">
       <header className="tw-daily-header">
-        <div>
-          <span className="tw-eyebrow">{dateText}</span>
-          <h2>O que vou fazer hoje</h2>
-          <p>Uma lista rápida para manter o foco durante o dia.</p>
+        <div className="tw-daily-title">
+          <span className="tw-daily-date-icon"><CalendarDays size={18} /></span>
+          <div>
+            <h2>Meu dia</h2>
+            <p>{dateText}</p>
+          </div>
         </div>
         <div className="tw-daily-summary">
-          <strong>{completed}/{items.length}</strong>
-          <span>concluídas</span>
+          <div className="tw-daily-summary-copy">
+            <strong>{completed} de {items.length}</strong>
+            <span>concluídas</span>
+          </div>
+          <div className="tw-daily-progress" role="progressbar" aria-label="Progresso das tarefas do dia" aria-valuemin="0" aria-valuemax={items.length} aria-valuenow={completed}>
+            <span style={{ width: `${progress}%` }} />
+          </div>
         </div>
       </header>
 
-      <form className="tw-daily-add" onSubmit={(event) => { event.preventDefault(); add(); }}>
-        <span className="tw-daily-empty-check" aria-hidden="true" />
-        <input ref={inputRef} id="tw-daily-new" autoFocus value={newItem} onChange={(event) => setNewItem(event.target.value)} placeholder="Adicionar algo para fazer hoje…" aria-label="Nova tarefa do dia" maxLength={240} />
-        <button type="submit" disabled={!newItem.trim()}><Plus size={15} /> Adicionar</button>
-      </form>
+      <div className="tw-daily-content">
+        <form className="tw-daily-add" onSubmit={(event) => { event.preventDefault(); add(); }}>
+          <span className="tw-daily-add-icon" aria-hidden="true"><Plus size={17} /></span>
+          <input ref={inputRef} id="tw-daily-new" autoFocus value={newItem} onChange={(event) => setNewItem(event.target.value)} placeholder="Adicionar uma tarefa para hoje…" aria-label="Nova tarefa do dia" maxLength={240} />
+          <button type="submit" disabled={!newItem.trim()}>Adicionar</button>
+        </form>
 
-      {items.length > 0 && <div className="tw-daily-progress" role="progressbar" aria-label="Progresso das tarefas do dia" aria-valuemin="0" aria-valuemax={items.length} aria-valuenow={completed}><span style={{ width: `${Math.round((completed / items.length) * 100)}%` }} /></div>}
+        <div className="tw-daily-list-head">
+          <strong>Lista de hoje</strong>
+          <span>{pending} {pending === 1 ? 'pendente' : 'pendentes'}</span>
+        </div>
 
-      <div className="tw-daily-list">
-        {ordered.map((item) => (
-          <div key={item.id} className={`tw-daily-item ${item.done ? 'done' : ''}`}>
-            <button type="button" className={`tw-note-check ${item.done ? 'checked' : ''}`} aria-label={item.done ? `Reabrir ${item.text}` : `Concluir ${item.text}`} onClick={() => onToggle(item)}>{item.done && <Check size={13} strokeWidth={3} />}</button>
-            <input value={item.text} onChange={(event) => onChange(item, event.target.value)} aria-label="Tarefa do dia" maxLength={240} />
-            <button type="button" className="tw-daily-delete" aria-label={`Excluir ${item.text || 'item'}`} onClick={() => onDelete(item)}><Trash2 size={14} /></button>
-          </div>
-        ))}
-        {items.length === 0 && (
-          <div className="tw-daily-empty">
-            <span className="tw-daily-empty-check" />
-            <strong>Seu dia começa em branco</strong>
-            <p>Adicione a primeira coisa que você precisa fazer hoje.</p>
-          </div>
-        )}
+        <div className="tw-daily-list">
+          {ordered.map((item) => (
+            <div key={item.id} className={`tw-daily-item ${item.done ? 'done' : ''}`}>
+              <button type="button" className={`tw-note-check ${item.done ? 'checked' : ''}`} aria-label={item.done ? `Reabrir ${item.text}` : `Concluir ${item.text}`} onClick={() => onToggle(item)}>{item.done && <Check size={13} strokeWidth={3} />}</button>
+              <input value={item.text} onChange={(event) => onChange(item, event.target.value)} aria-label="Tarefa do dia" maxLength={240} />
+              <span className="tw-daily-item-status">{item.done ? 'Concluída' : 'Hoje'}</span>
+              <button type="button" className="tw-daily-delete" aria-label={`Excluir ${item.text || 'item'}`} onClick={() => onDelete(item)}><Trash2 size={14} /></button>
+            </div>
+          ))}
+          {items.length === 0 && (
+            <div className="tw-daily-empty">
+              <span className="tw-daily-empty-check"><Check size={14} /></span>
+              <strong>Nada na lista ainda</strong>
+              <p>Adicione acima o que precisa sair do papel hoje.</p>
+            </div>
+          )}
+        </div>
       </div>
 
       <footer className="tw-daily-footer">
