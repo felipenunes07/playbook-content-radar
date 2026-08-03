@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NOTE_KINDS, STATUSES, formatFileSize, localDateKey, safeFileName, upsertById } from './TeamWorkspace.jsx';
+import { NOTE_KINDS, STATUSES, bringPastPendingItemsToToday, formatFileSize, localDateKey, safeFileName, upsertById } from './TeamWorkspace.jsx';
 
 describe('TeamWorkspace helpers', () => {
   it('keeps the three requested kanban stages in order', () => {
@@ -29,4 +29,17 @@ describe('TeamWorkspace helpers', () => {
   it('keeps daily items grouped by the local calendar day', () => {
     expect(localDateKey(new Date(2026, 6, 31, 23, 45))).toBe('2026-07-31');
   });
+
+  it('brings uncompleted past daily items to today while preserving completed items', () => {
+    const items = [
+      { id: '1', text: 'Past item pending', done: false, day: '2026-07-30' },
+      { id: '2', text: 'Past item done', done: true, day: '2026-07-30' },
+      { id: '3', text: 'Today item', done: false, day: '2026-08-02' }
+    ];
+    const updated = bringPastPendingItemsToToday(items, '2026-08-02');
+    expect(updated.find((i) => i.id === '1').day).toBe('2026-08-02');
+    expect(updated.find((i) => i.id === '2').day).toBe('2026-07-30');
+    expect(updated.find((i) => i.id === '3').day).toBe('2026-08-02');
+  });
 });
+

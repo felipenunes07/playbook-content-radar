@@ -147,18 +147,79 @@ function localDateKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
-function DailyChecklist({ items, onAdd, onToggle, onChange, onDelete, saveState, inputRef }) {
+function bringPastPendingItemsToToday(items = [], todayKey = localDateKey()) {
+  const now = new Date().toISOString();
+  return items.map((item) =>
+    !item.done && item.day && item.day < todayKey
+      ? { ...item, day: todayKey, updated_at: now }
+      : item
+  );
+}
+
+function DailyChecklist({ allItems = [], onAdd, onToggle, onChange, onDelete, onSaveDailyItems, saveState, inputRef }) {
+  const todayKey = localDateKey();
+  const [selectedDate, setSelectedDate] = useState(todayKey);
+  const [filterMode, setFilterMode] = useState('selected'); // 'selected' | 'pending_past' | 'all'
   const [newItem, setNewItem] = useState('');
-  const ordered = [...items].sort((a, b) => Number(a.done) - Number(b.done) || Number(a.position) - Number(b.position));
-  const completed = items.filter((item) => item.done).length;
-  const pending = items.length - completed;
-  const progress = items.length ? Math.round((completed / items.length) * 100) : 0;
-  const dateText = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date());
+
+  const pastPendingItems = useMemo(
+    () => allItems.filter((item) => !item.done && item.day && item.day < todayKey),
+    [allItems, todayKey]
+  );
+
+  const displayedItems = useMemo(() => {
+    if (filterMode === 'pending_past') {
+      return allItems.filter((item) => !item.done && item.day && item.day < todayKey);
+    }
+    if (filterMode === 'all') {
+      return allItems;
+    }
+    return allItems.filter((item) => (item.day || todayKey) === selectedDate);
+  }, [allItems, filterMode, selectedDate, todayKey]);
+
+  const ordered = [...displayedItems].sort(
+    (a, b) => Number(a.done) - Number(b.done) || Number(b.position || 0) - Number(a.position || 0)
+  );
+
+  const completed = displayedItems.filter((item) => item.done).length;
+  const pending = displayedItems.length - completed;
+  const progress = displayedItems.length ? Math.round((completed / displayedItems.length) * 100) : 0;
+
+  const isSelectedToday = selectedDate === todayKey;
+  const selectedDateObj = new Date(`${selectedDate}T12:00:00`);
+  const dateText = isNaN(selectedDateObj.getTime())
+    ? selectedDate
+    : new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }).format(selectedDateObj);
+
   const add = () => {
     const text = newItem.trim();
     if (!text) return;
-    onAdd(text);
+    onAdd(text, selectedDate);
     setNewItem('');
+  };
+
+  const handleBringPastPendingToToday = () => {
+    if (!pastPendingItems.length) return;
+    const updated = bringPastPendingItemsToToday(allItems, todayKey);
+    onSaveDailyItems(updated);
+    setSelectedDate(todayKey);
+    setFilterMode('selected');
+  };
+
+  const handleMoveToToday = (item) => {
+    const now = new Date().toISOString();
+    const updated = allItems.map((row) =>
+      row.id === item.id ? { ...row, day: todayKey, updated_at: now } : row
+    );
+    onSaveDailyItems(updated);
+  };
+
+  const changeDateByDays = (days) => {
+    const parts = selectedDate.split('-').map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    d.setDate(d.getDate() + days);
+    setSelectedDate(localDateKey(d));
+    setFilterMode('selected');
   };
 
   return (
@@ -167,47 +228,205 @@ function DailyChecklist({ items, onAdd, onToggle, onChange, onDelete, saveState,
         <div className="tw-daily-title">
           <span className="tw-daily-date-icon"><CalendarDays size={18} /></span>
           <div>
-            <h2>Meu dia</h2>
+            <div className="tw-daily-title-row">
+              <h2>Meu dia</h2>
+              {!isSelectedToday && <span className="tw-daily-date-badge">Histórico ({selectedDate})</span>}
+            </div>
             <p>{dateText}</p>
           </div>
         </div>
+
+        <div className="tw-daily-header-center">
+          <div className="tw-daily-nav">
+            <button type="button" title="Dia anterior" onClick={() => changeDateByDays(-1)}>
+              &larr;
+            </button>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setSelectedDate(e.target.value);
+                  setFilterMode('selected');
+                }
+              }}
+              title="Escolher data"
+            />
+            <button type="button" title="Próximo dia" onClick={() => changeDateByDays(1)}>
+              &rarr;
+            </button>
+            {!isSelectedToday && (
+              <button
+                type="button"
+                className="tw-daily-today-btn"
+                onClick={() => {
+                  setSelectedDate(todayKey);
+                  setFilterMode('selected');
+                }}
+              >
+                Voltar p/ Hoje
+              </button>
+            )}
+          </div>
+
+          <div className="tw-daily-filters">
+            <button
+              type="button"
+              className={`tw-daily-filter-pill ${filterMode === 'selected' && isSelectedToday ? 'active' : ''}`}
+              onClick={() => {
+                setSelectedDate(todayKey);
+                setFilterMode('selected');
+              }}
+            >
+              Hoje ({allItems.filter((item) => item.day === todayKey).length})
+            </button>
+            {pastPendingItems.length > 0 && (
+              <button
+                type="button"
+                className={`tw-daily-filter-pill past-pending ${filterMode === 'pending_past' ? 'active' : ''}`}
+                onClick={() => setFilterMode('pending_past')}
+              >
+                Pendentes Anteriores ({pastPendingItems.length})
+              </button>
+            )}
+            <button
+              type="button"
+              className={`tw-daily-filter-pill ${filterMode === 'all' ? 'active' : ''}`}
+              onClick={() => setFilterMode('all')}
+            >
+              Todas ({allItems.length})
+            </button>
+          </div>
+        </div>
+
         <div className="tw-daily-summary">
           <div className="tw-daily-summary-copy">
-            <strong>{completed} de {items.length}</strong>
+            <strong>{completed} de {displayedItems.length}</strong>
             <span>concluídas</span>
           </div>
-          <div className="tw-daily-progress" role="progressbar" aria-label="Progresso das tarefas do dia" aria-valuemin="0" aria-valuemax={items.length} aria-valuenow={completed}>
+          <div
+            className="tw-daily-progress"
+            role="progressbar"
+            aria-label="Progresso das tarefas do dia"
+            aria-valuemin="0"
+            aria-valuemax={displayedItems.length}
+            aria-valuenow={completed}
+          >
             <span style={{ width: `${progress}%` }} />
           </div>
         </div>
       </header>
 
+      {pastPendingItems.length > 0 && filterMode !== 'pending_past' && (
+        <div className="tw-daily-past-banner">
+          <div className="tw-daily-past-banner-info">
+            <AlertCircle size={16} />
+            <span>
+              <strong>{pastPendingItems.length} {pastPendingItems.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}</strong> de {pastPendingItems.length === 1 ? 'um dia anterior' : 'dias anteriores'}.
+            </span>
+          </div>
+          <div className="tw-daily-past-banner-actions">
+            <button type="button" className="tw-btn-accent" onClick={handleBringPastPendingToToday}>
+              <Clock3 size={13} /> Trazer para hoje
+            </button>
+            <button type="button" className="tw-btn-ghost" onClick={() => setFilterMode('pending_past')}>
+              Ver pendentes
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="tw-daily-content">
         <form className="tw-daily-add" onSubmit={(event) => { event.preventDefault(); add(); }}>
           <span className="tw-daily-add-icon" aria-hidden="true"><Plus size={17} /></span>
-          <input ref={inputRef} id="tw-daily-new" autoFocus value={newItem} onChange={(event) => setNewItem(event.target.value)} placeholder="Adicionar uma tarefa para hoje…" aria-label="Nova tarefa do dia" maxLength={240} />
+          <input
+            ref={inputRef}
+            id="tw-daily-new"
+            autoFocus
+            value={newItem}
+            onChange={(event) => setNewItem(event.target.value)}
+            placeholder={isSelectedToday ? "Adicionar uma tarefa para hoje…" : `Adicionar uma tarefa para ${selectedDate}…`}
+            aria-label="Nova tarefa do dia"
+            maxLength={240}
+          />
           <button type="submit" disabled={!newItem.trim()}>Adicionar</button>
         </form>
 
         <div className="tw-daily-list-head">
-          <strong>Lista de hoje</strong>
+          <strong>
+            {filterMode === 'pending_past'
+              ? 'Tarefas pendentes de dias anteriores'
+              : filterMode === 'all'
+              ? 'Todas as tarefas (Histórico)'
+              : isSelectedToday
+              ? 'Lista de hoje'
+              : `Lista de ${selectedDate}`}
+          </strong>
           <span>{pending} {pending === 1 ? 'pendente' : 'pendentes'}</span>
         </div>
 
         <div className="tw-daily-list">
           {ordered.map((item) => (
             <div key={item.id} className={`tw-daily-item ${item.done ? 'done' : ''}`}>
-              <button type="button" className={`tw-note-check ${item.done ? 'checked' : ''}`} aria-label={item.done ? `Reabrir ${item.text}` : `Concluir ${item.text}`} onClick={() => onToggle(item)}>{item.done && <Check size={13} strokeWidth={3} />}</button>
-              <input value={item.text} onChange={(event) => onChange(item, event.target.value)} aria-label="Tarefa do dia" maxLength={240} />
-              <span className="tw-daily-item-status">{item.done ? 'Concluída' : 'Hoje'}</span>
-              <button type="button" className="tw-daily-delete" aria-label={`Excluir ${item.text || 'item'}`} onClick={() => onDelete(item)}><Trash2 size={14} /></button>
+              <button
+                type="button"
+                className={`tw-note-check ${item.done ? 'checked' : ''}`}
+                aria-label={item.done ? `Reabrir ${item.text}` : `Concluir ${item.text}`}
+                onClick={() => onToggle(item)}
+              >
+                {item.done && <Check size={13} strokeWidth={3} />}
+              </button>
+              <input
+                value={item.text}
+                onChange={(event) => onChange(item, event.target.value)}
+                aria-label="Tarefa do dia"
+                maxLength={240}
+              />
+              {item.day && item.day !== todayKey && (
+                <span className="tw-daily-item-day-tag" title={`Criada em ${item.day}`}>
+                  {formatDate(item.day)}
+                </span>
+              )}
+              {item.day && item.day !== todayKey && !item.done && (
+                <button
+                  type="button"
+                  className="tw-daily-move-today"
+                  title="Trazer esta tarefa para o dia de hoje"
+                  onClick={() => handleMoveToToday(item)}
+                >
+                  <Clock3 size={11} /> Mover p/ hoje
+                </button>
+              )}
+              <span className="tw-daily-item-status">
+                {item.done ? 'Concluída' : item.day === todayKey ? 'Hoje' : 'Anterior'}
+              </span>
+              <button
+                type="button"
+                className="tw-daily-delete"
+                aria-label={`Excluir ${item.text || 'item'}`}
+                onClick={() => onDelete(item)}
+              >
+                <Trash2 size={14} />
+              </button>
             </div>
           ))}
-          {items.length === 0 && (
+          {ordered.length === 0 && (
             <div className="tw-daily-empty">
               <span className="tw-daily-empty-check"><Check size={14} /></span>
-              <strong>Nada na lista ainda</strong>
-              <p>Adicione acima o que precisa sair do papel hoje.</p>
+              <strong>
+                {filterMode === 'pending_past'
+                  ? 'Nenhuma tarefa pendente de dias anteriores!'
+                  : filterMode === 'all'
+                  ? 'Nenhuma tarefa cadastrada no histórico.'
+                  : isSelectedToday
+                  ? 'Nada na lista ainda'
+                  : `Nenhuma tarefa para ${selectedDate}`}
+              </strong>
+              <p>
+                {isSelectedToday
+                  ? 'Adicione acima o que precisa sair do papel hoje.'
+                  : 'Você pode adicionar tarefas acima ou escolher outra data.'}
+              </p>
             </div>
           )}
         </div>
@@ -215,7 +434,10 @@ function DailyChecklist({ items, onAdd, onToggle, onChange, onDelete, saveState,
 
       <footer className="tw-daily-footer">
         <span><Wifi size={13} /> A lista também é atualizada ao vivo</span>
-        <div className={`tw-save-state ${saveState}`}><span className="tw-save-dot" />{saveState === 'saving' ? 'Salvando…' : saveState === 'error' ? 'Erro ao salvar' : 'Salvo'}</div>
+        <div className={`tw-save-state ${saveState}`}>
+          <span className="tw-save-dot" />
+          {saveState === 'saving' ? 'Salvando…' : saveState === 'error' ? 'Erro ao salvar' : 'Salvo'}
+        </div>
       </footer>
     </section>
   );
@@ -745,9 +967,9 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
     else await persist();
   };
 
-  const addDailyItem = (text) => {
+  const addDailyItem = (text, targetDay = localDateKey()) => {
     const now = new Date().toISOString();
-    const item = { id: createId(), text, done: false, day: localDateKey(), position: Date.now(), created_by: currentUser, created_at: now, updated_at: now };
+    const item = { id: createId(), text, done: false, day: targetDay, position: Date.now(), created_by: currentUser, created_at: now, updated_at: now };
     saveDailyItems([...dailyItemsRef.current, item]);
   };
 
@@ -958,6 +1180,7 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
 
   const completed = tasks.filter((task) => task.status === 'done').length;
   const todayDailyItems = dailyItems.filter((item) => item.day === localDateKey());
+  const pastPendingDailyItems = dailyItems.filter((item) => !item.done && item.day && item.day < localDateKey());
   const todayDailyCompleted = todayDailyItems.filter((item) => item.done).length;
 
   const shareCursor = (event) => {
@@ -1007,7 +1230,9 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
       <div className="tw-toolbar">
         <div className="tw-tabs" role="tablist" aria-label="Tarefas, meu dia e caderno">
           <button type="button" role="tab" aria-selected={section === 'kanban'} className={section === 'kanban' ? 'active' : ''} onClick={() => setSection('kanban')}><LayoutDashboard size={16} /> Kanban <span>{tasks.length}</span></button>
-          <button type="button" role="tab" aria-selected={section === 'daily'} className={section === 'daily' ? 'active' : ''} onClick={() => setSection('daily')}><ListTodo size={16} /> Meu dia <span>{todayDailyItems.length}</span></button>
+          <button type="button" role="tab" aria-selected={section === 'daily'} className={section === 'daily' ? 'active' : ''} onClick={() => setSection('daily')}>
+            <ListTodo size={16} /> Meu dia <span>{todayDailyItems.length}{pastPendingDailyItems.length > 0 ? ` (+${pastPendingDailyItems.length})` : ''}</span>
+          </button>
           <button type="button" role="tab" aria-selected={section === 'notes'} className={section === 'notes' ? 'active' : ''} onClick={() => setSection('notes')}><BookOpenText size={16} /> Caderno <span>{notes.length}</span></button>
         </div>
         <div className="tw-toolbar-actions">
@@ -1031,7 +1256,16 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
       ) : section === 'notes' ? (
         <Notebook notes={notes} activeId={activeNoteId} setActiveId={setActiveNoteId} draft={draft} onDraftChange={changeDraft} onCreate={createNote} onDelete={deleteNote} onAttach={(noteId, files) => attachFiles('note', noteId, files)} onRemoveAttachment={(noteId, file) => removeAttachment('note', noteId, file)} uploadingTarget={uploadingTarget} saveState={saveState} avatars={avatars} />
       ) : (
-        <DailyChecklist items={todayDailyItems} onAdd={addDailyItem} onToggle={toggleDailyItem} onChange={changeDailyItem} onDelete={deleteDailyItem} saveState={dailySaveState} inputRef={dailyInputRef} />
+        <DailyChecklist
+          allItems={dailyItems}
+          onAdd={addDailyItem}
+          onToggle={toggleDailyItem}
+          onChange={changeDailyItem}
+          onDelete={deleteDailyItem}
+          onSaveDailyItems={saveDailyItems}
+          saveState={dailySaveState}
+          inputRef={dailyInputRef}
+        />
       )}
 
       {modal && <TaskModal task={modal.task} initialStatus={modal.status} currentUser={currentUser} onClose={() => setModal(null)} onSave={saveTask} onDelete={deleteTask} onAttach={(taskId, files) => attachFiles('task', taskId, files)} onRemoveAttachment={(taskId, file) => removeAttachment('task', taskId, file)} busy={busy} uploading={uploadingTarget === `task:${modal.task?.id}`} />}
@@ -1039,4 +1273,4 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
   );
 }
 
-export { STATUSES, NOTE_KINDS, formatFileSize, localDateKey, safeFileName, upsertById };
+export { STATUSES, NOTE_KINDS, formatFileSize, localDateKey, safeFileName, upsertById, bringPastPendingItemsToToday };
