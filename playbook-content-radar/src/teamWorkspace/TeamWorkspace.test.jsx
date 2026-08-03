@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NOTE_KINDS, STATUSES, bringPastPendingItemsToToday, formatFileSize, localDateKey, safeFileName, upsertById } from './TeamWorkspace.jsx';
+import { NOTE_KINDS, STATUSES, bringPastPendingItemsToToday, formatFileSize, getItemDateKey, localDateKey, safeFileName, upsertById } from './TeamWorkspace.jsx';
 
 describe('TeamWorkspace helpers', () => {
   it('keeps the three requested kanban stages in order', () => {
@@ -30,6 +30,12 @@ describe('TeamWorkspace helpers', () => {
     expect(localDateKey(new Date(2026, 6, 31, 23, 45))).toBe('2026-07-31');
   });
 
+  it('normalizes item dates correctly regardless of timestamp format or missing day field', () => {
+    expect(getItemDateKey({ day: '2026-08-01' })).toBe('2026-08-01');
+    expect(getItemDateKey({ created_at: '2026-08-01T14:30:00.000Z' })).toBe('2026-08-01');
+    expect(getItemDateKey({ day: '2026-08-01T10:00:00Z' })).toBe('2026-08-01');
+  });
+
   it('brings uncompleted past daily items to today while preserving completed items', () => {
     const items = [
       { id: '1', text: 'Past item pending', done: false, day: '2026-07-30' },
@@ -42,4 +48,5 @@ describe('TeamWorkspace helpers', () => {
     expect(updated.find((i) => i.id === '3').day).toBe('2026-08-02');
   });
 });
+
 
