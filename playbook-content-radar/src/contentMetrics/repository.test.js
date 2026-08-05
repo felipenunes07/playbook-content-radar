@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { loadContentMetrics } from './repository.js';
 import bundledYoutubeHistory from './data/youtube-history.json';
 
-function fakeSupabase(results) {
+function fakeSupabase(results, calls = []) {
   return {
     from(name) {
       return {
-        select() {
+        select(columns = '*') {
+          calls.push({ name, columns });
           return Promise.resolve(results[name] || { data: [], error: null });
         },
       };
@@ -79,7 +80,48 @@ describe('loadContentMetrics', () => {
       youtube: bundledYoutubeHistory.records || [],
       growth: [],
       freshness: '2026-05-12',
-      warning: 'relation does not exist',
+      warning: 'linkedin: relation does not exist',
     });
+  });
+
+  it('loads only the lightweight data needed by the Leads ICP page', async () => {
+    const calls = [];
+    const result = await loadContentMetrics({
+      supabase: fakeSupabase({
+        v_latest_linkedin_post_metrics: { data: [{ id: 'post-1', hook: 'Post' }], error: null },
+        leads: { data: [{ id: 'lead-1', full_name: 'Lead', created_at: '2026-08-05' }], error: null },
+      }, calls),
+      mode: 'leads',
+      force: true,
+    });
+
+    expect(result.source).toBe('supabase');
+    expect(result.leads).toEqual([expect.objectContaining({ id: 'lead-1' })]);
+    expect(calls.map((call) => call.name)).toEqual([
+      'v_latest_linkedin_post_metrics',
+      'leads',
+      'lead_outreach',
+      'lead_comments',
+      'prospect_settings',
+    ]);
+    expect(calls.find((call) => call.name === 'leads')?.columns).not.toBe('*');
+    expect(calls.find((call) => call.name === 'leads')?.columns).not.toContain('profile_raw');
+    expect(calls.find((call) => call.name === 'leads')?.columns).not.toContain('company_raw');
+  });
+
+  it('marks a leads query failure instead of reporting an empty successful database', async () => {
+    const result = await loadContentMetrics({
+      supabase: fakeSupabase({
+        v_latest_linkedin_post_metrics: { data: [{ id: 'post-1' }], error: null },
+        leads: { data: null, error: { message: 'statement timeout' } },
+      }),
+      fallback: { records: [], collected_at: '2026-05-12' },
+      mode: 'leads',
+      force: true,
+    });
+
+    expect(result.source).toBe('local_snapshot');
+    expect(result.loadError).toBe(true);
+    expect(result.warning).toContain('leads: statement timeout');
   });
 });
