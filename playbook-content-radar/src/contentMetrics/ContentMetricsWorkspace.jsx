@@ -2362,6 +2362,8 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   const [section, setSection] = useState(initialSection);
   const [data, setData] = useState(initialData || null);
   const [loading, setLoading] = useState(!initialData);
+  const [loadError, setLoadError] = useState('');
+  const currentDataRef = React.useRef(initialData || null);
   const [filters, setFilters] = useState(() => defaultContentFilters(initialData));
   const [youtubeFilters, setYoutubeFilters] = useState(() => defaultYoutubeFilters(initialData));
   const [instagramFilters, setInstagramFilters] = useState(() => defaultDateFilters(initialData?.instagram || []));
@@ -2373,17 +2375,36 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   // Recarregar somente na montagem deixava "Seguidores por rede" congelado até F5,
   // mesmo com novas linhas em account_daily_metrics. As atualizações preservam os
   // filtros do operador; eles só são inicializados no primeiro carregamento.
-  const refreshData = useCallback(async ({ initializeFilters = false } = {}) => {
-    const result = await loadContentMetrics({ supabase: client });
+  const refreshData = useCallback(async ({ initializeFilters = false, force = false } = {}) => {
+    const result = await loadContentMetrics({ supabase: client, mode, force });
+    if (result.loadError) {
+      setLoadError(result.warning || 'Não foi possível atualizar os dados.');
+      setLoading(false);
+      // Uma falha transitória nunca pode trocar dados válidos por listas vazias.
+      // No dashboard completo ainda temos o snapshot local; nas páginas comerciais
+      // mostramos o erro e aguardamos uma tentativa bem-sucedida.
+      if (!currentDataRef.current && mode === 'full') {
+        currentDataRef.current = result;
+        setData(result);
+        if (initializeFilters) {
+          setFilters(defaultContentFilters(result));
+          setYoutubeFilters(defaultYoutubeFilters(result));
+          setInstagramFilters(defaultDateFilters(result.instagram || []));
+        }
+      }
+      return currentDataRef.current || result;
+    }
     if (initializeFilters) {
       setFilters(defaultContentFilters(result));
       setYoutubeFilters(defaultYoutubeFilters(result));
       setInstagramFilters(defaultDateFilters(result.instagram || []));
     }
+    currentDataRef.current = result;
     setData(result);
+    setLoadError('');
     setLoading(false);
     return result;
-  }, [client]);
+  }, [client, mode]);
 
   useEffect(() => { setSection(initialSection); }, [initialSection]);
   useEffect(() => {
@@ -2398,9 +2419,9 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     const refreshIfVisible = () => {
       if (document.visibilityState === 'visible') refreshData().catch(() => {});
     };
-    // Uma nova leitura por minuto mantém a tela aberta alinhada à coleta automática,
-    // inclusive logo depois do cron terminar. Ao voltar para a aba, atualiza na hora.
-    const interval = window.setInterval(refreshIfVisible, 60_000);
+    // O cache compartilhado evita downloads repetidos ao navegar. A atualização
+    // periódica é espaçada porque as coletas do servidor não mudam a cada minuto.
+    const interval = window.setInterval(refreshIfVisible, 5 * 60_000);
     document.addEventListener('visibilitychange', refreshIfVisible);
     window.addEventListener('focus', refreshIfVisible);
     return () => {
@@ -2476,7 +2497,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   // Recarrega tudo do Supabase sem resetar filtros — usado depois de prospectar/
   // enriquecer pra trazer leads e contagens novas sem F5.
   const reloadData = async () => {
-    await refreshData();
+    await refreshData({ force: true });
   };
 
   // Números de prospecção por post: parte do que veio do banco (última execução de
@@ -2549,7 +2570,17 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   const navigate = (next) => { setSection(next); onSectionChange?.(next); };
   const title = METRICS_SECTIONS.find((item) => item.id === section)?.label || 'Visão geral';
 
-  if (loading || !data) return <div className="cm-loading"><RefreshCw className="spin" size={20} /> Carregando…</div>;
+  if (loading) return <div className="cm-loading"><RefreshCw className="spin" size={20} /> Carregando…</div>;
+  if (!data) return <div className="cm-loading" style={{ flexDirection: 'column', gap: 10, textAlign: 'center' }}>
+    <strong>Não foi possível carregar os dados.</strong>
+    <span style={{ color: '#64748b', fontSize: 12 }}>{loadError}</span>
+    <button type="button" onClick={() => refreshData({ initializeFilters: true, force: true })} style={{ border: 0, borderRadius: 8, background: '#0a66c2', color: '#fff', padding: '8px 14px', fontWeight: 700, cursor: 'pointer' }}>Tentar novamente</button>
+  </div>;
+
+  const refreshErrorNotice = loadError ? <div className="cm-operation-message" style={{ background: '#fff7ed', color: '#9a3412', borderColor: '#fed7aa' }}>
+    A atualização falhou, mas os últimos dados válidos foram preservados. {loadError}
+    <button type="button" onClick={() => refreshData({ force: true })}>Tentar novamente</button>
+  </div> : null;
 
   // Página de Prospecção (Tela 1 do escopo): a lista de posts com o botão
   // Prospectar e os números. A lista de leads fica na página própria "Leads ICP".
@@ -2557,6 +2588,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     return <div className="content-metrics-workspace">
       <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Comercial</span><h1>Prospecção</h1><p>Rode um post para raspar quem comentou, cruzar com o banco de leads e ver as oportunidades novas. Os qualificados aparecem na página Leads ICP.</p></div><div className="cm-header-meta"><span>{data.linkedin.length} posts</span><Users size={16} /></div></header>
       <SourceNotice data={data} />
+      {refreshErrorNotice}
       {operationMessage && <div className="cm-operation-message">{operationMessage}<button type="button" onClick={() => setOperationMessage('')}>Fechar</button></div>}
       <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} prospecting={prospectingByPost} runningIds={prospectingRunning} onProspect={handleProspect} onAction={() => {}} showProspecting />
     </div>;
@@ -2567,6 +2599,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   if (mode === 'goals') {
     return <div className="content-metrics-workspace">
       <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Crescimento</span><h1>Metas</h1><p>Defina a meta do mês para cada rede e acompanhe se está no caminho certo.</p></div><div className="cm-header-meta"><Target size={16} /></div></header>
+      {refreshErrorNotice}
       {operationMessage && <div className="cm-operation-message">{operationMessage}<button type="button" onClick={() => setOperationMessage('')}>Fechar</button></div>}
       <MetasSection data={data} client={client} />
     </div>;
@@ -2577,6 +2610,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   if (mode === 'leads') {
     return <div className="content-metrics-workspace">
       <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Comercial</span><h1>Leads ICP</h1><p>Quem comentou nos posts e passou (ou está esperando) o filtro de qualificação. Gere a mensagem, copie, mande no LinkedIn e marque como prospectado.</p></div><div className="cm-header-meta"><span>{(data.leads || []).length} leads no banco</span><Users size={16} /></div></header>
+      {refreshErrorNotice}
       {operationMessage && <div className="cm-operation-message">{operationMessage}<button type="button" onClick={() => setOperationMessage('')}>Fechar</button></div>}
       <LeadsSection data={data} client={client} onNotice={setOperationMessage} onReload={reloadData} />
     </div>;
@@ -2585,6 +2619,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   return <div className="content-metrics-workspace">
     <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Performance publicada</span><h1>Métricas de conteúdo</h1><p>Leitura histórica e operation diária de LinkedIn, YouTube e Instagram.</p></div><div className="cm-header-meta"><span>{data.linkedin.length} posts carregados</span><SlidersHorizontal size={16} /></div></header>
     <SourceNotice data={data} />
+    {refreshErrorNotice}
     {operationMessage && <div className="cm-operation-message">{operationMessage}<button type="button" onClick={() => setOperationMessage('')}>Fechar</button></div>}
     <nav className="cm-tabs" aria-label="Seções de métricas">{METRICS_SECTIONS.map((item) => { const Icon = sectionIcons[item.id]; return <button type="button" key={item.id} className={section === item.id ? 'active' : ''} onClick={() => navigate(item.id)} aria-label={item.label}><Icon size={14} />{item.label}</button>; })}</nav>
     <AnimatePresence mode="wait"><motion.div key={section} className="cm-view" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}>
