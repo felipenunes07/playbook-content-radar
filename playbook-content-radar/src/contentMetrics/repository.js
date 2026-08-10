@@ -47,6 +47,7 @@ const LEAD_POST_COLUMNS = [
   'owner_name',
   'author_name',
   'published_at',
+  'post_url',
   'hook',
   'content',
   'format',
