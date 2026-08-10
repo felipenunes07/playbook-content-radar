@@ -126,6 +126,33 @@ describe('ContentMetricsWorkspace', () => {
     expect(computeRateLimitBackoff(100, 75)).toBe(600);
   });
 
+  it('selects exportable leads individually and never selects a lead already prospected', async () => {
+    render(<ContentMetricsWorkspace mode="leads" initialData={{
+      ...data,
+      source: 'supabase',
+      linkedin: [{ id: 'post-1', external_post_id: '1', owner_name: 'Victor Baggio', hook: 'Post de IA' }],
+      leads: [
+        { id: 'lead-new', full_name: 'Lead Novo', qualification_status: 'qualified', first_seen_post_id: 'post-1', enrichment_status: 'enriched' },
+        { id: 'lead-sent', full_name: 'Lead Enviado', qualification_status: 'qualified', first_seen_post_id: 'post-1', enrichment_status: 'enriched' },
+      ],
+      leadOutreach: [{ lead_id: 'lead-sent', status: 'prospected' }],
+      leadComments: [],
+      prospectSettings: null,
+    }} />);
+
+    const newLeadCheckbox = await screen.findByRole('checkbox', { name: 'Desmarcar Lead Novo para exportação' });
+    const sentLeadCheckbox = screen.getByRole('checkbox', { name: 'Selecionar Lead Enviado para exportação' });
+    expect(newLeadCheckbox).toBeChecked();
+    expect(sentLeadCheckbox).not.toBeChecked();
+    expect(sentLeadCheckbox).toBeDisabled();
+    expect(screen.getByText(/Exportar 1 selecionado/)).toBeInTheDocument();
+
+    fireEvent.click(newLeadCheckbox);
+    expect(screen.getByText(/Exportar 0 selecionado/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Exportar leads filtrados para Excel' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Exportar leads filtrados para CSV' })).toBeDisabled();
+  });
+
   it('shows the real historical snapshot, filters and overview rankings', async () => {
     render(<ContentMetricsWorkspace initialData={data} initialSection="overview" />);
 
