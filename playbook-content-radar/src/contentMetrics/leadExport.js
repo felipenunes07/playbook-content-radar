@@ -44,6 +44,13 @@ const seniorityLabels = {
   desconhecido: '',
 };
 
+export function selectLeadsForExport({ leads = [], outreachByLead = {}, excludedIds = new Set() } = {}) {
+  return leads.filter((lead) => (
+    outreachByLead[lead.id]?.status !== 'prospected'
+    && !excludedIds.has(lead.id)
+  ));
+}
+
 function spreadsheetDate(value) {
   if (!value) return '';
   const parsed = new Date(value);

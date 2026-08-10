@@ -1,7 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildLeadCsv, buildLeadExcelBlob, buildLeadExportFilename, buildLeadExportRows, buildLeadWorksheetXml } from './leadExport.js';
+import { buildLeadCsv, buildLeadExcelBlob, buildLeadExportFilename, buildLeadExportRows, buildLeadWorksheetXml, selectLeadsForExport } from './leadExport.js';
 
 describe('lead export', () => {
+  it('excludes leads already sent and allows individual leads to be deselected', () => {
+    const leads = [{ id: 'new' }, { id: 'sent' }, { id: 'deselected' }];
+    expect(selectLeadsForExport({
+      leads,
+      outreachByLead: { sent: { status: 'prospected' } },
+      excludedIds: new Set(['deselected']),
+    })).toEqual([{ id: 'new' }]);
+  });
+
   it('exports the post fields and commercial context needed for spreadsheet filters', () => {
     const rows = buildLeadExportRows({
       leads: [{

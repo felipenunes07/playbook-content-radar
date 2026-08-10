@@ -57,7 +57,7 @@ import {
   summarizeBookingsByMaterial,
 } from './analytics.js';
 import { loadContentMetrics } from './repository.js';
-import { buildLeadExportFilename, buildLeadExportRows, downloadLeadCsv, downloadLeadExcel } from './leadExport.js';
+import { buildLeadExportFilename, buildLeadExportRows, downloadLeadCsv, downloadLeadExcel, selectLeadsForExport } from './leadExport.js';
 import { METRICS_SECTIONS } from './routes.js';
 import { ContentFilters, MetricStrip, OperationalPostsTable, StatusPill, TopContentTable, YoutubeFilters, YoutubeVideosTable } from './components.jsx';
 import {
@@ -1289,6 +1289,8 @@ function LeadsSection({ data, client, onNotice, onReload }) {
   const [showIcpModal, setShowIcpModal] = useState(false);
   const [outreachOverrides, setOutreachOverrides] = useState({});
   const [exporting, setExporting] = useState('');
+  const [excludedExportIds, setExcludedExportIds] = useState(() => new Set());
+  const exportAllRef = React.useRef(null);
 
   const leads = data?.leads || [];
   const outreachByLead = useMemo(() => {
@@ -1425,12 +1427,48 @@ function LeadsSection({ data, client, onNotice, onReload }) {
   };
   const sortArrow = (key) => (sortConfig.key !== key ? ' ↕' : sortConfig.direction === 'asc' ? ' ▲' : ' ▼');
 
-  const exportRows = useMemo(() => buildLeadExportRows({
+  const eligibleExportLeads = useMemo(() => selectLeadsForExport({
     leads: visible,
+    outreachByLead,
+  }), [visible, outreachByLead]);
+  const selectedExportLeads = useMemo(() => selectLeadsForExport({
+    leads: visible,
+    outreachByLead,
+    excludedIds: excludedExportIds,
+  }), [visible, outreachByLead, excludedExportIds]);
+  const exportRows = useMemo(() => buildLeadExportRows({
+    leads: selectedExportLeads,
     postsById,
     commentByLead,
     outreachByLead,
-  }), [visible, postsById, commentByLead, outreachByLead]);
+  }), [selectedExportLeads, postsById, commentByLead, outreachByLead]);
+  const allEligibleSelected = eligibleExportLeads.length > 0 && selectedExportLeads.length === eligibleExportLeads.length;
+
+  useEffect(() => {
+    if (exportAllRef.current) {
+      exportAllRef.current.indeterminate = selectedExportLeads.length > 0 && !allEligibleSelected;
+    }
+  }, [selectedExportLeads.length, allEligibleSelected]);
+
+  const toggleLeadForExport = (leadId) => {
+    setExcludedExportIds((current) => {
+      const next = new Set(current);
+      if (next.has(leadId)) next.delete(leadId);
+      else next.add(leadId);
+      return next;
+    });
+  };
+
+  const toggleAllVisibleForExport = () => {
+    setExcludedExportIds((current) => {
+      const next = new Set(current);
+      eligibleExportLeads.forEach((lead) => {
+        if (allEligibleSelected) next.add(lead.id);
+        else next.delete(lead.id);
+      });
+      return next;
+    });
+  };
 
   const exportVisibleLeads = async (format) => {
     if (!exportRows.length || exporting) return;
@@ -1710,7 +1748,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
             );
           })}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
-            <span style={{ color: '#64748b', fontSize: 11.5, fontWeight: 600, marginRight: 2 }}><Download size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />Exportar filtro atual:</span>
+            <span style={{ color: '#64748b', fontSize: 11.5, fontWeight: 600, marginRight: 2 }}><Download size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />Exportar {integer.format(exportRows.length)} selecionado(s):</span>
             <button type="button" onClick={() => exportVisibleLeads('xlsx')} disabled={!exportRows.length || Boolean(exporting)}
               aria-label="Exportar leads filtrados para Excel"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid #a7d7bd', background: '#f0fdf4', color: '#067647', borderRadius: 7, padding: '5px 10px', fontSize: 11.5, fontWeight: 700, cursor: exportRows.length && !exporting ? 'pointer' : 'not-allowed', opacity: exportRows.length && !exporting ? 1 : 0.55 }}>
@@ -1734,6 +1772,11 @@ function LeadsSection({ data, client, onNotice, onReload }) {
         <div className="cm-table-wrap">
           <table className="cm-table">
             <thead><tr>
+              <th style={{ width: 38, textAlign: 'center' }} title="Selecionar os leads que irão para Excel/CSV">
+                <input ref={exportAllRef} type="checkbox" checked={allEligibleSelected} disabled={!eligibleExportLeads.length}
+                  onChange={toggleAllVisibleForExport} aria-label="Selecionar todos os leads para exportação"
+                  style={{ width: 15, height: 15, cursor: eligibleExportLeads.length ? 'pointer' : 'not-allowed', accentColor: '#0a66c2' }} />
+              </th>
               <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('full_name')}>Lead{sortArrow('full_name')}</th>
               <th style={{ cursor: 'pointer', userSelect: 'none' }} title="Score 0-100 do agente de qualificação" onClick={() => requestSort('score')}>Score{sortArrow('score')}</th>
               <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('job_title')}>Cargo{sortArrow('job_title')}</th>
@@ -1750,11 +1793,20 @@ function LeadsSection({ data, client, onNotice, onReload }) {
                 const ignored = outreach?.status === 'ignored';
                 const comment = commentByLead[lead.id];
                 const analyzing = analyzingIds.has(lead.id);
+                const eligibleForExport = outreach?.status !== 'prospected';
+                const selectedForExport = eligibleForExport && !excludedExportIds.has(lead.id);
                 return (
                   <tr key={lead.id}
                     className={`${analyzing ? 'cm-prospect-running-row' : ''} ${prospected ? 'cm-row-prospected' : ''}`}
                     style={(prospected || ignored) ? { opacity: 0.65 } : undefined}
                   >
+                    <td style={{ textAlign: 'center' }}>
+                      <input type="checkbox" checked={selectedForExport} disabled={!eligibleForExport}
+                        onChange={() => toggleLeadForExport(lead.id)}
+                        aria-label={`${selectedForExport ? 'Desmarcar' : 'Selecionar'} ${lead.full_name || 'lead'} para exportação`}
+                        title={eligibleForExport ? 'Incluir na exportação' : 'Já prospectado/enviado — não será exportado'}
+                        style={{ width: 15, height: 15, cursor: eligibleForExport ? 'pointer' : 'not-allowed', accentColor: '#0a66c2' }} />
+                    </td>
                     <td>
                       <strong>{lead.full_name || lead.public_identifier || '—'}</strong>
                       {lead.profile_url && <a className="cm-open" href={lead.profile_url} target="_blank" rel="noreferrer" aria-label={`Abrir perfil de ${lead.full_name || 'lead'}`} style={{ marginLeft: 6, display: 'inline-flex', verticalAlign: 'middle' }}><ExternalLink size={13} /></a>}
