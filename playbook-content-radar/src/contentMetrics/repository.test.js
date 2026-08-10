@@ -107,6 +107,7 @@ describe('loadContentMetrics', () => {
     expect(calls.find((call) => call.name === 'leads')?.columns).not.toBe('*');
     expect(calls.find((call) => call.name === 'leads')?.columns).not.toContain('profile_raw');
     expect(calls.find((call) => call.name === 'leads')?.columns).not.toContain('company_raw');
+    expect(calls.find((call) => call.name === 'v_latest_linkedin_post_metrics')?.columns).toContain('post_url');
   });
 
   it('marks a leads query failure instead of reporting an empty successful database', async () => {

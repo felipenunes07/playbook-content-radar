@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, BarChart3, Database, ExternalLink, FileClock, FileText, Image as ImageIcon, MessageSquare,
-  Play, RefreshCw, Settings, SlidersHorizontal, Users, Video, Target, Copy, Check, Globe,
+  Play, RefreshCw, Settings, SlidersHorizontal, Users, Video, Target, Copy, Check, Globe, Download, FileSpreadsheet,
 } from 'lucide-react';
 
 // lucide-react removeu os ícones de marca (Instagram, LinkedIn…) por questão de
@@ -57,6 +57,7 @@ import {
   summarizeBookingsByMaterial,
 } from './analytics.js';
 import { loadContentMetrics } from './repository.js';
+import { buildLeadExportFilename, buildLeadExportRows, downloadLeadCsv, downloadLeadExcel } from './leadExport.js';
 import { METRICS_SECTIONS } from './routes.js';
 import { ContentFilters, MetricStrip, OperationalPostsTable, StatusPill, TopContentTable, YoutubeFilters, YoutubeVideosTable } from './components.jsx';
 import {
@@ -1287,6 +1288,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
   const [modal, setModal] = useState(null); // { lead, message }
   const [showIcpModal, setShowIcpModal] = useState(false);
   const [outreachOverrides, setOutreachOverrides] = useState({});
+  const [exporting, setExporting] = useState('');
 
   const leads = data?.leads || [];
   const outreachByLead = useMemo(() => {
@@ -1298,7 +1300,16 @@ function LeadsSection({ data, client, onNotice, onReload }) {
   const postsById = useMemo(() => {
     const map = {};
     (data?.linkedin || []).forEach((post) => {
-      if (post.id) map[post.id] = { hook: post.hook || post.content?.slice(0, 60) || '', owner: post.owner_name || '', media_url: post.media_url, media_type: post.media_type, format: post.format };
+      if (post.id) map[post.id] = {
+        hook: post.hook || post.content?.slice(0, 60) || '',
+        owner: post.owner_name || '',
+        media_url: post.media_url,
+        media_type: post.media_type,
+        format: post.format,
+        external_post_id: post.external_post_id,
+        published_at: post.published_at,
+        post_url: post.post_url,
+      };
     });
     return map;
   }, [data?.linkedin]);
@@ -1413,6 +1424,34 @@ function LeadsSection({ data, client, onNotice, onReload }) {
     setSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc' }));
   };
   const sortArrow = (key) => (sortConfig.key !== key ? ' ↕' : sortConfig.direction === 'asc' ? ' ▲' : ' ▼');
+
+  const exportRows = useMemo(() => buildLeadExportRows({
+    leads: visible,
+    postsById,
+    commentByLead,
+    outreachByLead,
+  }), [visible, postsById, commentByLead, outreachByLead]);
+
+  const exportVisibleLeads = async (format) => {
+    if (!exportRows.length || exporting) return;
+    const selectedPost = postsById[postFilter];
+    const filterLabel = leadFilterChips.find((chip) => chip.id === filter)?.label || filter;
+    const fileName = buildLeadExportFilename(format, {
+      status: filterLabel,
+      creator: creatorFilter,
+      post: selectedPost?.hook,
+    });
+    setExporting(format);
+    try {
+      if (format === 'csv') downloadLeadCsv(exportRows, fileName);
+      else await downloadLeadExcel(exportRows, fileName);
+      onNotice(`${integer.format(exportRows.length)} lead(s) exportado(s) para ${format === 'csv' ? 'CSV' : 'Excel'}.`);
+    } catch (error) {
+      onNotice(`Falha ao exportar: ${error?.message || error}`);
+    } finally {
+      setExporting('');
+    }
+  };
 
   // Fila pendente na ordem que o backend processa (mais antigos primeiro).
   const pendingQueue = useMemo(() => (
@@ -1646,7 +1685,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
           )}
         </div>
         {/* Linha 2: chips de status */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           {leadFilterChips.map((chip) => {
             const isActive = filter === chip.id;
             const chipColors = {
@@ -1670,6 +1709,19 @@ function LeadsSection({ data, client, onNotice, onReload }) {
               </button>
             );
           })}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+            <span style={{ color: '#64748b', fontSize: 11.5, fontWeight: 600, marginRight: 2 }}><Download size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />Exportar filtro atual:</span>
+            <button type="button" onClick={() => exportVisibleLeads('xlsx')} disabled={!exportRows.length || Boolean(exporting)}
+              aria-label="Exportar leads filtrados para Excel"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid #a7d7bd', background: '#f0fdf4', color: '#067647', borderRadius: 7, padding: '5px 10px', fontSize: 11.5, fontWeight: 700, cursor: exportRows.length && !exporting ? 'pointer' : 'not-allowed', opacity: exportRows.length && !exporting ? 1 : 0.55 }}>
+              {exporting === 'xlsx' ? <RefreshCw size={12} className="spin" /> : <FileSpreadsheet size={12} />} Excel
+            </button>
+            <button type="button" onClick={() => exportVisibleLeads('csv')} disabled={!exportRows.length || Boolean(exporting)}
+              aria-label="Exportar leads filtrados para CSV"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid #cbd5e1', background: '#fff', color: '#334155', borderRadius: 7, padding: '5px 10px', fontSize: 11.5, fontWeight: 700, cursor: exportRows.length && !exporting ? 'pointer' : 'not-allowed', opacity: exportRows.length && !exporting ? 1 : 0.55 }}>
+              {exporting === 'csv' ? <RefreshCw size={12} className="spin" /> : <FileText size={12} />} CSV
+            </button>
+          </div>
         </div>
       </div>
       {!visible.length ? (
