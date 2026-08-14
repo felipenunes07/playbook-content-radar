@@ -6,9 +6,22 @@ function fakeSupabase(results, calls = []) {
   return {
     from(name) {
       return {
-        select(columns = '*') {
-          calls.push({ name, columns });
-          return Promise.resolve(results[name] || { data: [], error: null });
+        // O client real devolve um builder encadeável e só resolve no await. Sem
+        // suportar order/limit/eq/not/head aqui, qualquer consulta filtrada lançaria
+        // e o loader cairia no snapshot local — mascarando o que a tela realmente pede.
+        select(columns = '*', options = {}) {
+          const call = { name, columns, head: options.head === true, count: options.count };
+          calls.push(call);
+          const resolved = results[name] || { data: [], error: null };
+          const builder = {
+            order() { return builder; },
+            limit() { return builder; },
+            eq() { return builder; },
+            not() { return builder; },
+            then(resolve, reject) { return Promise.resolve(resolved).then(resolve, reject); },
+            catch(fn) { return Promise.resolve(resolved).catch(fn); },
+          };
+          return builder;
         },
       };
     },
@@ -102,8 +115,19 @@ describe('loadContentMetrics', () => {
       'leads',
       'lead_outreach',
       'lead_comments',
+      // Telefone da Base Tally: a view do match, mais três consultas SEM payload de
+      // linha (count/head e um order+limit 1) para o rótulo de última sincronização.
+      // A tabela vai a ~19k linhas, então baixá-la só para contar quebraria a
+      // promessa de carga leve desta tela.
+      'v_lead_phones',
+      'tally_submissions',
+      'tally_submissions',
+      'tally_submissions',
       'prospect_settings',
     ]);
+    const tallyCalls = calls.filter((call) => call.name === 'tally_submissions');
+    expect(tallyCalls).toHaveLength(3);
+    expect(tallyCalls.filter((call) => call.head === true)).toHaveLength(2);
     expect(calls.find((call) => call.name === 'leads')?.columns).not.toBe('*');
     expect(calls.find((call) => call.name === 'leads')?.columns).not.toContain('profile_raw');
     expect(calls.find((call) => call.name === 'leads')?.columns).not.toContain('company_raw');

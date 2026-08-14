@@ -1384,7 +1384,7 @@ function App() {
           )}
           {view === 'leads' && (
             <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Carregando leads…</div>}>
-              <ContentMetricsWorkspace client={supabase} mode="leads" />
+              <ContentMetricsWorkspace client={supabase} mode="leads" currentUser={user} />
             </React.Suspense>
           )}
           {view === 'goals' && (

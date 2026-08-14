@@ -11,6 +11,8 @@ const empty = {
   growth: [],
   prospecting: [],
   leads: [],
+  leadPhones: [],
+  tallyStats: { total: 0, comTelefone: 0, ultimaSync: null },
   leadOutreach: [],
   leadComments: [],
   prospectSettings: null,
@@ -104,6 +106,16 @@ function queryPlan(supabase, mode) {
     add('leads', supabase.from('leads').select(LEAD_COLUMNS));
     add('leadOutreach', supabase.from('lead_outreach').select('lead_id, status, generated_message'));
     add('leadComments', supabase.from('lead_comments').select('lead_id, post_id, comment_text, commented_at, created_at'));
+    // Telefone vindo da Base Tally. A view já filtra por qualification_status =
+    // 'qualified' e traz o match com evidências e candidatos — a tela não precisa
+    // saber nada do matcher, só ler o resultado.
+    add('leadPhones', supabase.from('v_lead_phones').select('*'));
+    // Resumo da Base Tally para o rótulo de última sincronização. São três consultas
+    // sem payload de linha (head + count, e um order/limit 1) em vez de baixar a
+    // tabela: ela já tem ~1k linhas e vai para ~19k quando os 59 formulários entrarem.
+    add('tallyLatest', supabase.from('tally_submissions').select('imported_at').order('imported_at', { ascending: false }).limit(1));
+    add('tallyTotal', supabase.from('tally_submissions').select('submission_id', { count: 'exact', head: true }));
+    add('tallyPhones', supabase.from('tally_submissions').select('submission_id', { count: 'exact', head: true }).not('phone_e164', 'is', null).eq('is_junk', false));
     add('prospectSettings', supabase.from('prospect_settings').select('icp_rules, message_template'));
   } else if (mode === 'goals') {
     add('accounts', supabase.from('content_accounts').select('*'));
@@ -143,6 +155,12 @@ async function fetchContentMetrics({ supabase, fallback, mode }) {
       leads: (results.leads?.data || []).slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))),
       leadOutreach: results.leadOutreach?.data || [],
       leadComments: results.leadComments?.data || [],
+      leadPhones: results.leadPhones?.data || [],
+      tallyStats: {
+        total: results.tallyTotal?.count ?? 0,
+        comTelefone: results.tallyPhones?.count ?? 0,
+        ultimaSync: results.tallyLatest?.data?.[0]?.imported_at || null,
+      },
       prospectSettings: results.prospectSettings?.data?.[0] || null,
       goals: results.goals?.data || [],
       bookings: (results.bookings?.data || []).slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))),
