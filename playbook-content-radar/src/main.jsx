@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import victorPhoto from './assets/victor.png';
 import fernandoPhoto from './assets/fernando.png';
 import felipePhoto from './assets/felipe.jfif';
+import juniorPhoto from './assets/junior.png';
 import playbookLogo from './assets/playbook-logo.png';
 import { pathToMetricsSection, sectionToMetricsPath } from './contentMetrics/routes.js';
 import { filterContent } from './contentMetrics/analytics.js';
@@ -126,8 +127,26 @@ const TEAM_WORKSPACE_ROOT_ID = 'team-workspace-root';
 const USER_AVATARS = {
   Victor: victorPhoto,
   Fernando: fernandoPhoto,
-  Felipe: felipePhoto
+  Felipe: felipePhoto,
+  Junior: juniorPhoto
 };
+
+// Papéis dos perfis do app:
+// - Felipe é o admin (único que cria pautas, programa publicações e exporta dados);
+// - Victor e Fernando são os curadores editoriais — a aprovação de uma pauta continua
+//   sendo decidida pelos votos dos dois (ver calculateAutoStatus);
+// - Junior é colaborador: usa Tarefas & Notas e os painéis de apoio (métricas, metas,
+//   prospecção, leads, desenvolvimento, produção, calendário), mas fica fora do fluxo
+//   de votação para não alterar o critério de aprovação já em uso.
+const CURATORS = ['Victor', 'Fernando'];
+const TEAM_MEMBERS = ['Felipe', 'Victor', 'Fernando', 'Junior'];
+const isAdmin = (name) => name === 'Felipe';
+const isCurator = (name) => CURATORS.includes(name);
+const roleLabel = (name) => isAdmin(name)
+  ? 'Administrador'
+  : isCurator(name)
+    ? 'Curador de Conteúdo'
+    : 'Colaborador';
 
 // Safe UUID helper
 const generateUUID = () => {
@@ -1030,7 +1049,8 @@ function App() {
   }, [state]);
 
   const userCurationStats = useMemo(() => {
-    if (!user || user === 'Felipe') return null;
+    // Só curadores têm painel "Suas decisões" — Junior (colaborador) não vota.
+    if (!isCurator(user)) return null;
     const userVotes = state.votes.filter(v => v.voterName === user);
     return {
       like: userVotes.filter(v => v.vote === 'like').length,
@@ -1043,10 +1063,13 @@ function App() {
     setUser(name);
     setCuratorFilter('todos');
     setActiveFilter('todas');
-    if (name === 'Felipe') {
+    if (isAdmin(name)) {
       setView('dashboard');
-    } else {
+    } else if (isCurator(name)) {
       setView('vote');
+    } else {
+      // Colaboradores entram direto na área compartilhada de tarefas e anotações.
+      setView('team-workspace');
     }
   };
 
@@ -1094,28 +1117,38 @@ function App() {
             </div>
             <div className="user-panel-info">
               <strong>{user}</strong>
-              <span>{user === 'Felipe' ? 'Administrador' : 'Curador de Conteúdo'}</span>
+              <span>{roleLabel(user)}</span>
             </div>
           </div>
 
           <nav className="nav-group">
-            {user !== 'Felipe' && (
+            {!isAdmin(user) && (
               <>
+                {isCurator(user) && (
+                  <>
+                    <button
+                      className={view === 'vote' ? 'nav-link active' : 'nav-link'}
+                      onClick={() => setView('vote')}
+                    >
+                      <LinkedinIcon size={14} /> Votar ideias
+                    </button>
+                    <button
+                      className={view === 'ideas' ? 'nav-link active' : 'nav-link'}
+                      onClick={() => {
+                        setCuratorFilter(`${user.toLowerCase()}_voted`);
+                        setActiveFilter('todas');
+                        setView('ideas');
+                      }}
+                    >
+                      <FileText size={16} /> Minhas Curadorias
+                    </button>
+                  </>
+                )}
                 <button
-                  className={view === 'vote' ? 'nav-link active' : 'nav-link'}
-                  onClick={() => setView('vote')}
+                  className={view === 'team-workspace' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('team-workspace')}
                 >
-                  <LinkedinIcon size={14} /> Votar ideias
-                </button>
-                <button
-                  className={view === 'ideas' ? 'nav-link active' : 'nav-link'}
-                  onClick={() => {
-                    setCuratorFilter(`${user.toLowerCase()}_voted`);
-                    setActiveFilter('todas');
-                    setView('ideas');
-                  }}
-                >
-                  <FileText size={16} /> Minhas Curadorias
+                  <ListTodo size={16} /> Tarefas & Notas
                 </button>
                 <button
                   className={view === 'metrics' ? 'nav-link active' : 'nav-link'}
@@ -1162,7 +1195,7 @@ function App() {
               </>
             )}
 
-            {user === 'Felipe' && (
+            {isAdmin(user) && (
               <>
                 <button
                   className={view === 'dashboard' ? 'nav-link active' : 'nav-link'}
@@ -1307,7 +1340,7 @@ function App() {
 
       {user ? (
         <main className="main-area">
-          {view === 'vote' && user !== 'Felipe' && (
+          {view === 'vote' && isCurator(user) && (
             <VoteView
               user={user}
               ideas={enrichedIdeas}
@@ -1317,7 +1350,7 @@ function App() {
               onBackToSelect={() => setUser(null)}
             />
           )}
-          {view === 'dashboard' && user === 'Felipe' && (
+          {view === 'dashboard' && isAdmin(user) && (
             <DashboardView
               ideas={enrichedIdeas}
               votes={state.votes}
@@ -1382,7 +1415,7 @@ function App() {
               />
             </React.Suspense>
           )}
-          {view === 'new' && user === 'Felipe' && (
+          {view === 'new' && isAdmin(user) && (
             <NewIdeaView
               updateState={updateState}
               setView={setView}
@@ -1420,12 +1453,14 @@ function App() {
               addToast={addToast}
             />
           )}
-          {view === 'team-workspace' && user === 'Felipe' && (
+          {/* Tarefas & Notas é a área compartilhada do time: todos os perfis entram,
+              com presença ao vivo e edição colaborativa (não é mais exclusiva do admin). */}
+          {view === 'team-workspace' && (
             <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Abrindo tarefas e anotações…</div>}>
-              <TeamWorkspace client={supabase} currentUser={user} avatars={USER_AVATARS} />
+              <TeamWorkspace client={supabase} currentUser={user} avatars={USER_AVATARS} members={TEAM_MEMBERS} />
             </React.Suspense>
           )}
-          {view === 'data' && user === 'Felipe' && (
+          {view === 'data' && isAdmin(user) && (
             <DataExportView state={state} ideas={enrichedIdeas} addToast={addToast} />
           )}
         </main>
@@ -1436,28 +1471,41 @@ function App() {
       {/* Mobile Bottom Tab Bar */}
       {user && (
         <div className="mobile-bottom-nav">
-          {user !== 'Felipe' ? (
+          {!isAdmin(user) ? (
             <>
-              <button
-                type="button"
-                className={view === 'vote' ? 'mobile-nav-item active' : 'mobile-nav-item'}
-                onClick={() => setView('vote')}
-              >
-                <ThumbsUp size={18} />
-                <span>Votar</span>
-              </button>
+              {isCurator(user) && (
+                <>
+                  <button
+                    type="button"
+                    className={view === 'vote' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                    onClick={() => setView('vote')}
+                  >
+                    <ThumbsUp size={18} />
+                    <span>Votar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={view === 'ideas' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                    onClick={() => {
+                      setCuratorFilter(`${user.toLowerCase()}_voted`);
+                      setActiveFilter('todas');
+                      setView('ideas');
+                    }}
+                  >
+                    <FileText size={18} />
+                    <span>Curadorias</span>
+                  </button>
+                </>
+              )}
 
               <button
                 type="button"
-                className={view === 'ideas' ? 'mobile-nav-item active' : 'mobile-nav-item'}
-                onClick={() => {
-                  setCuratorFilter(`${user.toLowerCase()}_voted`);
-                  setActiveFilter('todas');
-                  setView('ideas');
-                }}
+                className={view === 'team-workspace' ? 'mobile-nav-item active' : 'mobile-nav-item'}
+                onClick={() => leaveMetrics('team-workspace')}
               >
-                <FileText size={18} />
-                <span>Curadorias</span>
+                <ListTodo size={18} />
+                <span>Tarefas</span>
               </button>
 
               <button
@@ -1752,6 +1800,24 @@ function IdentityScreen({ selectUser, ideas, votes }) {
             ) : (
               <span style={{ color: 'var(--vote-green)', fontSize: '12px', fontWeight: 600 }}>Tudo limpo</span>
             )}
+          </button>
+
+          <button onClick={() => selectUser('Junior')}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <img
+                className="avatar-initial"
+                src={USER_AVATARS.Junior}
+                alt="Junior"
+                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = `https://ui-avatars.com/api/?name=Junior&background=7c3aed&color=fff&bold=true`;
+                }}
+              />
+              Junior
+            </span>
+            {/* Junior não vota: entra direto em Tarefas & Notas, então não há pendências a mostrar. */}
+            <span style={{ fontSize: '12px', color: 'var(--linkedin-mid-gray)', fontWeight: 600 }}>Tarefas & Notas</span>
           </button>
 
           <button className="admin-btn" onClick={() => selectUser('Felipe')}>
@@ -3950,7 +4016,7 @@ function IdeasListView({
   const [selectedQuickComment, setSelectedQuickComment] = useState('');
 
   function handleDirectVote(ideaId, voteType) {
-    if (currentUser === 'Felipe') {
+    if (!isCurator(currentUser)) {
       addToast('Apenas curadores (Victor/Fernando) podem votar!', 'error');
       return;
     }
@@ -3985,7 +4051,7 @@ function IdeasListView({
 
   function handleSaveFeedComment(withComment = true) {
     if (!commentingIdea) return;
-    if (currentUser === 'Felipe') {
+    if (!isCurator(currentUser)) {
       addToast('Apenas curadores (Victor/Fernando) podem comentar!', 'error');
       return;
     }

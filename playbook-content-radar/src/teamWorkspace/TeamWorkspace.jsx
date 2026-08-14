@@ -601,13 +601,21 @@ function KanbanColumn({ column, tasks, avatars, onEdit, onDelete, onToggleDone, 
   );
 }
 
-function TaskModal({ task, initialStatus, currentUser, onClose, onSave, onDelete, onAttach, onRemoveAttachment, busy, uploading }) {
+function TaskModal({ task, initialStatus, currentUser, members = [], onClose, onSave, onDelete, onAttach, onRemoveAttachment, busy, uploading }) {
+  // A lista de responsáveis vem do app (TEAM_MEMBERS) para não ficar desatualizada
+  // quando alguém entra no time; quem cria a tarefa já sai como responsável padrão.
+  const assigneeOptions = useMemo(() => {
+    const base = members.length ? members : [currentUser];
+    const existing = task?.assignee;
+    return existing && !base.includes(existing) ? [...base, existing] : base;
+  }, [members, currentUser, task?.assignee]);
+
   const [form, setForm] = useState(() => ({
     title: task?.title || '',
     description: task?.description || '',
     status: task?.status || initialStatus || 'todo',
     priority: task?.priority || 'normal',
-    assignee: task?.assignee || 'Felipe',
+    assignee: task?.assignee || currentUser,
     due_date: task?.due_date || ''
   }));
 
@@ -637,7 +645,7 @@ function TaskModal({ task, initialStatus, currentUser, onClose, onSave, onDelete
           <textarea value={form.description} onChange={(event) => update('description', event.target.value)} placeholder="Contexto, links e o resultado esperado…" rows={4} />
         </label>
         <div className="tw-form-grid">
-          <label className="tw-field"><span>Responsável</span><select value={form.assignee} onChange={(event) => update('assignee', event.target.value)}><option>Felipe</option><option>Victor</option><option>Fernando</option></select></label>
+          <label className="tw-field"><span>Responsável</span><select value={form.assignee} onChange={(event) => update('assignee', event.target.value)}>{assigneeOptions.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
           <label className="tw-field"><span>Status</span><select value={form.status} onChange={(event) => update('status', event.target.value)}>{STATUSES.map((status) => <option key={status.id} value={status.id}>{status.label}</option>)}</select></label>
           <label className="tw-field"><span>Prioridade</span><select value={form.priority} onChange={(event) => update('priority', event.target.value)}><option value="low">Baixa</option><option value="normal">Normal</option><option value="high">Alta</option></select></label>
           <label className="tw-field"><span>Prazo</span><input type="date" value={form.due_date} onChange={(event) => update('due_date', event.target.value)} /></label>
@@ -760,7 +768,7 @@ function Notebook({ notes, activeId, setActiveId, draft, onDraftChange, onCreate
   );
 }
 
-export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
+export default function TeamWorkspace({ client, currentUser, avatars = {}, members = [] }) {
   const [section, setSection] = useState('kanban');
   const [tasks, setTasks] = useState([]);
   const [notes, setNotes] = useState([]);
@@ -1291,7 +1299,7 @@ export default function TeamWorkspace({ client, currentUser, avatars = {} }) {
         />
       )}
 
-      {modal && <TaskModal task={modal.task} initialStatus={modal.status} currentUser={currentUser} onClose={() => setModal(null)} onSave={saveTask} onDelete={deleteTask} onAttach={(taskId, files) => attachFiles('task', taskId, files)} onRemoveAttachment={(taskId, file) => removeAttachment('task', taskId, file)} busy={busy} uploading={uploadingTarget === `task:${modal.task?.id}`} />}
+      {modal && <TaskModal task={modal.task} initialStatus={modal.status} currentUser={currentUser} members={members} onClose={() => setModal(null)} onSave={saveTask} onDelete={deleteTask} onAttach={(taskId, files) => attachFiles('task', taskId, files)} onRemoveAttachment={(taskId, file) => removeAttachment('task', taskId, file)} busy={busy} uploading={uploadingTarget === `task:${modal.task?.id}`} />}
     </div>
   );
 }
