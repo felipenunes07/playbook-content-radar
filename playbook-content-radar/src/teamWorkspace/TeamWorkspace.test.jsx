@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NOTE_KINDS, STATUSES, bringPastPendingItemsToToday, formatFileSize, getItemDateKey, localDateKey, safeFileName, upsertById } from './TeamWorkspace.jsx';
+import { NOTE_KINDS, STATUSES, bringPastPendingItemsToToday, extractChecklistLines, formatFileSize, getItemDateKey, localDateKey, safeFileName, upsertById } from './TeamWorkspace.jsx';
 
 describe('TeamWorkspace helpers', () => {
   it('keeps the three requested kanban stages in order', () => {
@@ -15,6 +15,34 @@ describe('TeamWorkspace helpers', () => {
     expect(upsertById(added, { id: 'task-1', title: 'Versão final' })).toEqual([
       { id: 'task-1', title: 'Versão final' }
     ]);
+  });
+
+  it('turns a "[]" line of the note into a to-do', () => {
+    const { content, found } = extractChecklistLines('Reunião de segunda\n[] falar com o cliente');
+    expect(content).toBe('Reunião de segunda');
+    expect(found).toEqual([{ text: 'falar com o cliente', done: false }]);
+  });
+
+  it('accepts the checkbox variants and marks [x] as done', () => {
+    const { found } = extractChecklistLines('[]\n[ ] com espaço\n- [] com bullet\n* [X] já feito');
+    expect(found).toEqual([
+      { text: '', done: false },
+      { text: 'com espaço', done: false },
+      { text: 'com bullet', done: false },
+      { text: 'já feito', done: true }
+    ]);
+  });
+
+  it('ignores brackets that are not at the start of the line', () => {
+    const text = 'o array [] fica vazio\nver anexo [1]';
+    const { content, found } = extractChecklistLines(text);
+    expect(found).toEqual([]);
+    expect(content).toBe(text);
+  });
+
+  it('leaves the rest of the note untouched when extracting a to-do', () => {
+    const { content } = extractChecklistLines('primeira\n[] tarefa\nsegunda\nterceira');
+    expect(content).toBe('primeira\nsegunda\nterceira');
   });
 
   it('normalizes attachment names for storage paths', () => {

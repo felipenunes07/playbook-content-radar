@@ -310,8 +310,17 @@
 .tw-save-state.error .tw-save-dot { background: #d33e55; }
 @keyframes tw-pulse { 50% { opacity: .35; } }
 .tw-paper { flex: 1; width: 100%; margin: 0; padding: 22px clamp(20px, 3vw, 42px) 16px; }
-.tw-note-title { display: block; width: 100%; padding: 0; color: #172033; background: transparent; border: 0; outline: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(24px, 2.5vw, 34px); font-weight: 600; letter-spacing: -.025em; }
+/* O título é um input desde sempre; o hover/foco e o lápis existem para que isso
+   fique visível — sem eles ele se passa por um cabeçalho estático. */
+.tw-note-title-row { display: flex; align-items: center; gap: 6px; margin: 0 -8px; }
+.tw-note-title { display: block; flex: 1; min-width: 0; padding: 2px 8px; color: #172033; background: transparent; border: 1px solid transparent; border-radius: 8px; outline: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(24px, 2.5vw, 34px); font-weight: 600; letter-spacing: -.025em; cursor: text; transition: background-color .15s ease, border-color .15s ease; }
 .tw-note-title::placeholder { color: #bdc2cb; }
+.tw-note-title:hover { background: #f5f6f9; border-color: #e4e7ed; }
+.tw-note-title:focus { background: #fff; border-color: #9db8e8; box-shadow: 0 0 0 3px rgba(10, 102, 194, .12); }
+.tw-note-title-edit { display: grid; place-items: center; flex: none; width: 30px; height: 30px; padding: 0; color: #98a0ae; background: transparent; border: 0; border-radius: 8px; opacity: 0; cursor: pointer; transition: opacity .15s ease, color .15s ease, background-color .15s ease; }
+.tw-note-title-row:hover .tw-note-title-edit,
+.tw-note-title-edit:focus-visible { opacity: 1; }
+.tw-note-title-edit:hover { color: #0a66c2; background: #eef4fc; }
 .tw-note-byline { display: flex; align-items: center; gap: 7px; margin: 8px 0 15px; color: #9299a7; font-size: 9.5px; }
 .tw-note-content { display: block; width: 100%; min-height: 185px; padding: 0; resize: vertical; color: #384256; background: transparent; border: 0; outline: 0; font-family: Georgia, "Times New Roman", serif; font-size: 15px; line-height: 1.65; }
 .tw-note-content::placeholder { color: #b2b7c0; }
@@ -319,6 +328,8 @@
 .tw-checklist-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
 .tw-checklist-head strong { color: #3e495d; font-size: 11px; letter-spacing: .02em; }
 .tw-checklist-head span { color: #929baa; font-size: 9px; font-weight: 700; }
+.tw-checklist-hint { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+.tw-checklist-hint code { padding: 1px 5px; color: #46536b; background: #f1f3f7; border: 1px solid #e3e6ec; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; }
 .tw-checklist-items { display: flex; flex-direction: column; gap: 3px; }
 .tw-checklist-item { display: flex; align-items: center; gap: 8px; min-height: 31px; padding: 2px 4px; border-radius: 7px; }
 .tw-checklist-item:hover { background: #f7f8fa; }

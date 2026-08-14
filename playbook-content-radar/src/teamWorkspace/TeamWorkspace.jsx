@@ -67,6 +67,24 @@ function safeFileName(name = 'arquivo') {
   return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-');
 }
 
+// Sintaxe de checkbox no corpo da anota\u00e7\u00e3o: quem escreve "[]" (ou "[ ]", "[x]", com
+// bullet "-" ou "*" na frente) numa linha v\u00ea o marcador virar um item de verdade na
+// lista de To-dos. S\u00f3 vale no come\u00e7o da linha para n\u00e3o capturar "[]" no meio de uma
+// frase \u2014 e "[x]" j\u00e1 entra marcado como conclu\u00eddo, o que faz colar uma lista de
+// markdown pronta funcionar de primeira.
+const CHECKBOX_LINE = /^[ \t]*(?:[-*][ \t]+)?\[[ \t]*([xX]?)[ \t]*\][ \t]*(.*)$/;
+
+function extractChecklistLines(text = '') {
+  const kept = [];
+  const found = [];
+  text.split('\n').forEach((line) => {
+    const match = line.match(CHECKBOX_LINE);
+    if (match) found.push({ text: match[2].trim(), done: match[1].toLowerCase() === 'x' });
+    else kept.push(line);
+  });
+  return { content: found.length ? kept.join('\n') : text, found };
+}
+
 function formatFileSize(bytes = 0) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -675,8 +693,54 @@ function Notebook({ notes, activeId, setActiveId, draft, onDraftChange, onCreate
   const attachments = Array.isArray(draft.attachments) ? draft.attachments : [];
   const [fileOver, setFileOver] = useState(false);
   const updateChecklist = (id, patch) => onDraftChange({ ...draft, checklist: checklist.map((item) => item.id === id ? { ...item, ...patch } : item) });
-  const addChecklistItem = () => onDraftChange({ ...draft, checklist: [...checklist, { id: createId(), text: '', done: false }] });
   const removeChecklistItem = (id) => onDraftChange({ ...draft, checklist: checklist.filter((item) => item.id !== id) });
+
+  // Depois de criar um to-do (pelo "[]", pelo Enter ou pelo botão) o cursor vai direto
+  // pra ele — senão quem digitou "[]" ficaria escrevendo no lugar errado.
+  const itemRefs = useRef({});
+  const titleRef = useRef(null);
+  const [focusItemId, setFocusItemId] = useState(null);
+  useEffect(() => {
+    if (!focusItemId) return;
+    itemRefs.current[focusItemId]?.focus();
+    setFocusItemId(null);
+  }, [focusItemId, checklist.length]);
+
+  const addChecklistItem = (afterId = null) => {
+    const item = { id: createId(), text: '', done: false };
+    const at = afterId ? checklist.findIndex((entry) => entry.id === afterId) + 1 : checklist.length;
+    const next = [...checklist.slice(0, at), item, ...checklist.slice(at)];
+    onDraftChange({ ...draft, checklist: next });
+    setFocusItemId(item.id);
+  };
+
+  const changeContent = (value) => {
+    const { content, found } = extractChecklistLines(value);
+    if (!found.length) {
+      onDraftChange({ ...draft, content: value });
+      return;
+    }
+    const created = found.map((entry) => ({ id: createId(), text: entry.text, done: entry.done }));
+    onDraftChange({ ...draft, content, checklist: [...checklist, ...created] });
+    setFocusItemId(created[created.length - 1].id);
+  };
+
+  const handleItemKeyDown = (event, item) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      addChecklistItem(item.id);
+      return;
+    }
+    // Backspace num item vazio remove ele e volta pro anterior — comportamento
+    // esperado de lista, evita item fantasma quando se cria um sem querer.
+    if (event.key === 'Backspace' && !item.text) {
+      event.preventDefault();
+      const index = checklist.findIndex((entry) => entry.id === item.id);
+      removeChecklistItem(item.id);
+      const previous = checklist[index - 1];
+      if (previous) setFocusItemId(previous.id);
+    }
+  };
 
   return (
     <div className="tw-notebook">
@@ -729,24 +793,54 @@ function Notebook({ notes, activeId, setActiveId, draft, onDraftChange, onCreate
               <div className={`tw-save-state ${saveState}`}><span className="tw-save-dot" />{saveState === 'saving' ? 'Salvando…' : saveState === 'error' ? 'Erro ao salvar' : 'Salvo ao vivo'}</div>
             </header>
             <div className="tw-paper">
-              <input className="tw-note-title" value={draft.title} onChange={(event) => onDraftChange({ ...draft, title: event.target.value })} placeholder="Título da anotação" maxLength={180} />
+              {/* O título sempre foi editável, mas sem borda/hover parecia texto fixo e
+                  ninguém percebia que dava pra renomear. O lápis e o realce no hover
+                  existem só pra deixar isso óbvio. */}
+              <div className="tw-note-title-row">
+                <input
+                  ref={titleRef}
+                  className="tw-note-title"
+                  value={draft.title}
+                  onChange={(event) => onDraftChange({ ...draft, title: event.target.value })}
+                  onFocus={(event) => event.target.select()}
+                  placeholder="Título da anotação"
+                  title="Clique para renomear"
+                  aria-label="Nome da anotação"
+                  maxLength={180}
+                />
+                <button
+                  type="button"
+                  className="tw-note-title-edit"
+                  aria-label="Renomear anotação"
+                  title="Renomear"
+                  onClick={() => titleRef.current?.focus()}
+                ><Pencil size={15} /></button>
+              </div>
               <div className="tw-note-byline"><UserAvatar name={active.updated_by} avatars={avatars} size={22} /><span>Editado por {active.updated_by} · {relativeTime(active.updated_at)}</span></div>
-              <textarea className="tw-note-content" value={draft.content} onChange={(event) => onDraftChange({ ...draft, content: event.target.value })} placeholder={'Escreva livremente…\n\n• Decisões da reunião\n• Próximos passos\n• Ideias e lembretes'} />
+              <textarea className="tw-note-content" value={draft.content} onChange={(event) => changeContent(event.target.value)} placeholder={'Escreva livremente…\n\nDigite [] para criar um to-do\n\n• Decisões da reunião\n• Próximos passos\n• Ideias e lembretes'} />
               <section className="tw-checklist" aria-label="Lista de tarefas da anotação">
                 <div className="tw-checklist-head">
                   <strong>To-dos</strong>
-                  {checklist.length > 0 && <span>{checklist.filter((item) => item.done).length}/{checklist.length} concluídos</span>}
+                  {checklist.length > 0
+                    ? <span>{checklist.filter((item) => item.done).length}/{checklist.length} concluídos</span>
+                    : <span className="tw-checklist-hint">digite <code>[]</code> na anotação</span>}
                 </div>
                 <div className="tw-checklist-items">
                   {checklist.map((item) => (
                     <div key={item.id} className={`tw-checklist-item ${item.done ? 'done' : ''}`}>
                       <button type="button" className={`tw-note-check ${item.done ? 'checked' : ''}`} aria-label={item.done ? 'Marcar como pendente' : 'Marcar como concluído'} onClick={() => updateChecklist(item.id, { done: !item.done })}>{item.done && <Check size={13} strokeWidth={3} />}</button>
-                      <input value={item.text} onChange={(event) => updateChecklist(item.id, { text: event.target.value })} placeholder="Digite uma tarefa…" />
+                      <input
+                        ref={(el) => { if (el) itemRefs.current[item.id] = el; else delete itemRefs.current[item.id]; }}
+                        value={item.text}
+                        onChange={(event) => updateChecklist(item.id, { text: event.target.value })}
+                        onKeyDown={(event) => handleItemKeyDown(event, item)}
+                        placeholder="Digite uma tarefa…"
+                      />
                       <button type="button" className="tw-checklist-remove" aria-label="Remover item" onClick={() => removeChecklistItem(item.id)}><X size={14} /></button>
                     </div>
                   ))}
                 </div>
-                <button type="button" className="tw-checklist-add" onClick={addChecklistItem}><Plus size={14} /> Adicionar item</button>
+                <button type="button" className="tw-checklist-add" onClick={() => addChecklistItem()}><Plus size={14} /> Adicionar item</button>
               </section>
               <section className={`tw-note-attachments ${attachments.length ? 'has-files' : ''}`} aria-label="Arquivos da anotação">
                 <div className="tw-checklist-head"><strong><Paperclip size={13} /> Arquivos</strong>{attachments.length > 0 && <span>{attachments.length} {attachments.length === 1 ? 'arquivo' : 'arquivos'}</span>}</div>
@@ -1304,4 +1398,4 @@ export default function TeamWorkspace({ client, currentUser, avatars = {}, membe
   );
 }
 
-export { STATUSES, NOTE_KINDS, formatFileSize, localDateKey, getItemDateKey, safeFileName, upsertById, bringPastPendingItemsToToday };
+export { STATUSES, NOTE_KINDS, formatFileSize, localDateKey, getItemDateKey, safeFileName, upsertById, bringPastPendingItemsToToday, extractChecklistLines };
