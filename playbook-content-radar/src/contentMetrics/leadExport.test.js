@@ -1,5 +1,52 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildLeadCsv, buildLeadExcelBlob, buildLeadExportFilename, buildLeadExportRows, buildLeadWorksheetXml, selectLeadsForExport } from './leadExport.js';
+import { LEAD_EXPORT_COLUMNS, buildLeadCsv, buildLeadExcelBlob, buildLeadExportFilename, buildLeadExportRows, buildLeadWorksheetXml, selectLeadsForExport } from './leadExport.js';
+
+describe('buildLeadExportRows: telefone na planilha só quando MATCHED', () => {
+  const leads = [
+    { id: 'a', full_name: 'Ana Jardim' },
+    { id: 'b', full_name: 'Bruno Torres' },
+    { id: 'c', full_name: 'Joao Silva' },
+    { id: 'd', full_name: 'Carla Dias' },
+    { id: 'e', full_name: 'Sem Linha' },
+  ];
+  const phonesByLead = {
+    a: { lead_id: 'a', match_status: 'MATCHED', phone_e164: '+5511999998888', phone_form_name: 'KipFlow' },
+    b: { lead_id: 'b', match_status: 'MATCHED_NO_PHONE', phone_e164: null, phone_form_name: null },
+    // Linha impossível pelo CHECK do banco, mas se chegasse, a planilha não pode vazar.
+    c: { lead_id: 'c', match_status: 'REVIEW', phone_e164: '+5511777776666', phone_form_name: 'KipFlow' },
+    d: { lead_id: 'd', match_status: 'NOT_FOUND', phone_e164: null, phone_form_name: null },
+  };
+  const rows = buildLeadExportRows({ leads, phonesByLead });
+
+  it('preenche telefone formatado e formulário para MATCHED', () => {
+    expect(rows[0]).toMatchObject({
+      telefone: '+55 11 99999-8888', status_tally: 'Telefone encontrado', formulario_telefone: 'KipFlow',
+    });
+  });
+
+  it('deixa telefone vazio em MATCHED_NO_PHONE, REVIEW e NOT_FOUND', () => {
+    expect(rows[1]).toMatchObject({ telefone: '', status_tally: 'Aguardando telefone', formulario_telefone: '' });
+    expect(rows[2]).toMatchObject({ telefone: '', status_tally: 'Revisar match', formulario_telefone: '' });
+    expect(rows[3]).toMatchObject({ telefone: '', status_tally: 'Não encontrado no Tally', formulario_telefone: '' });
+  });
+
+  it('lead sem linha de match sai sem telefone e sem status', () => {
+    expect(rows[4]).toMatchObject({ telefone: '', status_tally: '', formulario_telefone: '' });
+  });
+
+  it('nenhum número de REVIEW aparece no CSV gerado', () => {
+    const csv = buildLeadCsv(rows);
+    expect(csv).toContain('+55 11 99999-8888');
+    expect(csv).not.toContain('777776666');
+  });
+
+  it('as colunas novas existem no cabeçalho', () => {
+    const labels = LEAD_EXPORT_COLUMNS.map((column) => column.label);
+    expect(labels).toContain('Telefone');
+    expect(labels).toContain('Status Tally');
+    expect(labels).toContain('Formulário do telefone');
+  });
+});
 
 describe('lead export', () => {
   it('excludes leads already sent and allows individual leads to be deselected', () => {
@@ -57,7 +104,8 @@ describe('lead export', () => {
   it('creates an autofiltered Excel worksheet with the header frozen and text escaped', () => {
     const xml = buildLeadWorksheetXml([{ nome: 'Ana & Bia', score: 87, post: '<Post>' }]);
     expect(xml).toContain('state="frozen"');
-    expect(xml).toContain('<autoFilter ref="A1:U2"/>');
+    // X = 24 colunas (as 21 originais + Telefone, Status Tally e Formulário do telefone).
+    expect(xml).toContain('<autoFilter ref="A1:X2"/>');
     expect(xml).toContain('Ana &amp; Bia');
     expect(xml).toContain('&lt;Post&gt;');
     expect(xml).toContain('t="n"><v>87</v>');

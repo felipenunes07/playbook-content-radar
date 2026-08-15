@@ -72,6 +72,35 @@ describe('leadPhoneMatch: o falso positivo que os dados reais oferecem', () => {
   });
 });
 
+describe('leadPhoneMatch: rejeição humana é respeitada', () => {
+  it('candidato rejeitado não volta a ser sugerido', () => {
+    const base = submissions('7RO9QA', '"s1","r1","2026-08-10 10:00:00","Ana","+5511999999999","Jardim","ana@gmail.com"');
+    // Sem rejeição, este caso seria MATCHED por nome_exato+form_do_post.
+    const semRejeicao = matchLeads([lead({ postFormIds: ['7RO9QA'] })], base);
+    expect(semRejeicao.results[0].status).toBe('MATCHED');
+
+    const comRejeicao = matchLeads([lead({ postFormIds: ['7RO9QA'], rejectedSubmissionIds: ['s1'] })], base);
+    expect(comRejeicao.results[0]).toMatchObject({ status: 'NOT_FOUND', phoneE164: null, submissionId: null });
+    expect(comRejeicao.results[0].candidates).toHaveLength(0);
+  });
+
+  it('rejeitar um candidato não descarta os outros', () => {
+    const base = submissions('X',
+      '"s1","r1","2026-08-11 15:16:27","João","+5511111111111","Jungbluth","jvjungbluth@hotmail.com"',
+      '"s2","r2","2026-08-13 14:33:16","João","+5522222222222","Jungbluth","joao.becker@yungas.com.br"',
+    );
+    // Os dois homônimos deixam o lead em REVIEW; rejeitando um, sobra um só.
+    const antes = matchLeads([lead({ fullName: 'João Jungbluth' })], base);
+    expect(antes.results[0].candidates).toHaveLength(2);
+
+    const depois = matchLeads([lead({ fullName: 'João Jungbluth', rejectedSubmissionIds: ['s1'] })], base);
+    expect(depois.results[0].candidates).toHaveLength(1);
+    expect(depois.results[0].candidates[0].submissionId).toBe('s2');
+    // Candidato único mas nome de 2 tokens sem corroboração: segue REVIEW, sem telefone.
+    expect(depois.results[0]).toMatchObject({ status: 'REVIEW', phoneE164: null });
+  });
+});
+
 describe('leadPhoneMatch: telefone vem só da Base Tally', () => {
   it('match seguro sem telefone na submission = MATCHED_NO_PHONE', () => {
     const base = submissions('7RO9QA', '"s9","r9","2026-08-10 10:00:00","Ana","","Jardim","ana@gmail.com"');

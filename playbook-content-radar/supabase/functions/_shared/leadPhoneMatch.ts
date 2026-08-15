@@ -27,6 +27,10 @@ export type LeadForMatch = {
   postFormIds?: string[];
   /** data do comentário mais antigo, para o sinal apos_comentario. */
   firstCommentedAt?: string | null;
+  /** submission_id que um humano já rejeitou para este lead na fila de REVIEW.
+   *  Excluídos dos candidatos: sem isto, a sincronização seguinte reencontraria o
+   *  mesmo candidato e devolveria o lead para REVIEW para sempre. */
+  rejectedSubmissionIds?: string[];
 };
 
 export type MatchStatus = 'MATCHED' | 'MATCHED_NO_PHONE' | 'REVIEW' | 'NOT_FOUND';
@@ -155,8 +159,15 @@ export function matchLeadToSubmissions(lead: LeadForMatch, index: SubmissionInde
   const partialKey = firstLastKey(lead.fullName);
   const specificity = nameSpecificity(lead.fullName);
 
-  const exact = fullKey ? (index.byFullName.get(fullKey) || []) : [];
-  const partial = partialKey ? (index.byFirstLast.get(partialKey) || []) : [];
+  // Rejeição humana é filtrada ANTES de escolher entre nome exato e parcial: um
+  // candidato rejeitado não deve nem contar como "existe match exato".
+  const rejected = new Set(lead.rejectedSubmissionIds || []);
+  const keep = (list: TallySubmission[]) => (rejected.size
+    ? list.filter((submission) => !rejected.has(submission.submissionId))
+    : list);
+
+  const exact = keep(fullKey ? (index.byFullName.get(fullKey) || []) : []);
+  const partial = keep(partialKey ? (index.byFirstLast.get(partialKey) || []) : []);
   const pool = exact.length ? exact : partial;
   const nameKind: 'exato' | 'primeiro_ultimo' = exact.length ? 'exato' : 'primeiro_ultimo';
 

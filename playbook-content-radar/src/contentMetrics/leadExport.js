@@ -1,3 +1,5 @@
+import { formatPhone, phoneStatusMeta, phoneToShow } from './leadPhones.js';
+
 export const LEAD_EXPORT_COLUMNS = [
   { key: 'nome', label: 'Nome', width: 24 },
   { key: 'linkedin', label: 'Perfil no LinkedIn', width: 36 },
@@ -19,6 +21,9 @@ export const LEAD_EXPORT_COLUMNS = [
   { key: 'angulo', label: 'Ângulo sugerido', width: 44 },
   { key: 'mensagem', label: 'Mensagem de abordagem', width: 52 },
   { key: 'status_prospeccao', label: 'Status de prospecção', width: 20 },
+  { key: 'telefone', label: 'Telefone', width: 20 },
+  { key: 'status_tally', label: 'Status Tally', width: 22 },
+  { key: 'formulario_telefone', label: 'Formulário do telefone', width: 34 },
   { key: 'data_cadastro', label: 'Data de cadastro', width: 20 },
 ];
 
@@ -58,12 +63,16 @@ function spreadsheetDate(value) {
   return parsed.toISOString().replace('T', ' ').slice(0, 16);
 }
 
-export function buildLeadExportRows({ leads = [], postsById = {}, commentByLead = {}, outreachByLead = {} } = {}) {
+export function buildLeadExportRows({ leads = [], postsById = {}, commentByLead = {}, outreachByLead = {}, phonesByLead = {} } = {}) {
   return leads.map((lead) => {
     const comment = commentByLead[lead.id] || {};
     const postId = comment.post_id || lead.first_seen_post_id || '';
     const post = postsById[postId] || {};
     const outreach = outreachByLead[lead.id] || {};
+    // O telefone passa pelo mesmo phoneToShow da interface: fora de MATCHED sai
+    // vazio. A planilha vai pro comercial, então é o pior lugar possível para um
+    // número de REVIEW escapar.
+    const phoneRow = phonesByLead[lead.id] || null;
 
     return {
       nome: lead.full_name || lead.public_identifier || '',
@@ -86,6 +95,9 @@ export function buildLeadExportRows({ leads = [], postsById = {}, commentByLead 
       angulo: lead.suggested_angle || '',
       mensagem: outreach.generated_message || '',
       status_prospeccao: outreachLabels[outreach.status || 'new'] || outreach.status || 'Não prospectado',
+      telefone: formatPhone(phoneToShow(phoneRow)),
+      status_tally: phoneRow ? phoneStatusMeta(phoneRow).label : '',
+      formulario_telefone: phoneToShow(phoneRow) ? (phoneRow.phone_form_name || '') : '',
       data_cadastro: spreadsheetDate(lead.created_at),
     };
   });

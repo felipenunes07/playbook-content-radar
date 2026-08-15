@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, BarChart3, Database, ExternalLink, FileClock, FileText, Image as ImageIcon, MessageSquare,
   Play, RefreshCw, Settings, SlidersHorizontal, Users, Video, Target, Copy, Check, Globe, Download, FileSpreadsheet,
+  Phone, AlertTriangle, X,
 } from 'lucide-react';
 
 // lucide-react removeu os ícones de marca (Instagram, LinkedIn…) por questão de
@@ -58,6 +59,10 @@ import {
 } from './analytics.js';
 import { loadContentMetrics } from './repository.js';
 import { buildLeadExportFilename, buildLeadExportRows, downloadLeadCsv, downloadLeadExcel, selectLeadsForExport } from './leadExport.js';
+import {
+  PHONE_FILTERS, countByPhoneFilter, evidenceLabel, indexPhonesByLead, matchesPhoneFilter,
+  phoneDisplay, phoneStatusMeta, phoneStatusOf, reviewCandidates, reviewReason,
+} from './leadPhones.js';
 import { METRICS_SECTIONS } from './routes.js';
 import { ContentFilters, MetricStrip, OperationalPostsTable, StatusPill, TopContentTable, YoutubeFilters, YoutubeVideosTable } from './components.jsx';
 import {
@@ -1275,7 +1280,379 @@ function PostPhotoFilter({ options, value, onChange, counts = {} }) {
   );
 }
 
-function LeadsSection({ data, client, onNotice, onReload }) {
+const modalBackdrop = { position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'grid', placeItems: 'center', zIndex: 60, padding: 20 };
+const modalCard = { background: '#fff', borderRadius: 12, maxWidth: 640, width: '100%', maxHeight: '86vh', overflow: 'auto', boxShadow: '0 20px 50px rgba(15,23,42,.25)' };
+const modalHead = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, padding: '16px 18px', borderBottom: '1px solid #eef1f5' };
+const closeButton = { background: 'transparent', border: 'none', color: '#64748b', fontSize: 20, lineHeight: 1, cursor: 'pointer', fontWeight: 700 };
+
+const dataHora = (value) => (value
+  ? new Date(value).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+  : '—');
+
+/** Detalhe de um telefone MATCHED: de onde veio e com que confiança. */
+function PhoneDetailModal({ lead, row, onClose }) {
+  const numero = phoneDisplay(row);
+  return (
+    <div style={modalBackdrop} role="dialog" aria-modal="true" onMouseDown={onClose}>
+      <div style={modalCard} onMouseDown={(event) => event.stopPropagation()}>
+        <header style={modalHead}>
+          <div>
+            <span className="cm-eyebrow">Telefone encontrado</span>
+            <h2 style={{ margin: '2px 0 0', fontSize: 18 }}>{lead.full_name}</h2>
+          </div>
+          <button type="button" onClick={onClose} style={closeButton} aria-label="Fechar">×</button>
+        </header>
+        <div style={{ padding: 18, display: 'grid', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #a7d7bd', background: '#eafaf1', borderRadius: 9, padding: '11px 13px' }}>
+            <Phone size={16} style={{ color: '#067647' }} />
+            <strong style={{ fontSize: 17, color: '#067647', letterSpacing: '.01em' }}>{numero}</strong>
+          </div>
+          <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '7px 14px', margin: 0, fontSize: 12.5 }}>
+            <dt style={{ color: '#64748b', fontWeight: 700 }}>Formulário</dt>
+            <dd style={{ margin: 0 }}>{row.phone_form_name || '—'}</dd>
+            <dt style={{ color: '#64748b', fontWeight: 700 }}>Data da submission</dt>
+            <dd style={{ margin: 0 }}>{dataHora(row.phone_submitted_at)}</dd>
+            <dt style={{ color: '#64748b', fontWeight: 700 }}>Confiança</dt>
+            <dd style={{ margin: 0 }}>{row.confidence == null ? '—' : `${Math.round(Number(row.confidence) * 100)}%`}</dd>
+            <dt style={{ color: '#64748b', fontWeight: 700 }}>Método</dt>
+            <dd style={{ margin: 0 }}><code style={{ fontSize: 11.5 }}>{row.match_method || '—'}</code></dd>
+            <dt style={{ color: '#64748b', fontWeight: 700 }}>Evidências</dt>
+            <dd style={{ margin: 0 }}>
+              {(Array.isArray(row.evidence) ? row.evidence : []).length
+                ? <ul style={{ margin: 0, paddingLeft: 16 }}>{row.evidence.map((item) => <li key={item}>{evidenceLabel(item)}</li>)}</ul>
+                : '—'}
+            </dd>
+            {row.reviewed_by && <>
+              <dt style={{ color: '#64748b', fontWeight: 700 }}>Confirmado por</dt>
+              <dd style={{ margin: 0 }}>{row.reviewed_by} · {dataHora(row.reviewed_at)}</dd>
+            </>}
+          </dl>
+          <small style={{ color: '#94a3b8' }}>
+            O telefone vem exclusivamente das nossas submissions do Tally — nunca de fonte externa.
+          </small>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Fila de REVIEW. Regra desta tela: o número NUNCA aparece antes da decisão. Só
+ *  mostramos se o candidato tem telefone, para o revisor saber se vale confirmar. */
+function ReviewMatchModal({ lead, row, postHook, reviewer, busy, onDecide, onClose }) {
+  const candidatos = reviewCandidates(row);
+  return (
+    <div style={modalBackdrop} role="dialog" aria-modal="true" onMouseDown={onClose}>
+      <div style={modalCard} onMouseDown={(event) => event.stopPropagation()}>
+        <header style={modalHead}>
+          <div>
+            <span className="cm-eyebrow">Revisar match · decisão humana</span>
+            <h2 style={{ margin: '2px 0 0', fontSize: 18 }}>{lead.full_name}</h2>
+          </div>
+          <button type="button" onClick={onClose} style={closeButton} aria-label="Fechar">×</button>
+        </header>
+
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid #eef1f5' }}>
+          <strong style={{ fontSize: 12, color: '#475569' }}>Lead ICP</strong>
+          <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '5px 14px', margin: '7px 0 0', fontSize: 12.5 }}>
+            <dt style={{ color: '#64748b' }}>Cargo</dt><dd style={{ margin: 0 }}>{lead.job_title || lead.headline || '—'}</dd>
+            <dt style={{ color: '#64748b' }}>Empresa</dt><dd style={{ margin: 0 }}>{lead.company_name || '—'}</dd>
+            <dt style={{ color: '#64748b' }}>LinkedIn</dt>
+            <dd style={{ margin: 0 }}>{lead.profile_url
+              ? <a href={lead.profile_url} target="_blank" rel="noreferrer">{lead.profile_url.replace(/^https?:\/\/(www\.)?/, '')}</a>
+              : '—'}</dd>
+            <dt style={{ color: '#64748b' }}>Comentou em</dt><dd style={{ margin: 0 }}>{postHook ? `“${postHook}”` : '—'}</dd>
+          </dl>
+        </div>
+
+        <div style={{ padding: '14px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+            <strong style={{ fontSize: 12, color: '#475569' }}>
+              {candidatos.length === 1 ? 'Candidato no Tally' : `${candidatos.length} candidatos no Tally`}
+            </strong>
+            <small style={{ color: '#b42318', fontWeight: 700 }}>{reviewReason(row)}</small>
+          </div>
+
+          {!candidatos.length && (
+            <div className="cm-empty" style={{ marginTop: 10 }}>
+              Todos os candidatos deste lead já foram rejeitados. A próxima sincronização pode trazer novos.
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+            {candidatos.map((candidato) => (
+              <div key={candidato.submissionId} style={{ border: '1px solid #e2e8f0', borderRadius: 9, padding: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                  <div>
+                    <strong style={{ fontSize: 13.5 }}>{candidato.fullName}</strong>
+                    <div style={{ color: '#64748b', fontSize: 12 }}>{candidato.email || 'sem e-mail'}</div>
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: candidato.hasPhone ? '#067647' : '#8a6100', background: candidato.hasPhone ? '#eafaf1' : '#fff8e6', border: `1px solid ${candidato.hasPhone ? '#a7d7bd' : '#f0d69a'}`, borderRadius: 999, padding: '3px 9px', height: 'fit-content' }}>
+                    {candidato.hasPhone ? 'tem telefone' : 'sem telefone'}
+                  </span>
+                </div>
+                <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', margin: '9px 0 0', fontSize: 12 }}>
+                  <dt style={{ color: '#64748b' }}>Formulário</dt><dd style={{ margin: 0 }}>{candidato.formName || '—'}</dd>
+                  <dt style={{ color: '#64748b' }}>Submission</dt><dd style={{ margin: 0 }}>{dataHora(candidato.submittedAt)}</dd>
+                  <dt style={{ color: '#64748b' }}>Evidências</dt>
+                  <dd style={{ margin: 0 }}>{candidato.evidence.length
+                    ? <ul style={{ margin: 0, paddingLeft: 16 }}>{candidato.evidence.map((item) => <li key={item}>{evidenceLabel(item)}</li>)}</ul>
+                    : 'nenhuma além do nome'}</dd>
+                </dl>
+                <div style={{ display: 'flex', gap: 8, marginTop: 11 }}>
+                  <button type="button" disabled={busy} onClick={() => onDecide(candidato.submissionId, 'confirmed')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid #a7d7bd', background: '#eafaf1', color: '#067647', borderRadius: 7, padding: '6px 11px', fontSize: 12, fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
+                    <Check size={12} /> É a mesma pessoa
+                  </button>
+                  <button type="button" disabled={busy} onClick={() => onDecide(candidato.submissionId, 'rejected')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid #cbd5e1', background: '#fff', color: '#475569', borderRadius: 7, padding: '6px 11px', fontSize: 12, fontWeight: 700, cursor: busy ? 'wait' : 'pointer' }}>
+                    <X size={12} /> Não é a mesma pessoa
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <small style={{ display: 'block', marginTop: 13, color: '#94a3b8' }}>
+            O telefone não é exibido enquanto o match está em revisão. Confirmando, ele é liberado
+            só se a submission escolhida tiver número. A decisão fica registrada como <strong>{reviewer}</strong>.
+          </small>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Administração dos vínculos Post ↔ Formulário do Tally. */
+function LeadMagnetsModal({ client, reviewer, onClose, onNotice }) {
+  const [rows, setRows] = useState(null);
+  const [forms, setForms] = useState([]);
+  const [saving, setSaving] = useState('');
+  const [erro, setErro] = useState('');
+
+  const load = React.useCallback(async () => {
+    setErro('');
+    // Duas etapas separadas de propósito: os vínculos atuais vêm do Supabase e a
+    // lista de formulários vem do Tally, pelo proxy. Se só o Tally falhar, ainda dá
+    // para VER o que está vinculado — só o dropdown fica indisponível.
+    try {
+      const [posts, links] = await Promise.all([
+        client.from('content_posts').select('id, hook, cta_keyword, published_at, author_name')
+          .not('cta_keyword', 'is', null).order('published_at', { ascending: false }).limit(400),
+        client.from('post_lead_magnets').select('post_id, tally_form_id, tally_form_name, source'),
+      ]);
+      if (posts.error) throw posts.error;
+      if (links.error) throw links.error;
+      const byPost = new Map((links.data || []).map((link) => [link.post_id, link]));
+      // Só posts com CTA real: 'Sem CTA' é o valor que o classificador grava quando o
+      // post não tem chamada, então não é um lead magnet para vincular.
+      setRows((posts.data || [])
+        .filter((post) => String(post.cta_keyword || '').trim() && String(post.cta_keyword).trim() !== 'Sem CTA')
+        .map((post) => ({ post, link: byPost.get(post.id) || null })));
+    } catch (error) {
+      setErro(`Não consegui carregar os posts: ${error instanceof Error ? error.message : String(error)}`);
+      setRows([]);
+      return;
+    }
+
+    // Os formulários saem das submissions que já ingerimos (v_tally_forms) — são
+    // exatamente os que interessam, e não depende da API do Tally estar de pé.
+    const { data: formList, error } = await client.from('v_tally_forms').select('*').order('submissions', { ascending: false });
+    if (error) {
+      setForms([]);
+      setErro(`Vínculos carregados, mas não consegui listar os formulários (${error.message}). O dropdown fica indisponível.`);
+      return;
+    }
+    setForms((formList || []).map((form) => ({ id: form.form_id, name: form.form_name, submissions: form.submissions })));
+  }, [client]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function salvar(postId, tallyFormId) {
+    setSaving(postId);
+    try {
+      const form = forms.find((item) => item.id === tallyFormId);
+      const { error } = await client.rpc('set_post_lead_magnet', {
+        p_post_id: postId, p_tally_form_id: tallyFormId || null,
+        p_tally_form_name: form?.name || null, p_reviewer: reviewer,
+      });
+      if (error) throw new Error(error.message);
+      onNotice?.(tallyFormId ? `Vínculo salvo: ${form?.name || tallyFormId}` : 'Vínculo removido.');
+      await load();
+    } catch (error) {
+      onNotice?.(`Não consegui salvar o vínculo: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setSaving('');
+    }
+  }
+
+  const vinculados = (rows || []).filter((row) => row.link).length;
+
+  return (
+    <div style={modalBackdrop} role="dialog" aria-modal="true" onMouseDown={onClose}>
+      <div style={{ ...modalCard, maxWidth: 900 }} onMouseDown={(event) => event.stopPropagation()}>
+        <header style={modalHead}>
+          <div>
+            <span className="cm-eyebrow">Configuração</span>
+            <h2 style={{ margin: '2px 0 0', fontSize: 18 }}>Post ↔ Formulário do Tally</h2>
+            <p style={{ margin: '5px 0 0', color: '#64748b', fontSize: 12, maxWidth: 620 }}>
+              Quem preencheu o formulário do próprio post em que comentou ganha confiança máxima no
+              cruzamento. Vínculo errado viraria telefone na pessoa errada — por isso os casos ambíguos
+              ficaram sem vínculo automático e são resolvidos aqui.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} style={closeButton} aria-label="Fechar">×</button>
+        </header>
+
+        <div style={{ padding: 18 }}>
+          {erro && <div className="cm-empty" style={{ marginBottom: 12 }}>{erro}</div>}
+          {rows === null ? (
+            <div className="cm-empty">Carregando posts e formulários…</div>
+          ) : !rows.length ? (
+            <div className="cm-empty">Nenhum post com CTA de lead magnet.</div>
+          ) : (
+            <>
+              <small style={{ display: 'block', marginBottom: 9, color: '#64748b', fontWeight: 600 }}>
+                {vinculados} de {rows.length} posts vinculados
+              </small>
+              <div className="cm-table-wrap">
+                <table className="cm-table">
+                  <thead><tr><th>Post</th><th>CTA</th><th>Formulário do Tally</th><th style={{ textAlign: 'center' }}>Status</th></tr></thead>
+                  <tbody>
+                    {rows.map(({ post, link }) => (
+                      <tr key={post.id}>
+                        <td style={{ maxWidth: 240 }}>
+                          <small title={post.hook}>{String(post.hook || '').slice(0, 70) || '—'}</small>
+                          <small style={{ display: 'block', color: '#94a3b8' }}>{String(post.published_at || '').slice(0, 10)} · {post.author_name || '—'}</small>
+                        </td>
+                        <td><code style={{ fontSize: 11.5 }}>{post.cta_keyword}</code></td>
+                        <td>
+                          <select
+                            value={link?.tally_form_id || ''}
+                            disabled={saving === post.id || !forms.length}
+                            title={forms.length ? undefined : 'Lista de formulários indisponível'}
+                            onChange={(event) => salvar(post.id, event.target.value)}
+                            style={{ maxWidth: 300, fontSize: 12, padding: '4px 6px', borderRadius: 6, border: '1px solid #cbd5e1' }}>
+                            <option value="">— sem vínculo —</option>
+                            {forms.map((form) => (
+                              <option key={form.id} value={form.id}>{form.name} ({form.submissions})</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {saving === post.id ? <RefreshCw size={12} className="spin" /> : link ? (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#067647' }}>
+                              Vinculado
+                              <small style={{ display: 'block', color: '#94a3b8', fontWeight: 600 }}>
+                                {link.source === 'manual' ? 'manual' : 'automático'}
+                              </small>
+                            </span>
+                          ) : <span style={{ fontSize: 11, fontWeight: 700, color: '#8a6100' }}>Configurar</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const PHONE_TONES = {
+  ok: { bg: '#eafaf1', border: '#a7d7bd', color: '#067647' },
+  wait: { bg: '#fff8e6', border: '#f0d69a', color: '#8a6100' },
+  review: { bg: '#fff1f2', border: '#fbc4c9', color: '#b42318' },
+  none: { bg: '#f8fafc', border: '#e2e8f0', color: '#64748b' },
+};
+
+/** Célula "Telefone / Tally". O número só aparece via phoneDisplay(), que devolve
+ *  vazio fora de MATCHED — REVIEW e MATCHED_NO_PHONE não têm como exibir telefone. */
+function PhoneCell({ row, onDetail, onReview }) {
+  if (!row) return <small style={{ color: '#94a3b8' }}>—</small>;
+  const status = phoneStatusOf(row);
+  const meta = phoneStatusMeta(row);
+  const tone = PHONE_TONES[meta.tone];
+  const numero = phoneDisplay(row);
+
+  if (status === 'MATCHED' && numero) {
+    return (
+      <button type="button" onClick={() => onDetail(row)} title="Ver origem do telefone"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${tone.border}`, background: tone.bg, color: tone.color, borderRadius: 7, padding: '4px 8px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+        <Phone size={11} /> {numero}
+      </button>
+    );
+  }
+
+  if (status === 'REVIEW') {
+    return (
+      <button type="button" onClick={() => onReview(row)} title="Revisar os candidatos encontrados"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${tone.border}`, background: tone.bg, color: tone.color, borderRadius: 7, padding: '4px 8px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+        <AlertTriangle size={11} /> Revisar match
+      </button>
+    );
+  }
+
+  return (
+    <span title={status === 'MATCHED_NO_PHONE' ? 'Pessoa identificada no Tally, mas a submission não tem telefone' : undefined}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${tone.border}`, background: tone.bg, color: tone.color, borderRadius: 7, padding: '4px 8px', fontSize: 11, fontWeight: 700 }}>
+      {meta.short}
+    </span>
+  );
+}
+
+/** Botão de sincronizar + rótulo discreto de última sync. Não é dashboard: uma linha. */
+function TallySyncControls({ syncing, result, stats, onSync, onDismiss, onOpenMagnets }) {
+  const ultima = stats?.ultimaSync
+    ? new Date(stats.ultimaSync).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+    : null;
+
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginRight: 6 }}>
+      {result && (
+        <div role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${result.falha ? '#fbc4c9' : '#a7d7bd'}`, background: result.falha ? '#fff1f2' : '#eafaf1', color: result.falha ? '#b42318' : '#067647', borderRadius: 7, padding: '4px 9px', fontSize: 11, fontWeight: 600, maxWidth: 460 }}>
+          {result.falha ? (
+            <span>Falha na sincronização: {result.falha}</span>
+          ) : (
+            <span>
+              {integer.format(result.submissions)} submissions · {integer.format(result.novas)} novas · {integer.format(result.comTelefone)} com telefone
+              {result.telefonesNovos > 0 && <> · <strong>{integer.format(result.telefonesNovos)} telefone(s)</strong></>}
+              {result.revisar > 0 && <> · {integer.format(result.revisar)} p/ revisar</>}
+              {result.erros?.length > 0 && <> · <strong title={result.erros.join(' | ')}>{result.erros.length} formulário(s) com erro</strong></>}
+            </span>
+          )}
+          <button type="button" onClick={onDismiss} aria-label="Fechar resumo" style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 800 }}>×</button>
+        </div>
+      )}
+      <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+        <div style={{ display: 'inline-flex', gap: 6 }}>
+          <button type="button" onClick={onOpenMagnets} title="Vincular posts aos formulários do Tally"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid #cbd5e1', background: '#fff', color: '#334155', borderRadius: 7, padding: '5px 10px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+            <SlidersHorizontal size={12} /> Lead Magnets
+          </button>
+          <button type="button" onClick={onSync} disabled={syncing}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid #9db8e8', background: syncing ? '#eef4fc' : '#0a66c2', color: syncing ? '#0a66c2' : '#fff', borderRadius: 7, padding: '5px 11px', fontSize: 11.5, fontWeight: 700, cursor: syncing ? 'wait' : 'pointer' }}>
+            {syncing ? <><RefreshCw size={12} className="spin" /> Sincronizando Tally…</> : <><RefreshCw size={12} /> Sincronizar Tally</>}
+          </button>
+        </div>
+        {(ultima || stats?.total) && (
+          <small style={{ color: '#94a3b8', fontSize: 10 }}>
+            {ultima && <>Última sync: {ultima}</>}
+            {ultima && stats?.total ? ' · ' : ''}
+            {stats?.total ? `${integer.format(stats.total)} submissions · ${integer.format(stats.comTelefone)} com telefone` : ''}
+          </small>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
+  // Perfil selecionado no Hub. Nao e identidade autenticada — o app nao tem login —
+  // mas e o que da para registrar em reviewed_by, e o proxy valida contra a lista.
+  const currentProfile = ['Felipe', 'Victor', 'Fernando', 'Junior'].includes(currentUser) ? currentUser : 'Felipe';
   const [filter, setFilter] = useState('qualified');
   const [postFilter, setPostFilter] = useState('');
   const [creatorFilter, setCreatorFilter] = useState('');
@@ -1287,6 +1664,14 @@ function LeadsSection({ data, client, onNotice, onReload }) {
   const [busyLead, setBusyLead] = useState('');
   const [modal, setModal] = useState(null); // { lead, message }
   const [showIcpModal, setShowIcpModal] = useState(false);
+  // Telefone vindo da Base Tally. Nenhum destes estados guarda número: o telefone é
+  // sempre lido da linha via phoneDisplay(), que bloqueia fora de MATCHED.
+  const [phoneFilter, setPhoneFilter] = useState('todos');
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+  const [reviewModal, setReviewModal] = useState(null);   // { lead, row }
+  const [phoneDetail, setPhoneDetail] = useState(null);   // { lead, row }
+  const [showMagnetsModal, setShowMagnetsModal] = useState(false);
   const [outreachOverrides, setOutreachOverrides] = useState({});
   const [exporting, setExporting] = useState('');
   const [excludedExportIds, setExcludedExportIds] = useState(() => new Set());
@@ -1336,6 +1721,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
 
   // Leads filtrados apenas pelo post/criador (sem o filtro de status da aba ativa).
   // Usado para calcular a contagem de cada aba baseada no post filtrado.
+
   const filteredLeads = useMemo(() => {
     let list = leads;
     if (postFilter) list = list.filter((l) => leadPostId(l) === postFilter);
@@ -1404,12 +1790,33 @@ function LeadsSection({ data, client, onNotice, onReload }) {
     }
   };
 
+  // Declarados depois de filteredLeads: os contadores contam sobre a mesma
+  // população que a tabela exibe, e o filtro é aplicado dentro de `visible`.
+  const phonesByLead = useMemo(() => indexPhonesByLead(data.leadPhones || []), [data.leadPhones]);
+  const phonesForExport = useMemo(() => Object.fromEntries(phonesByLead), [phonesByLead]);
+  const phoneCounts = useMemo(() => {
+    const base = filter === 'all' ? filteredLeads : filteredLeads.filter((l) => {
+      const status = outreachByLead[l.id]?.status === 'ignored' ? 'disqualified' : l.qualification_status;
+      return (leadStatusSets[filter] || []).includes(status);
+    });
+    return countByPhoneFilter(base.map((l) => phonesByLead.get(l.id)).filter(Boolean));
+  }, [filteredLeads, filter, outreachByLead, phonesByLead]);
+
   const visible = useMemo(() => {
     let list = filteredLeads;
     if (filter !== 'all') {
       list = filteredLeads.filter((l) => {
         const status = outreachByLead[l.id]?.status === 'ignored' ? 'disqualified' : l.qualification_status;
         return (leadStatusSets[filter] || []).includes(status);
+      });
+    }
+    // O filtro de telefone entra DEPOIS do de status: um lead marcado como
+    // "ignorado" no outreach conta como descartado nesta tela, então precisa sair da
+    // conta antes, senão o chip prometeria um resultado que a tabela não mostra.
+    if (phoneFilter !== 'todos') {
+      list = list.filter((l) => {
+        const row = phonesByLead.get(l.id);
+        return row ? matchesPhoneFilter(row, phoneFilter) : false;
       });
     }
     const sorted = [...list].sort((a, b) => {
@@ -1420,7 +1827,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
       return 0;
     });
     return sorted;
-  }, [filteredLeads, filter, sortConfig, commentByLead, postHookById, outreachByLead]);
+  }, [filteredLeads, filter, sortConfig, commentByLead, postHookById, outreachByLead, phoneFilter, phonesByLead]);
 
   const requestSort = (key) => {
     setSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc' }));
@@ -1436,12 +1843,76 @@ function LeadsSection({ data, client, onNotice, onReload }) {
     outreachByLead,
     excludedIds: excludedExportIds,
   }), [visible, outreachByLead, excludedExportIds]);
+  // As operações privilegiadas são funções do Postgres (SECURITY DEFINER). O
+  // navegador só conhece o NOME da função; o collector secret fica no Vault e o
+  // privilégio dentro do banco — nada sensível trafega pelo bundle, que é público.
+  async function callRpc(fn, args) {
+    const { data, error } = await client.rpc(fn, args);
+    if (error) throw new Error(error.message || 'Falha na chamada ao banco');
+    return data;
+  }
+
+  async function handleSyncTally() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      // Dispara a MESMA edge function que o cron usa. pg_net é assíncrono, então a
+      // função devolve o id da requisição e nós perguntamos pelo resultado.
+      const requestId = await callRpc('trigger_tally_sync', { perfil: currentProfile });
+      let body = null;
+      for (let tentativa = 0; tentativa < 40 && !body; tentativa++) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        body = await callRpc('tally_sync_result', { p_request_id: requestId });
+      }
+      if (!body) throw new Error('A sincronização demorou mais que o esperado. Os dados podem chegar em instantes.');
+      if (body.ok === false) throw new Error(body.error || 'A sincronização falhou');
+      const ingest = body.ingestao || {};
+      const match = body.matching || {};
+      const comErro = (ingest.por_formulario || []).filter((form) => form.error);
+      setSyncResult({
+        submissions: ingest.submissions_recebidas || 0,
+        novas: ingest.novas_inseridas || 0,
+        comTelefone: ingest.com_telefone || 0,
+        telefonesNovos: match.telefones_seguros || 0,
+        revisar: match.REVIEW || 0,
+        aguardando: match.MATCHED_NO_PHONE || 0,
+        // Erro parcial não esconde o resto do resultado.
+        erros: comErro.map((form) => `${form.formName}: ${form.error}`),
+      });
+      await onReload?.();
+    } catch (error) {
+      setSyncResult({ falha: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleReviewDecision(leadId, submissionId, decision) {
+    setBusyLead(leadId);
+    try {
+      const body = await callRpc('resolve_lead_phone_review', {
+        p_lead_id: leadId, p_submission_id: submissionId, p_decision: decision, p_reviewer: currentProfile,
+      });
+      onNotice?.(decision === 'confirmed'
+        ? `Match confirmado — lead marcado como ${body.status === 'MATCHED' ? 'telefone encontrado' : 'aguardando telefone'}.`
+        : 'Candidato rejeitado. Ele não será sugerido novamente para este lead.');
+      setReviewModal(null);
+      await onReload?.();
+    } catch (error) {
+      onNotice?.(`Não consegui registrar a decisão: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setBusyLead('');
+    }
+  }
+
+
   const exportRows = useMemo(() => buildLeadExportRows({
     leads: selectedExportLeads,
     postsById,
     commentByLead,
     outreachByLead,
-  }), [selectedExportLeads, postsById, commentByLead, outreachByLead]);
+    phonesByLead: phonesForExport,
+  }), [selectedExportLeads, postsById, commentByLead, outreachByLead, phonesForExport]);
   const allEligibleSelected = eligibleExportLeads.length > 0 && selectedExportLeads.length === eligibleExportLeads.length;
 
   useEffect(() => {
@@ -1748,6 +2219,14 @@ function LeadsSection({ data, client, onNotice, onReload }) {
             );
           })}
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+            <TallySyncControls
+              syncing={syncing}
+              result={syncResult}
+              stats={data.tallyStats}
+              onSync={handleSyncTally}
+              onDismiss={() => setSyncResult(null)}
+              onOpenMagnets={() => setShowMagnetsModal(true)}
+            />
             <span style={{ color: '#64748b', fontSize: 11.5, fontWeight: 600, marginRight: 2 }}><Download size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />Exportar {integer.format(exportRows.length)} selecionado(s):</span>
             <button type="button" onClick={() => exportVisibleLeads('xlsx')} disabled={!exportRows.length || Boolean(exporting)}
               aria-label="Exportar leads filtrados para Excel"
@@ -1760,6 +2239,28 @@ function LeadsSection({ data, client, onNotice, onReload }) {
               {exporting === 'csv' ? <RefreshCw size={12} className="spin" /> : <FileText size={12} />} CSV
             </button>
           </div>
+        </div>
+
+        {/* Filtro por estado do telefone na Base Tally */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ color: '#64748b', fontSize: 11, fontWeight: 700, letterSpacing: '.02em' }}>
+            <Phone size={11} style={{ verticalAlign: '-1px', marginRight: 4 }} />TELEFONE / TALLY
+          </span>
+          {PHONE_FILTERS.map((chip) => {
+            const isActive = phoneFilter === chip.id;
+            return (
+              <button type="button" key={chip.id} onClick={() => setPhoneFilter(chip.id)}
+                aria-pressed={isActive}
+                style={{
+                  border: `1px solid ${isActive ? '#0a66c2' : '#e2e8f0'}`,
+                  background: isActive ? '#0a66c2' : '#fff',
+                  color: isActive ? '#fff' : '#475569',
+                  borderRadius: 999, padding: '4px 11px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
+                }}>
+                {chip.label} · {integer.format(phoneCounts[chip.id] || 0)}
+              </button>
+            );
+          })}
         </div>
       </div>
       {!visible.length ? (
@@ -1784,6 +2285,7 @@ function LeadsSection({ data, client, onNotice, onReload }) {
               <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('company_size')}>Porte{sortArrow('company_size')}</th>
               <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('comment')}>Comentário feito{sortArrow('comment')}</th>
               <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('post')}>Post de origem{sortArrow('post')}</th>
+              <th title="Telefone encontrado nas nossas submissions do Tally">Telefone / Tally</th>
               <th title="Motivo da decisão + ângulo sugerido de abordagem">Motivo / ângulo</th><th>Mensagem</th><th style={{ textAlign: 'center' }}>Prospectado</th><th style={{ textAlign: 'center' }}>Ignorar</th>
             </tr></thead>
             <tbody>
@@ -1823,6 +2325,13 @@ function LeadsSection({ data, client, onNotice, onReload }) {
                     <td>{lead.company_size ? integer.format(lead.company_size) : '—'}</td>
                     <td style={{ maxWidth: 220 }}><small style={{ color: '#475569' }} title={comment?.comment_text || ''}>{comment?.comment_text ? `“${String(comment.comment_text).slice(0, 90)}${String(comment.comment_text).length > 90 ? '…' : ''}”` : '—'}</small></td>
                     <td style={{ maxWidth: 180 }}><small>{postHookById[comment?.post_id || lead.first_seen_post_id] || '—'}</small></td>
+                    <td style={{ maxWidth: 170 }}>
+                      <PhoneCell
+                        row={phonesByLead.get(lead.id)}
+                        onDetail={(row) => setPhoneDetail({ lead, row })}
+                        onReview={(row) => setReviewModal({ lead, row })}
+                      />
+                    </td>
                     <td style={{ maxWidth: 260 }}>
                       <small style={{ color: '#64748b' }}>{lead.qualification_reason || (lead.enrichment_status === 'pending' ? 'Aguardando análise' : '—')}</small>
                       {lead.suggested_angle && <small style={{ display: 'block', color: '#0a66c2', fontStyle: 'italic', marginTop: 3 }} title="Ângulo sugerido de abordagem">→ {lead.suggested_angle}</small>}
@@ -1852,6 +2361,26 @@ function LeadsSection({ data, client, onNotice, onReload }) {
       )}
       {modal && <MessageModal lead={modal.lead} message={modal.message} onClose={() => setModal(null)} />}
       {showIcpModal && <IcpSettingsModal settings={data?.prospectSettings} client={client} onClose={() => setShowIcpModal(false)} onNotice={onNotice} onReload={onReload} />}
+      {phoneDetail && <PhoneDetailModal lead={phoneDetail.lead} row={phoneDetail.row} onClose={() => setPhoneDetail(null)} />}
+      {reviewModal && (
+        <ReviewMatchModal
+          lead={reviewModal.lead}
+          row={reviewModal.row}
+          postHook={postHookById[commentByLead[reviewModal.lead.id]?.post_id || reviewModal.lead.first_seen_post_id] || ''}
+          reviewer={currentProfile}
+          busy={busyLead === reviewModal.lead.id}
+          onDecide={(submissionId, decision) => handleReviewDecision(reviewModal.lead.id, submissionId, decision)}
+          onClose={() => setReviewModal(null)}
+        />
+      )}
+      {showMagnetsModal && (
+        <LeadMagnetsModal
+          client={client}
+          reviewer={currentProfile}
+          onClose={() => setShowMagnetsModal(false)}
+          onNotice={onNotice}
+        />
+      )}
     </section>
   );
 }
@@ -2462,7 +2991,7 @@ function SettingsSection({ data, client }) {
   return <div className="cm-settings-grid"><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Secrets</span><h2>Integrações sem chave no front</h2></div></div><div className="cm-secret-list">{secrets.map(([label, name]) => <div key={name}><span>{label}</span><code>{name}</code><StatusPill status={data.source === 'supabase' ? 'pending' : 'paused'} /></div>)}</div><p className="cm-table-note">Tokens reais nunca são exibidos no frontend. O token da Apify deve ficar só nos Edge Function Secrets.</p></section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Agenda</span><h2>Coletas automáticas</h2></div></div><div className="cm-schedule"><div><span>YouTube via Apify</span><strong>Todos os dias · 06:00</strong><button onClick={() => run('collect-youtube')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'collect-youtube' ? 'spin' : ''} /> Executar agora</button></div><div><span>LinkedIn via Apify</span><strong>Todos os dias · 06:30</strong><button onClick={() => run('collect-linkedin')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'collect-linkedin' ? 'spin' : ''} /> Executar agora</button></div></div>{message && <div className="cm-settings-message">{message}</div>}</section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Incremental</span><h2>Onde parou e o que entra novo</h2></div></div><div className="cm-config-summary"><div><span>LinkedIn histórico importado</span><strong>12/05/2026</strong></div><div><span>Deduplicação</span><strong>external_post_id / video_id</strong></div><div><span>Novas coletas</span><strong>Upsert + snapshot diário</strong></div><div><span>Classificação</span><strong>Formato, tema, CTA, funil e intenção</strong></div></div><p className="cm-table-note">A coleta consulta os perfis/canais ativos, salva só registros novos ou métricas novas e marca erro por conta quando algum scraper falha.</p></section></div>;
 }
 
-export default function ContentMetricsWorkspace({ client, initialData, initialSection = 'overview', onSectionChange, mode = 'full' }) {
+export default function ContentMetricsWorkspace({ client, initialData, initialSection = 'overview', onSectionChange, mode = 'full', currentUser = '' }) {
   const [section, setSection] = useState(initialSection);
   const [data, setData] = useState(initialData || null);
   const [loading, setLoading] = useState(!initialData);
@@ -2716,7 +3245,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Comercial</span><h1>Leads ICP</h1><p>Quem comentou nos posts e passou (ou está esperando) o filtro de qualificação. Gere a mensagem, copie, mande no LinkedIn e marque como prospectado.</p></div><div className="cm-header-meta"><span>{(data.leads || []).length} leads no banco</span><Users size={16} /></div></header>
       {refreshErrorNotice}
       {operationMessage && <div className="cm-operation-message">{operationMessage}<button type="button" onClick={() => setOperationMessage('')}>Fechar</button></div>}
-      <LeadsSection data={data} client={client} onNotice={setOperationMessage} onReload={reloadData} />
+      <LeadsSection data={data} client={client} currentUser={currentUser} onNotice={setOperationMessage} onReload={reloadData} />
     </div>;
   }
 

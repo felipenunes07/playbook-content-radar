@@ -199,7 +199,8 @@ export async function matchQualifiedLeads(options: {
 
   const leads = await selectAll(client, 'leads', 'id,full_name,company_name,company_url',
     (query) => query.eq('qualification_status', 'qualified'));
-  const previous = await selectAll(client, 'lead_phone_matches', 'lead_id,match_status,phone_e164');
+  const previous = await selectAll(client, 'lead_phone_matches',
+    'lead_id,match_status,phone_e164,rejected_submission_ids,review_decision,reviewed_by,reviewed_at');
   const previousByLead = new Map(previous.map((row) => [row.lead_id, row]));
 
   // Só entra quem ainda não tem MATCHED com telefone. É o que permite que alguém
@@ -243,6 +244,7 @@ export async function matchQualifiedLeads(options: {
       companyUrl: lead.company_url,
       postFormIds: [...new Set(own.flatMap((comment) => formsByPost.get(comment.post_id) || []))],
       firstCommentedAt: dates[0] || null,
+      rejectedSubmissionIds: previousByLead.get(lead.id)?.rejected_submission_ids || [],
     };
   });
 
@@ -281,6 +283,13 @@ export async function matchQualifiedLeads(options: {
       evidence: result.evidence,
       candidates: result.candidates,
       matched_at: new Date().toISOString(),
+      // A decisão humana sobrevive ao reprocessamento: o upsert reescreve a linha
+      // inteira, então repassar os valores anteriores é o que impede uma rejeição
+      // (ou uma confirmação) de ser apagada pela sincronização seguinte.
+      rejected_submission_ids: previousByLead.get(result.leadId)?.rejected_submission_ids || [],
+      review_decision: previousByLead.get(result.leadId)?.review_decision ?? null,
+      reviewed_by: previousByLead.get(result.leadId)?.reviewed_by ?? null,
+      reviewed_at: previousByLead.get(result.leadId)?.reviewed_at ?? null,
     }));
     for (let index = 0; index < payload.length; index += 500) {
       const { error } = await client.from('lead_phone_matches')
