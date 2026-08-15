@@ -1423,7 +1423,7 @@ function ReviewMatchModal({ lead, row, postHook, reviewer, busy, onDecide, onClo
 }
 
 /** Administração dos vínculos Post ↔ Formulário do Tally. */
-function LeadMagnetsModal({ client, reviewer, callProxy, onClose, onNotice }) {
+function LeadMagnetsModal({ client, reviewer, onClose, onNotice }) {
   const [rows, setRows] = useState(null);
   const [forms, setForms] = useState([]);
   const [saving, setSaving] = useState('');
@@ -1454,14 +1454,16 @@ function LeadMagnetsModal({ client, reviewer, callProxy, onClose, onNotice }) {
       return;
     }
 
-    try {
-      const formList = await callProxy({ action: 'listForms' });
-      setForms(formList.forms || []);
-    } catch (error) {
+    // Os formulários saem das submissions que já ingerimos (v_tally_forms) — são
+    // exatamente os que interessam, e não depende da API do Tally estar de pé.
+    const { data: formList, error } = await client.from('v_tally_forms').select('*').order('submissions', { ascending: false });
+    if (error) {
       setForms([]);
-      setErro(`Vínculos carregados, mas não consegui listar os formulários do Tally (${error instanceof Error ? error.message : String(error)}). O dropdown fica indisponível até isso voltar.`);
+      setErro(`Vínculos carregados, mas não consegui listar os formulários (${error.message}). O dropdown fica indisponível.`);
+      return;
     }
-  }, [client, callProxy]);
+    setForms((formList || []).map((form) => ({ id: form.form_id, name: form.form_name, submissions: form.submissions })));
+  }, [client]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -1469,7 +1471,11 @@ function LeadMagnetsModal({ client, reviewer, callProxy, onClose, onNotice }) {
     setSaving(postId);
     try {
       const form = forms.find((item) => item.id === tallyFormId);
-      await callProxy({ action: 'linkForm', postId, tallyFormId, tallyFormName: form?.name || null, reviewer });
+      const { error } = await client.rpc('set_post_lead_magnet', {
+        p_post_id: postId, p_tally_form_id: tallyFormId || null,
+        p_tally_form_name: form?.name || null, p_reviewer: reviewer,
+      });
+      if (error) throw new Error(error.message);
       onNotice?.(tallyFormId ? `Vínculo salvo: ${form?.name || tallyFormId}` : 'Vínculo removido.');
       await load();
     } catch (error) {
@@ -1715,26 +1721,13 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
 
   // Leads filtrados apenas pelo post/criador (sem o filtro de status da aba ativa).
   // Usado para calcular a contagem de cada aba baseada no post filtrado.
-  // Declarados antes de filteredLeads: o filtro por estado do telefone os consome.
-  const phonesByLead = useMemo(() => indexPhonesByLead(data.leadPhones || []), [data.leadPhones]);
-  const phonesForExport = useMemo(() => Object.fromEntries(phonesByLead), [phonesByLead]);
-  const phoneCounts = useMemo(() => countByPhoneFilter(data.leadPhones || []), [data.leadPhones]);
 
   const filteredLeads = useMemo(() => {
     let list = leads;
     if (postFilter) list = list.filter((l) => leadPostId(l) === postFilter);
     if (creatorFilter) list = list.filter((l) => postsById[leadPostId(l)]?.owner === creatorFilter);
-    // O filtro de telefone só existe para leads aprovados (a view v_lead_phones já
-    // filtra por qualified); quem não tem linha lá cai fora de qualquer filtro
-    // específico, mas continua em "Todos".
-    if (phoneFilter !== 'todos') {
-      list = list.filter((l) => {
-        const row = phonesByLead.get(l.id);
-        return row ? matchesPhoneFilter(row, phoneFilter) : false;
-      });
-    }
     return list;
-  }, [leads, postFilter, creatorFilter, commentByLead, postsById, phoneFilter, phonesByLead]);
+  }, [leads, postFilter, creatorFilter, commentByLead, postsById]);
 
   const counts = useMemo(() => {
     let qualified = 0;
@@ -1797,12 +1790,33 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
     }
   };
 
+  // Declarados depois de filteredLeads: os contadores contam sobre a mesma
+  // população que a tabela exibe, e o filtro é aplicado dentro de `visible`.
+  const phonesByLead = useMemo(() => indexPhonesByLead(data.leadPhones || []), [data.leadPhones]);
+  const phonesForExport = useMemo(() => Object.fromEntries(phonesByLead), [phonesByLead]);
+  const phoneCounts = useMemo(() => {
+    const base = filter === 'all' ? filteredLeads : filteredLeads.filter((l) => {
+      const status = outreachByLead[l.id]?.status === 'ignored' ? 'disqualified' : l.qualification_status;
+      return (leadStatusSets[filter] || []).includes(status);
+    });
+    return countByPhoneFilter(base.map((l) => phonesByLead.get(l.id)).filter(Boolean));
+  }, [filteredLeads, filter, outreachByLead, phonesByLead]);
+
   const visible = useMemo(() => {
     let list = filteredLeads;
     if (filter !== 'all') {
       list = filteredLeads.filter((l) => {
         const status = outreachByLead[l.id]?.status === 'ignored' ? 'disqualified' : l.qualification_status;
         return (leadStatusSets[filter] || []).includes(status);
+      });
+    }
+    // O filtro de telefone entra DEPOIS do de status: um lead marcado como
+    // "ignorado" no outreach conta como descartado nesta tela, então precisa sair da
+    // conta antes, senão o chip prometeria um resultado que a tabela não mostra.
+    if (phoneFilter !== 'todos') {
+      list = list.filter((l) => {
+        const row = phonesByLead.get(l.id);
+        return row ? matchesPhoneFilter(row, phoneFilter) : false;
       });
     }
     const sorted = [...list].sort((a, b) => {
@@ -1813,7 +1827,7 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
       return 0;
     });
     return sorted;
-  }, [filteredLeads, filter, sortConfig, commentByLead, postHookById, outreachByLead]);
+  }, [filteredLeads, filter, sortConfig, commentByLead, postHookById, outreachByLead, phoneFilter, phonesByLead]);
 
   const requestSort = (key) => {
     setSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc' }));
@@ -1829,27 +1843,29 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
     outreachByLead,
     excludedIds: excludedExportIds,
   }), [visible, outreachByLead, excludedExportIds]);
-  // Toda operação privilegiada da Base Tally passa pelo proxy serverless: o
-  // x-collector-secret e o service role ficam em env var de servidor, nunca no bundle.
-  async function callTallyProxy(payload) {
-    const response = await fetch('/api/tally-sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok || body?.ok === false) {
-      throw new Error(body?.error || `Falha na chamada (${response.status})`);
-    }
-    return body;
+  // As operações privilegiadas são funções do Postgres (SECURITY DEFINER). O
+  // navegador só conhece o NOME da função; o collector secret fica no Vault e o
+  // privilégio dentro do banco — nada sensível trafega pelo bundle, que é público.
+  async function callRpc(fn, args) {
+    const { data, error } = await client.rpc(fn, args);
+    if (error) throw new Error(error.message || 'Falha na chamada ao banco');
+    return data;
   }
 
   async function handleSyncTally() {
     setSyncing(true);
     setSyncResult(null);
     try {
-      // Mesma edge function que o cron usa — nenhuma lógica de ingestão nova aqui.
-      const body = await callTallyProxy({ action: 'sync' });
+      // Dispara a MESMA edge function que o cron usa. pg_net é assíncrono, então a
+      // função devolve o id da requisição e nós perguntamos pelo resultado.
+      const requestId = await callRpc('trigger_tally_sync', { perfil: currentProfile });
+      let body = null;
+      for (let tentativa = 0; tentativa < 40 && !body; tentativa++) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        body = await callRpc('tally_sync_result', { p_request_id: requestId });
+      }
+      if (!body) throw new Error('A sincronização demorou mais que o esperado. Os dados podem chegar em instantes.');
+      if (body.ok === false) throw new Error(body.error || 'A sincronização falhou');
       const ingest = body.ingestao || {};
       const match = body.matching || {};
       const comErro = (ingest.por_formulario || []).filter((form) => form.error);
@@ -1874,8 +1890,8 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
   async function handleReviewDecision(leadId, submissionId, decision) {
     setBusyLead(leadId);
     try {
-      const body = await callTallyProxy({
-        action: 'review', leadId, submissionId, decision, reviewer: currentProfile,
+      const body = await callRpc('resolve_lead_phone_review', {
+        p_lead_id: leadId, p_submission_id: submissionId, p_decision: decision, p_reviewer: currentProfile,
       });
       onNotice?.(decision === 'confirmed'
         ? `Match confirmado — lead marcado como ${body.status === 'MATCHED' ? 'telefone encontrado' : 'aguardando telefone'}.`
@@ -2361,7 +2377,6 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
         <LeadMagnetsModal
           client={client}
           reviewer={currentProfile}
-          callProxy={callTallyProxy}
           onClose={() => setShowMagnetsModal(false)}
           onNotice={onNotice}
         />
