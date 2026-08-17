@@ -81,9 +81,33 @@ function clientCache(supabase) {
   return cache;
 }
 
+// O PostgREST corta a resposta em 1.000 linhas por padrão e NÃO avisa: a resposta
+// chega sem erro, só menor. Em 17/08/2026 a tela de Leads ICP mostrava 230 dos 2.199
+// leads do post das 36 Skills — o comercial teria trabalhado achando que aquilo era
+// a lista inteira. Tudo que cresce com o volume de prospecção é lido em páginas.
+export const SUPABASE_PAGE_SIZE = 1000;
+// Freio contra loop infinito se o servidor devolver sempre página cheia.
+const MAX_PAGES = 60;
+
+async function fetchAllPages(buildQuery) {
+  const rows = [];
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const from = page * SUPABASE_PAGE_SIZE;
+    // O builder do supabase-js só executa uma vez, então cada página remonta a query.
+    const result = await buildQuery().range(from, from + SUPABASE_PAGE_SIZE - 1);
+    if (result.error) return result;
+    const data = result.data || [];
+    rows.push(...data);
+    if (data.length < SUPABASE_PAGE_SIZE) return { data: rows, error: null };
+  }
+  return { data: rows, error: { message: `Paginação passou de ${MAX_PAGES} páginas — consulta parece não terminar` } };
+}
+
 function queryPlan(supabase, mode) {
   const queries = new Map();
   const add = (key, query) => queries.set(key, query);
+  // Chave paginada: recebe uma FUNÇÃO que monta a query, não a query pronta.
+  const addPaginated = (key, buildQuery) => queries.set(key, { paginate: buildQuery });
 
   if (mode !== 'goals') {
     add('linkedin', supabase
@@ -103,13 +127,20 @@ function queryPlan(supabase, mode) {
   } else if (mode === 'prospecting') {
     add('prospecting', supabase.from('v_post_prospecting_stats').select('*'));
   } else if (mode === 'leads') {
-    add('leads', supabase.from('leads').select(LEAD_COLUMNS));
-    add('leadOutreach', supabase.from('lead_outreach').select('lead_id, status, generated_message'));
-    add('leadComments', supabase.from('lead_comments').select('lead_id, post_id, comment_text, commented_at, created_at'));
+    // As quatro paginadas: um único post viral já coloca ~2.200 linhas em `leads` e
+    // ~2.300 em `lead_comments`, bem acima do teto de 1.000 do PostgREST.
+    // A ordem precisa ser TOTAL: `range` sobre ordem ambígua faz página repetir ou
+    // perder linha, e um upsert em lote grava dezenas de leads com o mesmo
+    // created_at — por isso o desempate pelo id.
+    addPaginated('leads', () => supabase.from('leads').select(LEAD_COLUMNS)
+      .order('created_at', { ascending: false }).order('id'));
+    addPaginated('leadOutreach', () => supabase.from('lead_outreach').select('lead_id, status, generated_message').order('lead_id'));
+    addPaginated('leadComments', () => supabase.from('lead_comments').select('lead_id, post_id, comment_text, commented_at, created_at')
+      .order('lead_id').order('post_id'));
     // Telefone vindo da Base Tally. A view já filtra por qualification_status =
     // 'qualified' e traz o match com evidências e candidatos — a tela não precisa
     // saber nada do matcher, só ler o resultado.
-    add('leadPhones', supabase.from('v_lead_phones').select('*'));
+    addPaginated('leadPhones', () => supabase.from('v_lead_phones').select('*').order('lead_id'));
     // Resumo da Base Tally para o rótulo de última sincronização. São três consultas
     // sem payload de linha (head + count, e um order/limit 1) em vez de baixar a
     // tabela: ela já tem ~1k linhas e vai para ~19k quando os 59 formulários entrarem.
@@ -129,7 +160,10 @@ function queryPlan(supabase, mode) {
 async function fetchContentMetrics({ supabase, fallback, mode }) {
   try {
     const queries = queryPlan(supabase, mode);
-    const entries = await Promise.all([...queries.entries()].map(async ([key, query]) => [key, await query]));
+    const entries = await Promise.all([...queries.entries()].map(async ([key, query]) => [
+      key,
+      query?.paginate ? await fetchAllPages(query.paginate) : await query,
+    ]));
     const results = Object.fromEntries(entries);
     const failed = entries.find(([, result]) => result.error);
     if (failed) {

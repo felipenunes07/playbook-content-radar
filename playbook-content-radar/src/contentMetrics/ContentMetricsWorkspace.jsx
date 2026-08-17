@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, BarChart3, Database, ExternalLink, FileClock, FileText, Image as ImageIcon, MessageSquare,
   Play, RefreshCw, Settings, SlidersHorizontal, Users, Video, Target, Copy, Check, Globe, Download, FileSpreadsheet,
-  Phone, AlertTriangle, X,
+  Phone, AlertTriangle, X, MessageCircle, Info,
 } from 'lucide-react';
 
 // lucide-react removeu os ícones de marca (Instagram, LinkedIn…) por questão de
@@ -61,7 +61,7 @@ import { loadContentMetrics } from './repository.js';
 import { buildLeadExportFilename, buildLeadExportRows, downloadLeadCsv, downloadLeadExcel, selectLeadsForExport } from './leadExport.js';
 import {
   PHONE_FILTERS, countByPhoneFilter, evidenceLabel, indexPhonesByLead, matchesPhoneFilter,
-  phoneDisplay, phoneStatusMeta, phoneStatusOf, reviewCandidates, reviewReason,
+  phoneDisplay, phoneStatusMeta, phoneStatusOf, reviewCandidates, reviewReason, whatsappLink,
 } from './leadPhones.js';
 import { METRICS_SECTIONS } from './routes.js';
 import { ContentFilters, MetricStrip, OperationalPostsTable, StatusPill, TopContentTable, YoutubeFilters, YoutubeVideosTable } from './components.jsx';
@@ -1306,6 +1306,12 @@ function PhoneDetailModal({ lead, row, onClose }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #a7d7bd', background: '#eafaf1', borderRadius: 9, padding: '11px 13px' }}>
             <Phone size={16} style={{ color: '#067647' }} />
             <strong style={{ fontSize: 17, color: '#067647', letterSpacing: '.01em' }}>{numero}</strong>
+            {whatsappLink(row) && (
+              <a href={whatsappLink(row)} target="_blank" rel="noopener noreferrer"
+                style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, border: 0, borderRadius: 7, background: '#067647', color: '#fff', padding: '6px 11px', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+                <MessageCircle size={13} /> WhatsApp
+              </a>
+            )}
           </div>
           <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '7px 14px', margin: 0, fontSize: 12.5 }}>
             <dt style={{ color: '#64748b', fontWeight: 700 }}>Formulário</dt>
@@ -1578,11 +1584,28 @@ function PhoneCell({ row, onDetail, onReview }) {
   const numero = phoneDisplay(row);
 
   if (status === 'MATCHED' && numero) {
+    // Clicar no número abre a conversa no WhatsApp: é o que o comercial faz com ele.
+    // A origem do telefone continua a um clique de distância, no ícone ao lado.
+    const whatsapp = whatsappLink(row);
     return (
-      <button type="button" onClick={() => onDetail(row)} title="Ver origem do telefone"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${tone.border}`, background: tone.bg, color: tone.color, borderRadius: 7, padding: '4px 8px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
-        <Phone size={11} /> {numero}
-      </button>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        {whatsapp ? (
+          <a href={whatsapp} target="_blank" rel="noopener noreferrer" title={`Abrir conversa no WhatsApp com ${numero}`}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${tone.border}`, background: tone.bg, color: tone.color, borderRadius: 7, padding: '4px 8px', fontSize: 11.5, fontWeight: 700, textDecoration: 'none' }}>
+            <MessageCircle size={11} /> {numero}
+          </a>
+        ) : (
+          <span title="Número fora do padrão para abrir no WhatsApp"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${tone.border}`, background: tone.bg, color: tone.color, borderRadius: 7, padding: '4px 8px', fontSize: 11.5, fontWeight: 700 }}>
+            <Phone size={11} /> {numero}
+          </span>
+        )}
+        <button type="button" onClick={() => onDetail(row)} title="Ver origem do telefone"
+          aria-label={`Ver origem do telefone ${numero}`}
+          style={{ display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: '#94a3b8', padding: 2, cursor: 'pointer' }}>
+          <Info size={12} />
+        </button>
+      </span>
     );
   }
 
@@ -3174,23 +3197,35 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   const handleProspect = async (post) => {
     if (!client?.functions?.invoke) { setOperationMessage('Prospecção indisponível no modo offline. Publique as Edge Functions e conecte o Supabase.'); return; }
     setProspectingRunning((prev) => new Set(prev).add(post.id));
-    setOperationMessage('');
+    setOperationMessage('Iniciando raspagem dos comentários…');
     try {
-      const { data: res, error } = await client.functions.invoke('prospect-post', { body: { manual: true, postId: post.id } });
-      if (error) throw error;
-      if (!res?.success) throw new Error(res?.error || 'Falha desconhecida na prospecção');
-      setProspectOverrides((prev) => ({
-        ...prev,
-        [post.id]: {
-          post_id: post.id,
-          status: res.status,
-          total_comments: res.totalComments,
-          total_leads: res.totalLeads,
-          opportunities: res.opportunities,
-          new_qualified: null,
-        },
-      }));
-      setOperationMessage(`Prospecção concluída: ${integer.format(res.totalLeads || 0)} leads, ${integer.format(res.opportunities || 0)} oportunidade(s) nova(s). Iniciando análise ICP automaticamente.`);
+      // A function ingere o dataset da Apify em fatias pra caber no limite de tempo
+      // da Edge Function (~150s no plano free) e grava o offset no job — cada chamada
+      // continua de onde a anterior parou, até responder done. Um post viral leva
+      // várias continuações; o teto é só freio de segurança contra loop infinito.
+      let res = null;
+      for (let call = 0; call < 200; call += 1) {
+        const { data, error } = await client.functions.invoke('prospect-post', { body: { manual: true, postId: post.id } });
+        if (error) throw error;
+        if (!data?.success) throw new Error(data?.error || 'Falha desconhecida na prospecção');
+        res = data;
+        setProspectOverrides((prev) => ({
+          ...prev,
+          [post.id]: {
+            post_id: post.id,
+            status: data.status,
+            total_comments: data.totalComments,
+            total_leads: data.totalLeads,
+            opportunities: data.opportunities,
+            new_qualified: null,
+          },
+        }));
+        if (data.done) break;
+        const total = data.datasetTotal ? ` de ${integer.format(data.datasetTotal)}` : '';
+        setOperationMessage(`Raspando comentários: ${integer.format(data.totalComments || 0)}${total} processados, ${integer.format(data.opportunities || 0)} oportunidade(s) nova(s). Continuando…`);
+      }
+      if (!res?.done) throw new Error('A prospecção não terminou dentro do limite de continuações. Clique em Prospectar novamente para retomar de onde parou.');
+      setOperationMessage(`Prospecção concluída: ${integer.format(res.totalComments || 0)} comentários, ${integer.format(res.totalLeads || 0)} leads, ${integer.format(res.opportunities || 0)} oportunidade(s) nova(s). Iniciando análise ICP automaticamente.`);
       await reloadData().catch(() => {});
       await runLeadAnalysisFromProspecting(res.opportunities || res.totalLeads || 0);
     } catch (e) {

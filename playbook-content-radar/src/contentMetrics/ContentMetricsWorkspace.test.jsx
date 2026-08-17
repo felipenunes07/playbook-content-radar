@@ -265,3 +265,71 @@ describe('ContentMetricsWorkspace', () => {
     expect(screen.getByLabelText('Data final')).toHaveValue('2026-03-15');
   });
 });
+
+// Um post viral não cabe numa invocação da Edge Function (parede de ~150s no plano
+// free), então a function ingere o dataset em fatias e devolve done:false enquanto
+// sobra coisa. Se a tela parasse na primeira resposta, o post das 36 Skills entraria
+// com 200 dos 4.373 comentários e ninguém notaria — o job fica "SUCESSO" na tabela.
+describe('Prospecção paginada', () => {
+  const prospectingData = {
+    ...data,
+    prospecting: [],
+    linkedin: [{ ...data.linkedin[0], id: 'post-1' }],
+  };
+
+  function fakeClient(prospectResponses) {
+    const calls = [];
+    let index = 0;
+    return {
+      calls,
+      functions: {
+        invoke: async (name) => {
+          calls.push(name);
+          if (name === 'prospect-post') {
+            const data = prospectResponses[Math.min(index, prospectResponses.length - 1)];
+            index += 1;
+            return { data, error: null };
+          }
+          if (name === 'enrich-leads') {
+            return { data: { success: true, processed: 0, prefiltered: 0, qualified: 0, remaining: 0 }, error: null };
+          }
+          return { data: null, error: new Error(`function inesperada: ${name}`) };
+        },
+      },
+    };
+  }
+
+  const clickProspectar = () => {
+    const button = screen.getAllByRole('button').find((node) => node.textContent.trim() === 'Prospectar');
+    fireEvent.click(button);
+  };
+
+  it('continua chamando a function até done e só então dispara a análise ICP', async () => {
+    const client = fakeClient([
+      { success: true, done: false, status: 'running', totalComments: 200, datasetTotal: 600, totalLeads: 190, opportunities: 190 },
+      { success: true, done: false, status: 'running', totalComments: 400, datasetTotal: 600, totalLeads: 380, opportunities: 380 },
+      { success: true, done: true, status: 'success', totalComments: 600, datasetTotal: 600, totalLeads: 570, opportunities: 570 },
+    ]);
+    render(<ContentMetricsWorkspace client={client} initialData={prospectingData} mode="prospecting" />);
+
+    clickProspectar();
+
+    // A mensagem "Prospecção concluída" é transitória: a análise ICP começa em
+    // seguida e reescreve o aviso. O que fica é a contagem na linha do post.
+    await waitFor(() => expect(client.calls).toContain('enrich-leads'));
+    expect(client.calls.filter((name) => name === 'prospect-post')).toHaveLength(3);
+    await waitFor(() => expect(screen.getByText('600')).toBeInTheDocument());
+  });
+
+  it('não dispara a análise ICP quando a paginação não terminou', async () => {
+    const client = fakeClient([
+      { success: true, done: false, status: 'running', totalComments: 200, datasetTotal: 600, totalLeads: 190, opportunities: 190 },
+    ]);
+    render(<ContentMetricsWorkspace client={client} initialData={prospectingData} mode="prospecting" />);
+
+    clickProspectar();
+
+    await waitFor(() => expect(screen.getByText(/não terminou dentro do limite de continuações/)).toBeInTheDocument());
+    expect(client.calls).not.toContain('enrich-leads');
+  });
+});
