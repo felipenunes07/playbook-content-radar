@@ -1,8 +1,10 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { collectorDeadline, remainingMs, runActor } from '../_shared/apify.ts';
+import { buildCompanyActorInput, buildCompanyIndex, companyEmployeeCount, findCompany } from './company.ts';
 import { errorMessage } from '../_shared/content.ts';
 import { adminClient, corsHeaders, finishRun, json, startRun } from '../_shared/server.ts';
 import { llmHeaders, LlmProvider, parseLlmJson, requireClassificationProviders, withLlmFallback } from '../_shared/llm.ts';
+import { bdScrape, bdProfileToCanonical, bdCompanyToCanonical, BD_PROFILE_DATASET, BD_COMPANY_DATASET } from '../_shared/brightdata.ts';
 
 // Fase 2 da prospecção: pega leads com enrichment_status='pending', enriquece com
 // profile (apimaestro, em lote) + company (harvestapi, em lote) e passa um payload
@@ -37,12 +39,106 @@ function isObviouslyJunior(headline: string | null): boolean {
 // varia; guardamos o cru em profile_raw pra auditar). Sem experiência atual =
 // possivelmente desempregado → company fica null e o agente é avisado.
 function currentExperience(profile: Record<string, any>) {
+  // harvestapi resume o cargo atual em currentPosition[]; quando existe, é a fonte
+  // mais confiável do emprego vigente. apimaestro não tem esse campo e cai no
+  // experience[] abaixo.
+  const current = Array.isArray(profile?.currentPosition) ? profile.currentPosition : [];
+  if (current.length) return current[0];
+
   const experiences = profile?.experience || profile?.experiences || profile?.work_experience || [];
   if (!Array.isArray(experiences)) return null;
-  return experiences.find((e: Record<string, any>) =>
-    e?.is_current === true || e?.isCurrent === true
-    || String(pick(e, ['end_date', 'endDate', 'date_range.end', 'duration.end']) ?? '').trim() === ''
-    || /present|atual|hoje/i.test(String(pick(e, ['end_date', 'endDate', 'duration']) || ''))) || null;
+
+  // "Emprego atual" difere por actor: apimaestro usa end_date string vazia/"present";
+  // harvestapi usa endDate como OBJETO { text: "Present" }. String(objeto) viraria
+  // "[object Object]" e o /present/ nunca casaria — por isso lê o .text antes.
+  const isCurrent = (e: Record<string, any>) => {
+    if (e?.is_current === true || e?.isCurrent === true) return true;
+    const end = pick(e, ['end_date', 'endDate', 'date_range.end', 'duration.end']);
+    const endText = end && typeof end === 'object' ? (end.text ?? end.label ?? '') : (end ?? '');
+    if (String(endText).trim() === '') return true;
+    return /present|atual|hoje/i.test(String(endText));
+  };
+  return experiences.find(isCurrent) || null;
+}
+
+type CompanyRef = { name: string | null; url: string | null };
+
+const COMPANY_ACTOR_BATCH_SIZE = 10;
+
+function chunksOf<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
+  return chunks;
+}
+
+function companyRefFromProfile(profile: Record<string, any>, fallback?: CompanyRef): CompanyRef {
+  const info = profile?.basic_info || profile;
+  const experience = currentExperience(profile);
+  const name = fallback?.name
+    || pick(experience || {}, ['company', 'company_name', 'companyName'])
+    || pick(info, ['current_company', 'company', 'company_name']);
+  const url = fallback?.url
+    || pick(experience || {}, ['company_linkedin_url', 'companyLinkedinUrl', 'company_url', 'companyUrl', 'company_linkedin']);
+  return { name: name ? String(name) : null, url: url ? String(url) : null };
+}
+
+async function fetchCompanyRecords(
+  actorId: string,
+  token: string,
+  companies: CompanyRef[],
+  deadlineAt: number,
+  bd?: { apiKey: string; datasetId: string } | null,
+) {
+  const unique = [...new Map(companies
+    .filter((company) => company.url || company.name)
+    .map((company) => [`${company.url || ''}\n${company.name || ''}`.toLowerCase(), company])).values()];
+  const records: Record<string, any>[] = [];
+  const errors: string[] = [];
+  let actorRuns = 0;
+
+  const runInputs = async (refs: CompanyRef[]) => {
+    for (const chunk of chunksOf(refs, COMPANY_ACTOR_BATCH_SIZE)) {
+      if (remainingMs(deadlineAt) < 30000) throw new Error('Tempo insuficiente para concluir o enriquecimento de empresas');
+      try {
+        if (bd) {
+          // Bright Data raspa empresa por URL do LinkedIn (não por nome). Empresas
+          // que só têm nome ficam sem porte — o LLM decide pelo contexto/conhecimento.
+          const urls = chunk.map((c) => c.url).filter((u): u is string => Boolean(u) && /linkedin\.com\/company\//i.test(String(u)));
+          if (!urls.length) continue;
+          actorRuns += 1;
+          const rows = await bdScrape(bd.datasetId, urls, bd.apiKey, deadlineAt);
+          records.push(...rows.map(bdCompanyToCanonical));
+        } else {
+          const input = buildCompanyActorInput(chunk);
+          if (!Object.keys(input).length) continue;
+          actorRuns += 1;
+          const result = await runActor(actorId, token, input, deadlineAt);
+          if (Array.isArray(result)) records.push(...result);
+        }
+      } catch (error) {
+        errors.push(errorMessage(error));
+      }
+    }
+  };
+
+  await runInputs(unique);
+
+  // O profile scraper costuma devolver /company/<id>, enquanto o actor de empresa
+  // pode devolver a URL canônica com slug. O índice casa pelo id, URL e nome. Se
+  // ainda faltar uma empresa que tinha URL, tenta uma busca pelo nome como fallback.
+  let index = buildCompanyIndex(records);
+  const unmatched = unique.filter((company) => !findCompany(index, company) && company.name);
+  if (unmatched.length && remainingMs(deadlineAt) > 30000) {
+    await runInputs(unmatched.map((company) => ({ name: company.name, url: null })));
+    index = buildCompanyIndex(records);
+  }
+
+  if (!records.length && unique.length >= 5) {
+    const detail = errors.length ? `: ${[...new Set(errors)].join(' | ')}` : '';
+    throw new Error(`O actor de empresas não retornou nenhum resultado para ${unique.length} empresa(s)${detail}`);
+  }
+
+  return { index, records, actorRuns, errors };
 }
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -175,18 +271,42 @@ Deno.serve(async (request) => {
 
     const token = Deno.env.get('APIFY_TOKEN');
     if (!token) throw new Error('APIFY_TOKEN é obrigatório');
-    const profileActorId = Deno.env.get('APIFY_LINKEDIN_PROFILE_ACTOR_ID') || 'apimaestro/linkedin-profile-batch-scraper-no-cookies-required';
+    // Default trocado de apimaestro para harvestapi em 17/08/2026: o apimaestro
+    // devolvia 0 perfis na conta Apify de fallback (provável actor sem aluguel no
+    // plano trial), enquanto o harvestapi roda nas duas contas. Overridável por body
+    // (teste) ou env (voltar ao apimaestro na conta principal, se quiser).
+    const profileActorId = body?.profileActorId || Deno.env.get('APIFY_LINKEDIN_PROFILE_ACTOR_ID') || 'harvestapi/linkedin-profile-scraper';
     const companyActorId = Deno.env.get('APIFY_LINKEDIN_COMPANY_ACTOR_ID') || 'harvestapi/linkedin-company';
+
+    // Provedor de enriquecimento. Bright Data entra como alternativa quando a Apify
+    // não roda os scrapers de perfil (conta trial). Selecionável por body (teste) ou
+    // env; default apify pra não mudar o comportamento existente sem intenção.
+    const provider = body?.provider || Deno.env.get('ENRICH_PROVIDER') || 'apify';
+    const bdKey = Deno.env.get('BRIGHTDATA_API_KEY') || null;
+    const bdProfileDataset = body?.bdProfileDataset || Deno.env.get('BRIGHTDATA_PROFILE_DATASET') || BD_PROFILE_DATASET;
+    const bdCompanyDataset = body?.bdCompanyDataset || Deno.env.get('BRIGHTDATA_COMPANY_DATASET') || BD_COMPANY_DATASET;
+    const bdCompany = provider === 'brightdata' && bdKey ? { apiKey: bdKey, datasetId: bdCompanyDataset } : null;
+    // debugRaw devolve a primeira linha crua do Bright Data na resposta HTTP, pra
+    // conferir o schema real num único deploy sem chutar nomes de campo.
+    const debugRaw = body?.debugRaw === true;
+    let bdProfileSample: Record<string, any> | null = null;
 
     const client = adminClient();
     const deadlineAt = collectorDeadline();
+    const companyOnly = body?.companyOnly === true;
+    const limit = Math.max(1, Math.min(50, Number(body.limit || 10)));
+    const leadIds = Array.isArray(body.leadIds)
+      ? body.leadIds.filter((id: unknown): id is string => typeof id === 'string').slice(0, 5000)
+      : null;
+    if (companyOnly && !leadIds?.length) throw new Error('O backfill companyOnly exige leadIds explícitos');
+    const runSource = companyOnly ? 'prospect_company_backfill' : 'prospect_enrich';
 
     // Trava de concorrência: duas análises em paralelo brigam pelo rate limit do
-    // LLM (10 req/min no Gemini free) e as duas morrem por timeout — foi a causa
-    // dos runs zumbis de 05/07. Se já tem uma rodando há menos de 8 min, recusa.
+    // LLM/actors e podem morrer por timeout. O backfill de empresa também entra
+    // nessa trava para não disputar o mesmo actor com a fila normal.
     const { data: activeRuns } = await client.from('collection_runs')
       .select('id')
-      .eq('source', 'prospect_enrich')
+      .in('source', ['prospect_enrich', 'prospect_company_backfill'])
       .eq('status', 'running')
       .gte('started_at', new Date(Date.now() - 8 * 60000).toISOString())
       .limit(1);
@@ -194,19 +314,77 @@ Deno.serve(async (request) => {
       return json({ success: false, busy: true, error: 'Já existe uma análise em andamento. Aguarde ela terminar (ou até 8 minutos, se tiver travado).' });
     }
 
-    runId = await startRun(client, 'prospect_enrich');
+    runId = await startRun(client, runSource);
+
+    // Backfill cirúrgico: usa profile_raw/company_url já salvos, consulta apenas
+    // o actor de empresas e não refaz profile nem qualificação por IA.
+    if (companyOnly) {
+      const { data: backfillRows, error: backfillError } = await client.from('leads')
+        .select('id, full_name, company_name, company_url, company_size, profile_raw')
+        .in('id', leadIds!)
+        .is('company_size', null)
+        .limit(limit);
+      if (backfillError) throw backfillError;
+      const rows = backfillRows || [];
+      const companyByLead = new Map<string, CompanyRef>();
+      for (const lead of rows) {
+        companyByLead.set(lead.id, companyRefFromProfile(lead.profile_raw || {}, {
+          name: lead.company_name || null,
+          url: lead.company_url || null,
+        }));
+      }
+      const refs = [...companyByLead.values()].filter((company) => company.url || company.name);
+      const companyFetch = refs.length
+        ? await fetchCompanyRecords(companyActorId, token, refs, deadlineAt, bdCompany)
+        : { index: new Map<string, Record<string, any>>(), records: [], actorRuns: 0, errors: [] };
+      let updated = 0;
+      const missing: Array<{ id: string; name: string | null; company: string | null }> = [];
+      const updateErrors: Array<{ id: string; error: string }> = [];
+      for (const lead of rows) {
+        const company = companyByLead.get(lead.id) || { name: null, url: null };
+        const details = findCompany(companyFetch.index, company);
+        const employeeCount = companyEmployeeCount(details);
+        if (!details || !employeeCount) {
+          missing.push({ id: lead.id, name: lead.full_name, company: company.name });
+          continue;
+        }
+        const { error: updateError } = await client.from('leads').update({
+          company_name: company.name || pick(details, ['name', 'companyName', 'company_name']),
+          company_url: company.url || pick(details, ['linkedinUrl', 'linkedin_url', 'companyUrl', 'url']),
+          company_size: employeeCount,
+          company_raw: details,
+          enrichment_error: null,
+        }).eq('id', lead.id);
+        if (updateError) updateErrors.push({ id: lead.id, error: errorMessage(updateError) });
+        else updated += 1;
+      }
+      const status = updateErrors.length ? (updated ? 'partial' : 'failed') : 'success';
+      await finishRun(client, runId, {
+        status,
+        items_processed: rows.length,
+        error_message: updateErrors.length ? `${updateErrors.length} atualização(ões) falharam` : null,
+        raw: { companyOnly: true, updated, missing: missing.length, actorRuns: companyFetch.actorRuns, actorErrors: companyFetch.errors, updateErrors },
+      });
+      return json({
+        success: status !== 'failed',
+        runId,
+        status,
+        processed: rows.length,
+        updated,
+        missing,
+        actorRuns: companyFetch.actorRuns,
+        actorErrors: companyFetch.errors,
+        errors: updateErrors,
+      }, status === 'failed' ? 500 : 200);
+    }
 
     // Critérios do ICP editáveis pela UI (tabela singleton prospect_settings).
     const { data: settings } = await client.from('prospect_settings').select('icp_rules').eq('id', true).maybeSingle();
     const icpRules = settings?.icp_rules || null;
 
-    const limit = Math.max(1, Math.min(50, Number(body.limit || 10)));
     // Escopo opcional: quando o front filtra por um post, manda os leadIds daquele
     // post e a análise processa (e conta o "remaining") só esse subconjunto. Sem
     // leadIds, roda a fila inteira como antes.
-    const leadIds = Array.isArray(body.leadIds)
-      ? body.leadIds.filter((id: unknown): id is string => typeof id === 'string').slice(0, 5000)
-      : null;
     let pendingQuery = client.from('leads')
       .select('id, public_identifier, profile_url, full_name, headline, first_seen_post_id')
       .eq('enrichment_status', 'pending')
@@ -256,7 +434,22 @@ Deno.serve(async (request) => {
     const profileByIdentifier = new Map<string, Record<string, any>>();
     if (toEnrich.length) {
       const usernames = toEnrich.map((lead) => lead.public_identifier);
-      const profiles = await runActor(profileActorId, token, { usernames, includeEmail: false }, deadlineAt);
+      let profiles: any[];
+      if (provider === 'brightdata') {
+        if (!bdKey) throw new Error('BRIGHTDATA_API_KEY é obrigatório para o provedor brightdata');
+        const urls = usernames.map((u) => `https://www.linkedin.com/in/${u}`);
+        const rawProfiles = await bdScrape(bdProfileDataset, urls, bdKey, deadlineAt);
+        bdProfileSample = rawProfiles[0] || null;
+        profiles = rawProfiles.map(bdProfileToCanonical);
+      } else {
+        // Entrada difere por actor. harvestapi: publicIdentifiers + profileScraperMode
+        // (o valor do modo inclui o preço, é o enum literal do actor). apimaestro:
+        // usernames + includeEmail.
+        const profileInput = profileActorId.includes('harvestapi')
+          ? { publicIdentifiers: usernames, profileScraperMode: 'Profile details no email ($4 per 1k)' }
+          : { usernames, includeEmail: false };
+        profiles = await runActor(profileActorId, token, profileInput, deadlineAt);
+      }
       for (const profile of Array.isArray(profiles) ? profiles : []) {
         const info = profile?.basic_info || profile;
         const identifier = String(info?.public_identifier || info?.publicIdentifier || '').toLowerCase();
@@ -264,35 +457,19 @@ Deno.serve(async (request) => {
       }
     }
 
-    // (3) Company em lote, best-effort: junta as empresas atuais distintas e roda um
-    // run só. Falha aqui não derruba o lote — o agente decide sem o headcount.
-    const companyByKey = new Map<string, Record<string, any>>();
-    const companyKeys = new Set<string>();
+    // (3) Company em lotes pequenos. URL e nome usam campos de input distintos no
+    // actor atual; o resultado é indexado por id/URL/nome e nomes sem match ganham
+    // uma tentativa de fallback. Uma falha total não pode mais virar falso sucesso.
     const leadCompany = new Map<string, { name: string | null; url: string | null }>();
     for (const lead of toEnrich) {
       const profile = profileByIdentifier.get(String(lead.public_identifier).toLowerCase());
       if (!profile) continue;
-      const info = profile?.basic_info || profile;
-      const experience = currentExperience(profile);
-      const name = pick(experience || {}, ['company', 'company_name', 'companyName'])
-        || pick(info, ['current_company', 'company', 'company_name']);
-      const url = pick(experience || {}, ['company_linkedin_url', 'company_url', 'companyUrl', 'company_linkedin']);
-      leadCompany.set(lead.id, { name: name ? String(name) : null, url: url ? String(url) : null });
-      const key = String(url || name || '').toLowerCase().trim();
-      if (key) companyKeys.add(String(url || name));
+      leadCompany.set(lead.id, companyRefFromProfile(profile));
     }
-    if (companyKeys.size && remainingMs(deadlineAt) > 60000) {
-      try {
-        const companies = await runActor(companyActorId, token, { companies: [...companyKeys] }, deadlineAt);
-        for (const company of Array.isArray(companies) ? companies : []) {
-          for (const key of [company?.linkedinUrl, company?.url, company?.name, company?.universalName]) {
-            if (key) companyByKey.set(String(key).toLowerCase().trim(), company);
-          }
-        }
-      } catch (companyError) {
-        console.error('Scrape de company falhou (seguindo sem headcount):', errorMessage(companyError));
-      }
-    }
+    const companyRefs = [...leadCompany.values()].filter((company) => company.url || company.name);
+    const companyFetch = companyRefs.length
+      ? await fetchCompanyRecords(companyActorId, token, companyRefs, deadlineAt, bdCompany)
+      : { index: new Map<string, Record<string, any>>(), records: [], actorRuns: 0, errors: [] };
 
     // (4) Qualificação lead a lead com payload enxuto.
     let processed = 0;
@@ -321,12 +498,8 @@ Deno.serve(async (request) => {
         const info = profile?.basic_info || profile;
         const experience = currentExperience(profile);
         const company = leadCompany.get(lead.id) || { name: null, url: null };
-        const companyDetails = company.url && companyByKey.get(String(company.url).toLowerCase().trim())
-          || (company.name && companyByKey.get(String(company.name).toLowerCase().trim()))
-          || null;
-        const employeeCount = companyDetails
-          ? Number(pick(companyDetails, ['employeeCount', 'employee_count', 'staffCount', 'staff_count', 'employeesAmountInLinkedin'])) || null
-          : null;
+        const companyDetails = findCompany(companyFetch.index, company);
+        const employeeCount = companyEmployeeCount(companyDetails);
         const currentlyEmployed = Boolean(experience && company.name);
 
         const leadComment = commentByLead.get(lead.id);
@@ -364,7 +537,7 @@ Deno.serve(async (request) => {
           score: result.score,
           suggested_angle: result.suggested_angle,
           enrichment_status: 'enriched',
-          enrichment_error: null,
+          enrichment_error: currentlyEmployed && !employeeCount ? 'Empresa não retornou porte no enriquecimento' : null,
           profile_raw: profile,
           company_raw: companyDetails || {},
         }).eq('id', lead.id);
@@ -403,7 +576,14 @@ Deno.serve(async (request) => {
       status,
       items_processed: processed + junior.length,
       error_message: errors.length ? `${errors.length} lead(s) falharam` : null,
-      raw: { errors, prefiltered: junior.length, qualified },
+      raw: {
+        errors,
+        prefiltered: junior.length,
+        qualified,
+        companyRecords: companyFetch.records.length,
+        companyActorRuns: companyFetch.actorRuns,
+        companyActorErrors: companyFetch.errors,
+      },
     });
     return json({
       success: status !== 'failed' || rateLimited,
@@ -417,8 +597,12 @@ Deno.serve(async (request) => {
       retryAfterSeconds: rateLimited ? retryAfterSeconds : GEMINI_RETRY_AFTER_SECONDS,
       recommendedBatchSize,
       estimatedSecondsPerLead: secondsPerLeadEstimate,
+      companyRecords: companyFetch.records.length,
+      companyActorRuns: companyFetch.actorRuns,
+      companyActorErrors: companyFetch.errors,
       errors,
       remaining: remainingCount ?? 0,
+      ...(debugRaw ? { bdProfileSample, bdCompanySample: companyFetch.records[0] || null } : {}),
     });
   } catch (error) {
     const message = errorMessage(error);
