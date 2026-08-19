@@ -56,6 +56,17 @@ export function phoneDisplay(row) {
   return formatPhone(phoneToShow(row));
 }
 
+/** Link do WhatsApp para o número do lead. Passa pelo mesmo phoneToShow: fora de
+ *  MATCHED devolve '' e não há link nenhum para clicar — a regra de não vazar
+ *  número vale igual para o href, que também carrega o telefone. */
+export function whatsappLink(row) {
+  const digits = phoneToShow(row).replace(/\D/g, '');
+  // wa.me exige DDI + DDD + número, só dígitos. Menos que isso é número quebrado:
+  // melhor não oferecer o link do que abrir uma conversa com o contato errado.
+  if (digits.length < 12 || digits.length > 15) return '';
+  return `https://wa.me/${digits}`;
+}
+
 export function indexPhonesByLead(rows = []) {
   const index = new Map();
   for (const row of rows) {

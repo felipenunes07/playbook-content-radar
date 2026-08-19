@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   countByPhoneFilter, evidenceLabel, formatPhone, indexPhonesByLead, matchesPhoneFilter,
-  phoneDisplay, phoneStatusMeta, phoneStatusOf, phoneToShow, reviewCandidates, reviewReason,
+  phoneDisplay, phoneStatusMeta, phoneStatusOf, phoneToShow, reviewCandidates, reviewReason, whatsappLink,
 } from './leadPhones.js';
 
 const row = (over = {}) => ({ lead_id: 'L1', match_status: 'MATCHED', phone_e164: '+5511999998888', ...over });
@@ -26,6 +26,13 @@ describe('leadPhones: a regra absoluta na fronteira da UI', () => {
     expect(phoneStatusOf({ match_status: 'QUALQUER_COISA' })).toBe('NOT_PROCESSED');
     expect(phoneToShow({ match_status: 'QUALQUER_COISA', phone_e164: '+5511999998888' })).toBe('');
   });
+
+  it('o link do WhatsApp obedece a mesma regra — o href também carrega o número', () => {
+    expect(whatsappLink(row({ match_status: 'MATCHED' }))).toBe('https://wa.me/5511999998888');
+    expect(whatsappLink(row({ match_status: 'REVIEW' }))).toBe('');
+    expect(whatsappLink(row({ match_status: 'MATCHED_NO_PHONE' }))).toBe('');
+    expect(whatsappLink({ match_status: 'REVIEW', phone_e164: '+5511999998888' })).toBe('');
+  });
 });
 
 describe('leadPhones: rótulos e formatação', () => {
@@ -44,6 +51,18 @@ describe('leadPhones: rótulos e formatação', () => {
   it('deixa passar número fora do padrão BR sem inventar formato', () => {
     expect(formatPhone('+13125551234')).toBe('+13125551234');
     expect(formatPhone('')).toBe('');
+  });
+});
+
+describe('leadPhones: link do WhatsApp', () => {
+  it('monta wa.me só com os dígitos, sem + nem separadores', () => {
+    expect(whatsappLink(row({ phone_e164: '+55 41 98891-5329' }))).toBe('https://wa.me/5541988915329');
+  });
+
+  it('não oferece link para número curto ou longo demais', () => {
+    // Melhor não ter link do que abrir conversa com o contato errado.
+    expect(whatsappLink(row({ phone_e164: '+5541988' }))).toBe('');
+    expect(whatsappLink(row({ phone_e164: '+5541988915329999' }))).toBe('');
   });
 });
 
