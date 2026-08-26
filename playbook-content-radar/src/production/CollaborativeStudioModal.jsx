@@ -10,6 +10,7 @@ import {
 import './collaborativeStudio.css';
 import { extractSourceMaterial } from './extractSourceMaterial.js';
 import victorPhoto from '../assets/victor.png';
+import { FERNANDO_ATIVO } from '../teamConfig.js';
 
 const nowIso = () => new Date().toISOString();
 const uid = () => (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -142,7 +143,7 @@ function CopiesPanel({ variants, selectedId, contextCount, generating, sendingFo
                 <div><button type="button" onClick={() => onDuplicate(selected)} title="Duplicar"><Copy size={14} /></button>{variants.length > 1 && <button type="button" onClick={() => onDelete(selected.id)} title="Excluir"><Trash2 size={14} /></button>}</div>
               </div>
               {selected.ai && <div className="cs-ai-rationale"><div><span>Outcome</span><strong>{selected.ai.outcome}</strong></div><div><span>Estrutura</span><strong>{selected.ai.framework}</strong></div><div><span>Hook escolhido</span><strong>{selected.ai.hook}</strong></div></div>}
-              <textarea value={selected.text} onChange={(event) => onChange(selected.id, { text: event.target.value })} placeholder="A versão gerada aparecerá aqui. Victor e Fernando podem revisar e editar livremente." />
+              <textarea value={selected.text} onChange={(event) => onChange(selected.id, { text: event.target.value })} placeholder={FERNANDO_ATIVO ? 'A versão gerada aparecerá aqui. Victor e Fernando podem revisar e editar livremente.' : 'A versão gerada aparecerá aqui. Victor pode revisar e editar livremente.'} />
               <footer><span>Editado por {selected.updatedBy || 'Time'} • {shortDate(selected.updatedAt)}</span><strong>{selected.text.length} caracteres</strong></footer>
             </div>
           )}
@@ -278,7 +279,7 @@ function FeedbackPanel({ feedback, currentUser, onAdd }) {
       </div>
       <div className="cs-feedback-stream">
         {feedback.slice().reverse().map((item) => <article key={item.id}><span className="cs-feedback-avatar">{item.author?.slice(0, 1)}</span><div><header><strong>{item.author}</strong><span>{shortDate(item.createdAt)}</span><em className={item.reaction}>{item.reaction === 'liked' ? 'Gostei' : item.reaction === 'adjust' ? 'Pedir ajuste' : item.reaction === 'approved' ? 'Aprovado' : 'Comentário'}</em></header><p>{item.message}</p></div></article>)}
-        {!feedback.length && <div className="cs-empty-state"><MessageSquare size={20} /><strong>Revisão compartilhada</strong><span>Victor, Fernando e Felipe podem comentar, pedir ajustes e aprovar.</span></div>}
+        {!feedback.length && <div className="cs-empty-state"><MessageSquare size={20} /><strong>Revisão compartilhada</strong><span>{FERNANDO_ATIVO ? 'Victor, Fernando e Felipe podem comentar, pedir ajustes e aprovar.' : 'Victor e Felipe podem comentar, pedir ajustes e aprovar.'}</span></div>}
       </div>
     </section>
   );
@@ -624,7 +625,7 @@ export default function CollaborativeStudioModal({ idea, currentUser, client, on
       <motion.section className={`cs-modal ${isFullscreen ? 'is-fullscreen' : ''} ${(activeTab === 'copies' || activeTab === 'creatives' || activeTab === 'preview') ? 'is-visual-mode' : ''}`} initial={{ opacity: 0, scale: .985, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }}>
         <header className="cs-header">
           <div><span className="cs-logo"><Sparkles size={15} /></span><div><strong>Estúdio colaborativo</strong><span>{idea.title}</span></div></div>
-          <div className="cs-presence"><span>F</span><span>V</span><span>F</span><small>Felipe, Victor e Fernando</small><button type="button" className="cs-fullscreen-toggle" aria-label={isFullscreen ? 'Sair da tela cheia' : 'Maximizar workspace'} title={isFullscreen ? 'Sair da tela cheia' : 'Maximizar e focar no workspace'} onClick={() => setIsFullscreen((value) => !value)}>{isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button><button type="button" aria-label="Fechar estúdio" onClick={onClose}><X size={17} /></button></div>
+          <div className="cs-presence"><span>F</span><span>V</span>{FERNANDO_ATIVO && <span>F</span>}<small>{FERNANDO_ATIVO ? 'Felipe, Victor e Fernando' : 'Felipe e Victor'}</small><button type="button" className="cs-fullscreen-toggle" aria-label={isFullscreen ? 'Sair da tela cheia' : 'Maximizar workspace'} title={isFullscreen ? 'Sair da tela cheia' : 'Maximizar e focar no workspace'} onClick={() => setIsFullscreen((value) => !value)}>{isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}</button><button type="button" aria-label="Fechar estúdio" onClick={onClose}><X size={17} /></button></div>
         </header>
         <div className="cs-body">
           <OriginalPost idea={idea} />

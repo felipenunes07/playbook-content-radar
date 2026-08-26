@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import './ideaProduction.css';
 import victorPhoto from '../assets/victor.png';
+import { FERNANDO_ATIVO } from '../teamConfig.js';
 
 const dateLabel = (value) => {
   if (!value) return 'Sem data';
@@ -13,7 +14,7 @@ const dateLabel = (value) => {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
 };
 
-const isLiked = (idea) => idea.victorVote === 'like' || idea.fernandoVote === 'like';
+const isLiked = (idea) => idea.victorVote === 'like' || (FERNANDO_ATIVO && idea.fernandoVote === 'like');
 const hasMaterial = (idea) => Boolean(idea.finalPostText || idea.finalImageUrl);
 const inProduction = (idea) => idea.computedStatus === 'em_producao' || hasMaterial(idea) || idea.scheduledAt;
 
@@ -36,16 +37,20 @@ const stageMeta = {
 };
 
 function priorityOf(idea) {
-  const consensus = idea.victorVote === 'like' && idea.fernandoVote === 'like' ? 40 : 20;
+  // Com o Fernando desativado, o "consenso" depende só do like do Victor.
+  const consensus = idea.victorVote === 'like' && (!FERNANDO_ATIVO || idea.fernandoVote === 'like') ? 40 : 20;
   const priority = idea.initialPriority === 'Alta' ? 20 : idea.initialPriority === 'Média' ? 10 : 0;
   const detail = idea.playbookAngle ? 8 : 0;
   return consensus + priority + detail;
 }
 
 function voteText(idea) {
-  if (idea.victorVote === 'like' && idea.fernandoVote === 'like') return 'Victor e Fernando gostaram';
-  if (idea.victorVote === 'like') return 'Victor gostou';
-  return 'Fernando gostou';
+  if (FERNANDO_ATIVO) {
+    if (idea.victorVote === 'like' && idea.fernandoVote === 'like') return 'Victor e Fernando gostaram';
+    if (idea.victorVote === 'like') return 'Victor gostou';
+    return 'Fernando gostou';
+  }
+  return 'Victor gostou';
 }
 
 function WorkListItem({ idea, selected, onSelect }) {
@@ -70,7 +75,10 @@ function VoteProof({ idea }) {
   return (
     <div className="ipw-vote-proof">
       <span className={idea.victorVote === 'like' ? 'liked' : ''}><UserRound size={13} /> Victor {idea.victorVote === 'like' && <Check size={11} />}</span>
-      <span className={idea.fernandoVote === 'like' ? 'liked' : ''}><UserRound size={13} /> Fernando {idea.fernandoVote === 'like' && <Check size={11} />}</span>
+      {/* Prova de voto do Fernando desativada (ver ../teamConfig.js). */}
+      {FERNANDO_ATIVO && (
+        <span className={idea.fernandoVote === 'like' ? 'liked' : ''}><UserRound size={13} /> Fernando {idea.fernandoVote === 'like' && <Check size={11} />}</span>
+      )}
     </div>
   );
 }

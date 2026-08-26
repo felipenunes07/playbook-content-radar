@@ -17,6 +17,7 @@ import juniorPhoto from './assets/junior.png';
 import playbookLogo from './assets/playbook-logo.png';
 import { pathToMetricsSection, sectionToMetricsPath } from './contentMetrics/routes.js';
 import { filterContent } from './contentMetrics/analytics.js';
+import { FERNANDO_ATIVO, CURATORS, TEAM_MEMBERS } from './teamConfig.js';
 
 const SUPABASE_URL = 'https://xcihctupmfawtawbzwvm.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhjaWhjdHVwbWZhd3Rhd2J6d3ZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyNTY1MTIsImV4cCI6MjA5NTgzMjUxMn0.GFVSHYY0S9nwfunxUyGGio5EQgsZE04nvFZAFz-L4Ow';
@@ -133,13 +134,14 @@ const USER_AVATARS = {
 
 // Papéis dos perfis do app:
 // - Felipe é o admin (único que cria pautas, programa publicações e exporta dados);
-// - Victor e Fernando são os curadores editoriais — a aprovação de uma pauta continua
-//   sendo decidida pelos votos dos dois (ver calculateAutoStatus);
+// - Victor é o curador editorial — a aprovação de uma pauta é decidida pelo voto
+//   dele (ver calculateAutoStatus);
 // - Junior é colaborador: usa Tarefas & Notas e os painéis de apoio (métricas, metas,
 //   prospecção, leads, desenvolvimento, produção, calendário), mas fica fora do fluxo
 //   de votação para não alterar o critério de aprovação já em uso.
-const CURATORS = ['Victor', 'Fernando'];
-const TEAM_MEMBERS = ['Felipe', 'Victor', 'Fernando', 'Junior'];
+//
+// CURATORS e TEAM_MEMBERS agora vêm de ./teamConfig.js, controlados pela flag
+// FERNANDO_ATIVO (perfil do Fernando desativado; troque a flag para restaurar).
 const isAdmin = (name) => name === 'Felipe';
 const isCurator = (name) => CURATORS.includes(name);
 const roleLabel = (name) => isAdmin(name)
@@ -719,6 +721,17 @@ function voteClass(vote) {
 
 function calculateAutoStatus(idea, votes) {
   const victor = votes.find(v => v.ideaId === idea.id && v.voterName === 'Victor')?.vote;
+
+  // Com o Fernando desativado, a aprovação depende apenas do voto do Victor.
+  if (!FERNANDO_ATIVO) {
+    if (!victor) return 'pendente';
+    if (victor === 'like') return 'aprovado';
+    if (victor === 'maybe') return 'avaliar';
+    if (victor === 'dislike') return 'rejeitado';
+    return 'avaliar';
+  }
+
+  // Fluxo original com dois curadores (restaurado ao ligar FERNANDO_ATIVO).
   const fernando = votes.find(v => v.ideaId === idea.id && v.voterName === 'Fernando')?.vote;
   if (!victor && !fernando) return 'pendente';
   if (!victor || !fernando) return 'aguardando outro voto';
@@ -1781,26 +1794,29 @@ function IdentityScreen({ selectUser, ideas, votes }) {
             )}
           </button>
 
-          <button onClick={() => selectUser('Fernando')}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <img
-                className="avatar-initial"
-                src={USER_AVATARS.Fernando}
-                alt="Fernando"
-                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = `https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff&bold=true`;
-                }}
-              />
-              Fernando
-            </span>
-            {pendingFor('Fernando') > 0 ? (
-              <span className="pending-pill">{pendingFor('Fernando')} pendentes</span>
-            ) : (
-              <span style={{ color: 'var(--vote-green)', fontSize: '12px', fontWeight: 600 }}>Tudo limpo</span>
-            )}
-          </button>
+          {/* Perfil do Fernando desativado (ver ./teamConfig.js). Restaura ao ligar FERNANDO_ATIVO. */}
+          {FERNANDO_ATIVO && (
+            <button onClick={() => selectUser('Fernando')}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img
+                  className="avatar-initial"
+                  src={USER_AVATARS.Fernando}
+                  alt="Fernando"
+                  style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = `https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff&bold=true`;
+                  }}
+                />
+                Fernando
+              </span>
+              {pendingFor('Fernando') > 0 ? (
+                <span className="pending-pill">{pendingFor('Fernando')} pendentes</span>
+              ) : (
+                <span style={{ color: 'var(--vote-green)', fontSize: '12px', fontWeight: 600 }}>Tudo limpo</span>
+              )}
+            </button>
+          )}
 
           <button onClick={() => selectUser('Junior')}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2780,8 +2796,8 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                   <FeedEmptyState
                     icon={CheckCircle2}
                     tone="success"
-                    title="Nenhuma pauta aprovada pelos dois ainda"
-                    hint="Quando Victor e Fernando aprovarem a mesma referência, ela aparece aqui pronta para agendar."
+                    title={FERNANDO_ATIVO ? 'Nenhuma pauta aprovada pelos dois ainda' : 'Nenhuma pauta aprovada ainda'}
+                    hint={FERNANDO_ATIVO ? 'Quando Victor e Fernando aprovarem a mesma referência, ela aparece aqui pronta para agendar.' : 'Quando o Victor aprovar uma referência, ela aparece aqui pronta para agendar.'}
                     actionLabel="Ver acervo"
                     onAction={() => onNavigateToIdeas && onNavigateToIdeas('todos')}
                   />
@@ -2943,22 +2959,24 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                               </div>
                             </div>
 
-                            {/* Fernando's Comment Bubble */}
-                            <div className="li-feed-comment-item">
-                              <img
-                                src={USER_AVATARS.Fernando}
-                                alt="Fernando"
-                                className="li-feed-comment-avatar"
-                                onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff"; }}
-                              />
-                              <div className="li-feed-comment-bubble">
-                                <div className="li-feed-comment-user-name">Fernando <span style={{ color: 'rgba(0,0,0,0.6)', fontWeight: 'normal' }}>• Curador Editorial</span></div>
-                                <div className="li-feed-comment-text">"{fernandoVote?.comment || 'Sem observações adicionais.'}"</div>
-                                <div className={`li-feed-comment-voter-badge ${fernandoVote?.vote === 'like' ? 'liked' : 'disliked'}`}>
-                                  {fernandoVote?.vote === 'like' ? '👍 Gostou da ideia' : '👎 Rejeitou a ideia'}
+                            {/* Bolha de comentário do Fernando desativada (ver ./teamConfig.js). */}
+                            {FERNANDO_ATIVO && (
+                              <div className="li-feed-comment-item">
+                                <img
+                                  src={USER_AVATARS.Fernando}
+                                  alt="Fernando"
+                                  className="li-feed-comment-avatar"
+                                  onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff"; }}
+                                />
+                                <div className="li-feed-comment-bubble">
+                                  <div className="li-feed-comment-user-name">Fernando <span style={{ color: 'rgba(0,0,0,0.6)', fontWeight: 'normal' }}>• Curador Editorial</span></div>
+                                  <div className="li-feed-comment-text">"{fernandoVote?.comment || 'Sem observações adicionais.'}"</div>
+                                  <div className={`li-feed-comment-voter-badge ${fernandoVote?.vote === 'like' ? 'liked' : 'disliked'}`}>
+                                    {fernandoVote?.vote === 'like' ? '👍 Gostou da ideia' : '👎 Rejeitou a ideia'}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
+                            )}
                           </div>
 
                           {/* Executive Conciliation Actions */}
@@ -3080,26 +3098,28 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                               </div>
                             </div>
 
-                            {/* Fernando status comment */}
-                            <div className="li-feed-comment-item">
-                              <img
-                                src={USER_AVATARS.Fernando}
-                                alt="Fernando"
-                                className="li-feed-comment-avatar"
-                                onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff"; }}
-                              />
-                              <div className="li-feed-comment-bubble">
-                                <div className="li-feed-comment-user-name">Fernando <span style={{ color: 'rgba(0,0,0,0.6)', fontWeight: 'normal' }}>• Curador Editorial</span></div>
-                                <div className="li-feed-comment-text">
-                                  {fernandoVote ? `"${fernandoVote.comment || 'Votou sem comentários.'}"` : '⏳ Aguardando envio de voto...'}
-                                </div>
-                                {fernandoVote && (
-                                  <div className={`li-feed-comment-voter-badge ${fernandoVote.vote === 'like' ? 'liked' : fernandoVote.vote === 'maybe' ? 'maybe' : 'disliked'}`}>
-                                    {fernandoVote.vote === 'like' ? '👍 Gostou' : fernandoVote.vote === 'maybe' ? '💡 Talvez' : '👎 Rejeitou'}
+                            {/* Comentário de status do Fernando desativado (ver ./teamConfig.js). */}
+                            {FERNANDO_ATIVO && (
+                              <div className="li-feed-comment-item">
+                                <img
+                                  src={USER_AVATARS.Fernando}
+                                  alt="Fernando"
+                                  className="li-feed-comment-avatar"
+                                  onError={(e) => { e.target.src = "https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff"; }}
+                                />
+                                <div className="li-feed-comment-bubble">
+                                  <div className="li-feed-comment-user-name">Fernando <span style={{ color: 'rgba(0,0,0,0.6)', fontWeight: 'normal' }}>• Curador Editorial</span></div>
+                                  <div className="li-feed-comment-text">
+                                    {fernandoVote ? `"${fernandoVote.comment || 'Votou sem comentários.'}"` : '⏳ Aguardando envio de voto...'}
                                   </div>
-                                )}
+                                  {fernandoVote && (
+                                    <div className={`li-feed-comment-voter-badge ${fernandoVote.vote === 'like' ? 'liked' : fernandoVote.vote === 'maybe' ? 'maybe' : 'disliked'}`}>
+                                      {fernandoVote.vote === 'like' ? '👍 Gostou' : fernandoVote.vote === 'maybe' ? '💡 Talvez' : '👎 Rejeitou'}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
+                            )}
                           </div>
 
                           {/* Direct Admin Decisions actions bar */}
@@ -3314,30 +3334,33 @@ function DashboardView({ ideas, votes, updateState, addToast, onScheduleIdea, on
                 </strong>
               </button>
 
-              <button
-                type="button"
-                className="li-pending-voter-card fernando"
-                onClick={() => onNavigateToIdeas && onNavigateToIdeas('fernando_pending')}
-                style={{ borderRadius: '8px', borderLeft: '3px solid #b26200' }}
-              >
-                <div className="voter-info">
-                  <div className="avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <img
-                      src={USER_AVATARS.Fernando}
-                      alt="Fernando"
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
-                      onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff&bold=true`; }}
-                    />
+              {/* Card de pendências do Fernando desativado (ver ./teamConfig.js). */}
+              {FERNANDO_ATIVO && (
+                <button
+                  type="button"
+                  className="li-pending-voter-card fernando"
+                  onClick={() => onNavigateToIdeas && onNavigateToIdeas('fernando_pending')}
+                  style={{ borderRadius: '8px', borderLeft: '3px solid #b26200' }}
+                >
+                  <div className="voter-info">
+                    <div className="avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <img
+                        src={USER_AVATARS.Fernando}
+                        alt="Fernando"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                        onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=Fernando&background=b26200&color=fff&bold=true`; }}
+                      />
+                    </div>
+                    <div>
+                      <h4 style={{ fontWeight: 600 }}>Fernando</h4>
+                      <p style={{ fontSize: '10.5px' }}>Curador Editorial</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 style={{ fontWeight: 600 }}>Fernando</h4>
-                    <p style={{ fontSize: '10.5px' }}>Curador Editorial</p>
-                  </div>
-                </div>
-                <strong className="badge" style={{ background: pendingFernando > 0 ? '#ef4444' : '#e6f4ea', color: pendingFernando > 0 ? '#ffffff' : '#137333' }}>
-                  {pendingFernando}
-                </strong>
-              </button>
+                  <strong className="badge" style={{ background: pendingFernando > 0 ? '#ef4444' : '#e6f4ea', color: pendingFernando > 0 ? '#ffffff' : '#137333' }}>
+                    {pendingFernando}
+                  </strong>
+                </button>
+              )}
             </div>
           </div>
         </aside>
@@ -3722,7 +3745,7 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
         <p>Cole o link do LinkedIn e importe automaticamente o autor, texto e imagem do post real.</p>
       </div>
 
-      {/* Painel de sucesso após salvar: botão para avisar Victor e Fernando no WhatsApp. */}
+      {/* Painel de sucesso após salvar: botão para avisar o curador no WhatsApp. */}
       {justSaved && (
         <div style={{
           background: 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)',
@@ -3735,7 +3758,7 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
             ✅ Pauta salva e já na fila de votação!
           </strong>
           <p style={{ fontSize: '13px', color: '#334155', margin: '0 0 14px', lineHeight: 1.5 }}>
-            “{justSaved}” já está esperando o voto do Victor e do Fernando. Avise eles pra não deixar a pauta parada:
+            “{justSaved}” já está esperando o voto do {FERNANDO_ATIVO ? 'Victor e do Fernando. Avise eles' : 'Victor. Avise ele'} pra não deixar a pauta parada:
           </p>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button
@@ -3912,7 +3935,7 @@ function NewIdeaView({ updateState, setView, addToast, existingIdeas = [], initi
           <textarea
             value={form.summary}
             onChange={e => update('summary', e.target.value)}
-            placeholder="Cole aqui o texto completo do post do LinkedIn preservando emojis, quebras de linha e caracteres especiais para que Victor e Fernando leiam o post inteiro de forma idêntica..."
+            placeholder={FERNANDO_ATIVO ? 'Cole aqui o texto completo do post do LinkedIn preservando emojis, quebras de linha e caracteres especiais para que Victor e Fernando leiam o post inteiro de forma idêntica...' : 'Cole aqui o texto completo do post do LinkedIn preservando emojis, quebras de linha e caracteres especiais para que o Victor leia o post inteiro de forma idêntica...'}
             style={{ minHeight: '160px', borderColor: form.summary ? '#10b981' : undefined }}
           />
           {!form.summary && (
@@ -4017,7 +4040,7 @@ function IdeasListView({
 
   function handleDirectVote(ideaId, voteType) {
     if (!isCurator(currentUser)) {
-      addToast('Apenas curadores (Victor/Fernando) podem votar!', 'error');
+      addToast(`Apenas curadores (${CURATORS.join('/')}) podem votar!`, 'error');
       return;
     }
     updateState(prev => {
@@ -4052,7 +4075,7 @@ function IdeasListView({
   function handleSaveFeedComment(withComment = true) {
     if (!commentingIdea) return;
     if (!isCurator(currentUser)) {
-      addToast('Apenas curadores (Victor/Fernando) podem comentar!', 'error');
+      addToast(`Apenas curadores (${CURATORS.join('/')}) podem comentar!`, 'error');
       return;
     }
 
@@ -4181,7 +4204,7 @@ function IdeasListView({
         <div>
           <p className="eyebrow">{currentUser === 'Felipe' ? 'Radar' : 'Minhas Curadorias'}</p>
           <h2>{currentUser === 'Felipe' ? 'Curadorias & Decisões' : 'Histórico de Curadoria'}</h2>
-          <p>{currentUser === 'Felipe' ? 'Revise notas de Victor/Fernando e alterne fluxos operacionais manualmente.' : 'Visualize e filtre as pautas do radar com base nos seus votos.'}</p>
+          <p>{currentUser === 'Felipe' ? `Revise notas de ${CURATORS.join('/')} e alterne fluxos operacionais manualmente.` : 'Visualize e filtre as pautas do radar com base nos seus votos.'}</p>
         </div>
 
         <div className="view-mode-toggle-container" style={{ display: 'flex', gap: '4px', background: '#eef3f8', padding: '4px', borderRadius: '100px', border: '1px solid rgba(0, 0, 0, 0.08)' }}>
@@ -4251,13 +4274,16 @@ function IdeasListView({
               >
                 Victor
               </button>
-              <button
-                type="button"
-                className={curatorType === 'fernando' ? 'li-tab active' : 'li-tab'}
-                onClick={() => handleCuratorTypeChange('fernando')}
-              >
-                Fernando
-              </button>
+              {/* Aba de filtro do Fernando desativada (ver ./teamConfig.js). */}
+              {FERNANDO_ATIVO && (
+                <button
+                  type="button"
+                  className={curatorType === 'fernando' ? 'li-tab active' : 'li-tab'}
+                  onClick={() => handleCuratorTypeChange('fernando')}
+                >
+                  Fernando
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -4401,10 +4427,13 @@ function IdeasListView({
                       <img src={USER_AVATARS.Victor} alt="Victor" style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover' }} />
                       Victor: <strong style={{ color: idea.victorVote === 'like' ? 'var(--vote-green)' : idea.victorVote === 'maybe' ? 'var(--vote-amber)' : idea.victorVote === 'dislike' ? 'var(--vote-red)' : 'var(--linkedin-mid-gray)' }}>{voteLabel(idea.victorVote)}</strong>
                     </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <img src={USER_AVATARS.Fernando} alt="Fernando" style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover' }} />
-                      Fernando: <strong style={{ color: idea.fernandoVote === 'like' ? 'var(--vote-green)' : idea.fernandoVote === 'maybe' ? 'var(--vote-amber)' : idea.fernandoVote === 'dislike' ? 'var(--vote-red)' : 'var(--linkedin-mid-gray)' }}>{voteLabel(idea.fernandoVote)}</strong>
-                    </span>
+                    {/* Voto do Fernando desativado (ver ./teamConfig.js). */}
+                    {FERNANDO_ATIVO && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <img src={USER_AVATARS.Fernando} alt="Fernando" style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover' }} />
+                        Fernando: <strong style={{ color: idea.fernandoVote === 'like' ? 'var(--vote-green)' : idea.fernandoVote === 'maybe' ? 'var(--vote-amber)' : idea.fernandoVote === 'dislike' ? 'var(--vote-red)' : 'var(--linkedin-mid-gray)' }}>{voteLabel(idea.fernandoVote)}</strong>
+                      </span>
+                    )}
                   </div>
 
                 </div>
@@ -4420,7 +4449,8 @@ function IdeasListView({
                 <th style={{ textAlign: 'center', width: '90px' }}>Imagem</th>
                 <th>Tema / Título</th>
                 <th>Victor</th>
-                <th>Fernando</th>
+                {/* Coluna do Fernando desativada (ver ./teamConfig.js). */}
+                {FERNANDO_ATIVO && <th>Fernando</th>}
                 <th>Score</th>
                 <th>Status do Radar</th>
                 <th>Ações</th>
@@ -4509,9 +4539,12 @@ function IdeasListView({
                       <td>
                         {renderVoteBadge(idea.victorVote)}
                       </td>
-                      <td>
-                        {renderVoteBadge(idea.fernandoVote)}
-                      </td>
+                      {/* Célula de voto do Fernando desativada (ver ./teamConfig.js). */}
+                      {FERNANDO_ATIVO && (
+                        <td>
+                          {renderVoteBadge(idea.fernandoVote)}
+                        </td>
+                      )}
                       <td>
                         {renderScoreColumn(idea.score, idea.suggestedDecision)}
                       </td>
@@ -4658,14 +4691,15 @@ function DataExportView({ state, ideas, addToast }) {
   }
 
   function exportResumoCsv() {
-    const header = ['id_ideia', 'titulo', 'categoria', 'tipo_conteudo', 'voto_victor', 'voto_fernando', 'score', 'status', 'decisao_sugerida'];
+    // Coluna voto_fernando incluída apenas quando o perfil está ativo (ver ./teamConfig.js).
+    const header = ['id_ideia', 'titulo', 'categoria', 'tipo_conteudo', 'voto_victor', ...(FERNANDO_ATIVO ? ['voto_fernando'] : []), 'score', 'status', 'decisao_sugerida'];
     const rows = ideas.map(i => [
       i.id,
       i.title,
       i.category,
       i.contentType,
       voteLabel(i.victorVote),
-      voteLabel(i.fernandoVote),
+      ...(FERNANDO_ATIVO ? [voteLabel(i.fernandoVote)] : []),
       i.score,
       i.computedStatus,
       i.suggestedDecision
@@ -4855,7 +4889,8 @@ function SchedulerModal({ idea: initialIdea, preselectedDate, unscheduledIdeas =
               onChange={e => setAssignee(e.target.value)}
             >
               <option value="Victor">Victor</option>
-              <option value="Fernando">Fernando</option>
+              {/* Fernando removido como responsável (ver ./teamConfig.js). */}
+              {FERNANDO_ATIVO && <option value="Fernando">Fernando</option>}
               <option value="Felipe">Felipe</option>
             </select>
           </label>
@@ -5208,7 +5243,7 @@ function PublisherStudioModal({ idea, currentUser, onClose, updateState, addToas
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
                       <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Ver como:</span>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        {['Victor', 'Fernando'].map(p => (
+                        {CURATORS.map(p => (
                           <button
                             key={p}
                             type="button"
@@ -5320,7 +5355,9 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [publishedPosts, setPublishedPosts] = useState([]);
   const [platformFilters, setPlatformFilters] = useState({ linkedin: true, youtube: true, instagram: true });
-  const [ownerFilters, setOwnerFilters] = useState({ victor: true, fernando: true });
+  // Autores sem chave no mapa permanecem sempre visíveis (ver visiblePublished).
+  // Com o Fernando desativado, o chip dele some, mas as publicações históricas continuam visíveis.
+  const [ownerFilters, setOwnerFilters] = useState(FERNANDO_ATIVO ? { victor: true, fernando: true } : { victor: true });
 
   useEffect(() => {
     let active = true;
@@ -5531,7 +5568,8 @@ function CalendarView({ ideas, updateState, currentUser, onScheduleIdea, onSched
               <span className="calendar-filter-divider" />
               {[
                 { id: 'victor', label: 'Victor', avatarKey: 'Victor' },
-                { id: 'fernando', label: 'Fernando', avatarKey: 'Fernando' },
+                // Chip do Fernando removido (ver ./teamConfig.js); publicações antigas seguem visíveis.
+                ...(FERNANDO_ATIVO ? [{ id: 'fernando', label: 'Fernando', avatarKey: 'Fernando' }] : []),
               ].map(person => (
                 <button
                   key={person.id}
