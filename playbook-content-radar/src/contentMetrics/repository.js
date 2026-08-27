@@ -24,7 +24,7 @@ const empty = {
 const CACHE_TTL_MS = 2 * 60 * 1000;
 const cacheByClient = new WeakMap();
 
-const LEAD_COLUMNS = [
+const LEAD_COLUMNS_BASE = [
   'id',
   'first_seen_post_id',
   'full_name',
@@ -39,13 +39,16 @@ const LEAD_COLUMNS = [
   'seniority',
   'enrichment_status',
   'qualification_status',
-  // ICP dono do veredito espelhado: sem ele a lista não sabe dizer de qual ICP é o
-  // 'aprovado' que está mostrando.
-  'qualification_icp_id',
   'qualification_reason',
   'suggested_angle',
   'created_at',
-].join(', ');
+];
+
+// ICP dono do veredito espelhado: sem ele a lista não sabe dizer de qual ICP é o
+// 'aprovado' que está mostrando. Coluna criada pela migration do multi-ICP, então a
+// leitura tem fallback para o banco que ainda não a recebeu.
+const LEAD_COLUMNS = [...LEAD_COLUMNS_BASE, 'qualification_icp_id'].join(', ');
+const LEAD_COLUMNS_SEM_ICP = LEAD_COLUMNS_BASE.join(', ');
 
 const LEAD_POST_COLUMNS = [
   'id',
@@ -107,11 +110,43 @@ async function fetchAllPages(buildQuery) {
   return { data: rows, error: { message: `Paginação passou de ${MAX_PAGES} páginas — consulta parece não terminar` } };
 }
 
+// Tabela que pode legitimamente ainda não existir no banco: o código nasce antes da
+// migration subir. Sem isto, um 42P01 numa consulta nova derruba fetchContentMetrics
+// inteiro e a tela cai no snapshot local — dado velho, sem dizer que o motivo foi
+// tabela faltando.
+function isMissingRelation(error) {
+  if (!error) return false;
+  const code = String(error.code || '');
+  if (code === '42P01' || code === 'PGRST205' || code === 'PGRST202') return true;
+  return /does not exist|could not find the table|schema cache/i.test(String(error.message || ''));
+}
+
+// Coluna que a migration do multi-ICP acrescenta e que pode não existir ainda.
+// Pedir uma coluna inexistente faz o PostgREST devolver 42703 e a consulta INTEIRA
+// falhar — o que derrubaria a tela de Leads no banco antigo.
+function isMissingColumn(error) {
+  if (!error) return false;
+  return String(error.code || '') === '42703'
+    || /column .* does not exist/i.test(String(error.message || ''));
+}
+
+function isSchemaBehind(error) {
+  return isMissingRelation(error) || isMissingColumn(error);
+}
+
 function queryPlan(supabase, mode) {
   const queries = new Map();
   const add = (key, query) => queries.set(key, query);
   // Chave paginada: recebe uma FUNÇÃO que monta a query, não a query pronta.
   const addPaginated = (key, buildQuery) => queries.set(key, { paginate: buildQuery });
+  // Opcional: se a relação não existir, volta vazia em vez de derrubar a tela. Só
+  // para o que a interface sabe degradar — nunca para dado que ela precisa ter.
+  const addOptional = (key, query) => queries.set(key, { optional: true, query });
+  const addOptionalPaginated = (key, buildQuery) => queries.set(key, { optional: true, paginate: buildQuery });
+  // Duas versões da mesma consulta: a nova (com as colunas do multi-ICP) e a antiga.
+  // Se o banco ainda não tiver a migration, a segunda responde e a tela funciona
+  // como antes, em vez de cair inteira no snapshot local.
+  const addPaginatedWithFallback = (key, buildQuery, buildFallback) => queries.set(key, { paginate: buildQuery, paginateFallback: buildFallback });
 
   if (mode !== 'goals') {
     add('linkedin', supabase
@@ -130,19 +165,26 @@ function queryPlan(supabase, mode) {
     add('bookings', supabase.from('lead_magnet_bookings').select('booking_uid, lead_magnet, lead_name, lead_email, status, trigger_event, start_time, created_at, utm_source, utm_campaign'));
   } else if (mode === 'prospecting') {
     add('prospecting', supabase.from('v_post_prospecting_stats').select('*'));
-    // Os ICPs alimentam o diálogo do botão Prospectar ("qual ICP usar neste post?").
-    add('icpProfiles', supabase.from('icp_profiles').select('*').order('name'));
+    // Os ICPs alimentam o diálogo do botão Prospectar ("quais ICPs usar neste post?").
+    addOptional('icpProfiles', supabase.from('icp_profiles').select('*').order('is_default', { ascending: false }).order('name'));
   } else if (mode === 'leads') {
     // As quatro paginadas: um único post viral já coloca ~2.200 linhas em `leads` e
     // ~2.300 em `lead_comments`, bem acima do teto de 1.000 do PostgREST.
     // A ordem precisa ser TOTAL: `range` sobre ordem ambígua faz página repetir ou
     // perder linha, e um upsert em lote grava dezenas de leads com o mesmo
     // created_at — por isso o desempate pelo id.
-    addPaginated('leads', () => supabase.from('leads').select(LEAD_COLUMNS)
-      .order('created_at', { ascending: false }).order('id'));
+    addPaginatedWithFallback(
+      'leads',
+      () => supabase.from('leads').select(LEAD_COLUMNS).order('created_at', { ascending: false }).order('id'),
+      () => supabase.from('leads').select(LEAD_COLUMNS_SEM_ICP).order('created_at', { ascending: false }).order('id'),
+    );
     // message_icp_id: lead_outreach é unique por lead, então a mensagem guardada pode
     // ter sido escrita para o outro ICP. A tela usa isto para avisar antes de copiar.
-    addPaginated('leadOutreach', () => supabase.from('lead_outreach').select('lead_id, status, generated_message, message_icp_id').order('lead_id'));
+    addPaginatedWithFallback(
+      'leadOutreach',
+      () => supabase.from('lead_outreach').select('lead_id, status, generated_message, message_icp_id').order('lead_id'),
+      () => supabase.from('lead_outreach').select('lead_id, status, generated_message').order('lead_id'),
+    );
     addPaginated('leadComments', () => supabase.from('lead_comments').select('lead_id, post_id, comment_text, commented_at, created_at')
       .order('lead_id').order('post_id'));
     // Telefone vindo da Base Tally. A view já filtra por qualification_status =
@@ -157,10 +199,10 @@ function queryPlan(supabase, mode) {
     add('tallyPhones', supabase.from('tally_submissions').select('submission_id', { count: 'exact', head: true }).not('phone_e164', 'is', null).eq('is_junk', false));
     // Veredito por ICP: o filtro de ICP da tela troca status/score/motivo por estes.
     // Paginado pelo mesmo motivo das outras — são até um registro por lead por ICP.
-    addPaginated('leadQualifications', () => supabase.from('lead_qualifications')
+    addOptionalPaginated('leadQualifications', () => supabase.from('lead_qualifications')
       .select('lead_id, icp_id, status, score, reason, suggested_angle, decided_by')
       .order('lead_id').order('icp_id'));
-    add('icpProfiles', supabase.from('icp_profiles').select('*').order('name'));
+    addOptional('icpProfiles', supabase.from('icp_profiles').select('*').order('is_default', { ascending: false }).order('name'));
   } else if (mode === 'goals') {
     add('accounts', supabase.from('content_accounts').select('*'));
     add('accountMetrics', supabase.from('account_daily_metrics').select('*'));
@@ -173,10 +215,21 @@ function queryPlan(supabase, mode) {
 async function fetchContentMetrics({ supabase, fallback, mode }) {
   try {
     const queries = queryPlan(supabase, mode);
-    const entries = await Promise.all([...queries.entries()].map(async ([key, query]) => [
-      key,
-      query?.paginate ? await fetchAllPages(query.paginate) : await query,
-    ]));
+    const entries = await Promise.all([...queries.entries()].map(async ([key, query]) => {
+      const run = async (spec) => (spec?.paginate ? fetchAllPages(spec.paginate) : (spec?.query ?? spec));
+      let result = await run(query);
+      // Banco sem a migration do multi-ICP: repete a consulta sem as colunas novas.
+      if (query?.paginateFallback && isSchemaBehind(result?.error)) {
+        result = await fetchAllPages(query.paginateFallback);
+      }
+      // Relação inexistente numa consulta opcional vira lista vazia: a tela sabe
+      // funcionar sem ela (cai no comportamento de ICP único) em vez de mostrar
+      // dado velho sem explicar por quê.
+      if (query?.optional && isMissingRelation(result?.error)) {
+        return [key, { data: [], error: null, missingRelation: true }];
+      }
+      return [key, result];
+    }));
     const results = Object.fromEntries(entries);
     const failed = entries.find(([, result]) => result.error);
     if (failed) {
@@ -204,6 +257,9 @@ async function fetchContentMetrics({ supabase, fallback, mode }) {
       leadComments: results.leadComments?.data || [],
       leadQualifications: results.leadQualifications?.data || [],
       icpProfiles: results.icpProfiles?.data || [],
+      // A tela avisa que os ICPs múltiplos ainda não existem no banco em vez de
+      // fingir que não há nenhum ICP cadastrado.
+      icpTablesMissing: Boolean(results.icpProfiles?.missingRelation),
       leadPhones: results.leadPhones?.data || [],
       tallyStats: {
         total: results.tallyTotal?.count ?? 0,

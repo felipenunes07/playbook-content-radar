@@ -62,7 +62,10 @@ declare
 begin
   select * into melhor from public.best_lead_qualification(p_lead_id);
 
-  if melhor is null then
+  -- NOT FOUND em vez de `melhor is null`: para um record, IS NULL só é verdadeiro
+  -- quando TODOS os campos são nulos, o que confundiria "não há qualificação" com
+  -- uma qualificação de campos vazios.
+  if not found then
     -- Sem nenhuma qualificação (ICP apagado, por exemplo): volta pra fila em vez de
     -- congelar o veredito de um ICP que não existe mais.
     update public.leads

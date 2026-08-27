@@ -399,3 +399,101 @@ describe('Prospecção paginada', () => {
     expect(client.calls).not.toContain('enrich-leads');
   });
 });
+
+// —————————————————————————————————————————————————————————————————————————
+// Leads ICP com DOIS públicos. É o pedido do Felipe de 27/08: ver, na lista de
+// aprovados, para QUAL ICP cada pessoa foi aprovada — e poder filtrar por um só.
+// Sem isso, "aprovado" numa base com dois ICPs não quer dizer nada sozinho.
+describe('Leads ICP: colunas por ICP e horário do comentário', () => {
+  const icps = [
+    { id: 'icp-founders', name: 'Founders', is_default: true, active: true, hard_rules_enabled: false, approved_areas: [], blocked_areas: [], icp_rules: 'Fundadores…' },
+    { id: 'icp-playbook', name: 'Playbook', is_default: false, active: true, hard_rules_enabled: false, approved_areas: [], blocked_areas: [], icp_rules: 'Comercial…' },
+  ];
+
+  // Ana: aprovada nos dois. Bruno: aprovado só no Playbook (o Founders descartou).
+  // Carla: aprovada no Founders e o Playbook nunca a avaliou.
+  const leads = [
+    { id: 'L1', full_name: 'Ana Jardim', qualification_status: 'qualified', score: 90, qualification_icp_id: 'icp-founders', enrichment_status: 'enriched', job_title: 'CEO', company_name: 'Acme' },
+    { id: 'L2', full_name: 'Bruno Torres', qualification_status: 'qualified', score: 75, qualification_icp_id: 'icp-playbook', enrichment_status: 'enriched', job_title: 'Head de Vendas', company_name: 'Beta' },
+    { id: 'L3', full_name: 'Carla Dias', qualification_status: 'qualified', score: 80, qualification_icp_id: 'icp-founders', enrichment_status: 'enriched', job_title: 'Fundadora', company_name: 'Gama' },
+  ];
+
+  const leadQualifications = [
+    { lead_id: 'L1', icp_id: 'icp-founders', status: 'qualified', score: 90, reason: 'Fundadora', decided_by: 'llm' },
+    { lead_id: 'L1', icp_id: 'icp-playbook', status: 'qualified', score: 70, reason: 'Cargo alto', decided_by: 'llm' },
+    { lead_id: 'L2', icp_id: 'icp-founders', status: 'disqualified', score: 20, reason: 'Não é fundador', decided_by: 'llm' },
+    { lead_id: 'L2', icp_id: 'icp-playbook', status: 'qualified', score: 75, reason: 'Head comercial', decided_by: 'llm' },
+    { lead_id: 'L3', icp_id: 'icp-founders', status: 'qualified', score: 80, reason: 'Fundadora', decided_by: 'llm' },
+  ];
+
+  const leadsData = {
+    ...data,
+    leads,
+    icpProfiles: icps,
+    leadQualifications,
+    leadComments: [
+      { lead_id: 'L1', post_id: 'p1', comment_text: 'Quero!', commented_at: '2026-08-26T17:30:00Z' },
+      { lead_id: 'L2', post_id: 'p1', comment_text: 'Manda', commented_at: '2026-08-26T18:00:00Z' },
+      { lead_id: 'L3', post_id: 'p1', comment_text: 'Top', commented_at: '2026-08-25T09:00:00Z' },
+    ],
+    leadOutreach: [],
+    leadPhones: [],
+    prospecting: [],
+  };
+
+  const renderLeads = () => render(<ContentMetricsWorkspace initialData={leadsData} mode="leads" />);
+
+  // Sem a seta de ordenação ( ↕ / ▲ / ▼ ) que o cabeçalho clicável acrescenta.
+  const headers = () => screen.getAllByRole('columnheader')
+    .map((node) => node.textContent.replace(/[↕▲▼]/g, '').trim());
+
+  it('cria uma coluna para cada ICP cadastrado', () => {
+    renderLeads();
+    expect(headers()).toEqual(expect.arrayContaining(['Founders', 'Playbook']));
+  });
+
+  it('mostra o veredito de cada ICP lado a lado na mesma linha', () => {
+    renderLeads();
+    const colunas = headers();
+    const iFounders = colunas.indexOf('Founders');
+    const iPlaybook = colunas.indexOf('Playbook');
+
+    const celulas = (nome) => {
+      const linha = screen.getByText(nome).closest('tr');
+      return [...linha.querySelectorAll('td')].map((node) => node.textContent.trim());
+    };
+
+    // Ana passou nos dois.
+    expect(celulas('Ana Jardim')[iFounders]).toContain('Aprovado');
+    expect(celulas('Ana Jardim')[iPlaybook]).toContain('Aprovado');
+    // Bruno: rejeitado num, aprovado no outro. É o caso que o espelho sozinho
+    // não conseguia representar — e que fazia o lead sumir da lista.
+    expect(celulas('Bruno Torres')[iFounders]).toContain('Descartado');
+    expect(celulas('Bruno Torres')[iPlaybook]).toContain('Aprovado');
+    // Carla nunca foi olhada pelo Playbook: é diferente de ter sido descartada.
+    expect(celulas('Carla Dias')[iFounders]).toContain('Aprovado');
+    expect(celulas('Carla Dias')[iPlaybook]).toBe('—');
+  });
+
+  it('filtra a lista por um ICP e some quem aquele ICP não aprovou', async () => {
+    renderLeads();
+    const seletor = screen.getByLabelText('Filtrar leads pelo ICP que os qualificou');
+    fireEvent.change(seletor, { target: { value: 'icp-playbook' } });
+
+    await waitFor(() => expect(screen.queryByText('Carla Dias')).not.toBeInTheDocument());
+    // Aprovados do Playbook: Ana e Bruno. Carla nunca foi avaliada por ele.
+    expect(screen.getByText('Ana Jardim')).toBeInTheDocument();
+    expect(screen.getByText('Bruno Torres')).toBeInTheDocument();
+  });
+
+  it('mostra data, hora e há quanto tempo a pessoa comentou', () => {
+    renderLeads();
+    expect(headers()).toEqual(expect.arrayContaining(['Comentou em']));
+    const linha = screen.getByText('Ana Jardim').closest('tr');
+    // O horário importa para o time saber se o lead ainda está quente. O separador
+    // entre data e hora varia com o locale do ambiente, daí o `,?`.
+    expect(linha.textContent).toMatch(/26\/08,? \d{2}:\d{2}/);
+    // E o "há quanto tempo", que é como o time realmente lê a lista.
+    expect(linha.textContent).toMatch(/há \d+\s?(min|h|d|m)/);
+  });
+});

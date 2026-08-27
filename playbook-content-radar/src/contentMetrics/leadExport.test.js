@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { LEAD_EXPORT_COLUMNS, buildLeadCsv, buildLeadExcelBlob, buildLeadExportFilename, buildLeadExportRows, buildLeadWorksheetXml, selectLeadsForExport } from './leadExport.js';
+import { LEAD_EXPORT_COLUMNS, buildLeadCsv, buildLeadExcelBlob, buildLeadExportFilename, buildLeadExportRows, buildLeadWorksheetXml, icpColumnKey, leadExportColumns, selectLeadsForExport } from './leadExport.js';
 
 describe('buildLeadExportRows: telefone na planilha só quando MATCHED', () => {
   const leads = [
@@ -124,5 +124,52 @@ describe('lead export', () => {
       'xl/worksheets/sheet1.xml',
     ]));
     await expect(workbook.file('xl/worksheets/sheet1.xml').async('string')).resolves.toContain('Post de IA');
+  });
+});
+
+describe('leadExport: uma coluna por ICP na planilha', () => {
+  const icps = [
+    { id: 'icp-founders', name: 'Founders' },
+    { id: 'icp-playbook', name: 'Playbook' },
+  ];
+  const qualificationByLeadIcp = new Map([
+    ['L1|icp-founders', { status: 'qualified', score: 90 }],
+    ['L1|icp-playbook', { status: 'disqualified', score: 20 }],
+  ]);
+
+  it('acrescenta uma coluna por ICP depois das colunas fixas', () => {
+    const columns = leadExportColumns(icps);
+    expect(columns.slice(0, LEAD_EXPORT_COLUMNS.length)).toEqual(LEAD_EXPORT_COLUMNS);
+    expect(columns.slice(-2).map((column) => column.label)).toEqual(['ICP · Founders', 'ICP · Playbook']);
+  });
+
+  it('escreve o veredito de cada ICP, com "Não avaliado" quando não há linha', () => {
+    const [row] = buildLeadExportRows({
+      leads: [{ id: 'L1', full_name: 'Ana', qualification_status: 'qualified', score: 90 }],
+      icps,
+      qualificationByLeadIcp,
+    });
+    expect(row[icpColumnKey('icp-founders')]).toBe('Aprovado (90)');
+    expect(row[icpColumnKey('icp-playbook')]).toBe('Descartado (20)');
+
+    const [semNada] = buildLeadExportRows({
+      leads: [{ id: 'L9', full_name: 'Zé' }],
+      icps,
+      qualificationByLeadIcp,
+    });
+    expect(semNada[icpColumnKey('icp-founders')]).toBe('Não avaliado');
+  });
+
+  it('o CSV sai com o cabeçalho dos ICPs quando as colunas são passadas', () => {
+    const columns = leadExportColumns(icps);
+    const rows = buildLeadExportRows({
+      leads: [{ id: 'L1', full_name: 'Ana' }],
+      icps,
+      qualificationByLeadIcp,
+    });
+    const csv = buildLeadCsv(rows, columns);
+    const [header] = csv.split('\r\n');
+    expect(header).toContain('"ICP · Founders"');
+    expect(header).toContain('"ICP · Playbook"');
   });
 });

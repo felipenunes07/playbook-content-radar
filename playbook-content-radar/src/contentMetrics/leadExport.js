@@ -11,7 +11,7 @@ export const LEAD_EXPORT_COLUMNS = [
   { key: 'empresa', label: 'Empresa', width: 24 },
   { key: 'porte', label: 'Porte da empresa', width: 17 },
   { key: 'comentario', label: 'Comentário feito', width: 44 },
-  { key: 'data_comentario', label: 'Data do comentário', width: 20 },
+  { key: 'data_comentario', label: 'Data e hora do comentário', width: 24 },
   { key: 'post', label: 'Post de origem', width: 44 },
   { key: 'id_post', label: 'ID do post', width: 24 },
   { key: 'autor_post', label: 'Autor do post', width: 20 },
@@ -27,10 +27,35 @@ export const LEAD_EXPORT_COLUMNS = [
   { key: 'data_cadastro', label: 'Data de cadastro', width: 20 },
 ];
 
+/** Chave da coluna daquele ICP na planilha. Prefixo fixo para nunca colidir com as
+ *  colunas base, e o id no fim porque dois ICPs podem ter nomes parecidos. */
+export function icpColumnKey(icpId) {
+  return `icp_${icpId}`;
+}
+
+/** As colunas da planilha com uma coluna por ICP no fim. A lista base é fixa; a
+ *  parte variável sai dos ICPs cadastrados, para o Excel mostrar exatamente o que a
+ *  tela mostra — aprovado em qual público. */
+export function leadExportColumns(icps = []) {
+  return [
+    ...LEAD_EXPORT_COLUMNS,
+    ...icps.map((icp) => ({ key: icpColumnKey(icp.id), label: `ICP · ${icp.name}`, width: 22 })),
+  ];
+}
+
 const qualificationLabels = {
   qualified: 'Aprovado',
   review: 'Aprovado com ressalva',
   pending: 'Aguardando análise',
+  disqualified: 'Descartado',
+};
+
+// Na coluna de cada ICP, 'review' é aprovado (mesma regra da tela) e a ausência de
+// linha vira "Não avaliado" — diferente de "avaliado e descartado".
+const icpVerdictLabels = {
+  qualified: 'Aprovado',
+  review: 'Aprovado',
+  pending: 'Analisando',
   disqualified: 'Descartado',
 };
 
@@ -63,7 +88,10 @@ function spreadsheetDate(value) {
   return parsed.toISOString().replace('T', ' ').slice(0, 16);
 }
 
-export function buildLeadExportRows({ leads = [], postsById = {}, commentByLead = {}, outreachByLead = {}, phonesByLead = {} } = {}) {
+export function buildLeadExportRows({
+  leads = [], postsById = {}, commentByLead = {}, outreachByLead = {}, phonesByLead = {},
+  icps = [], qualificationByLeadIcp = new Map(),
+} = {}) {
   return leads.map((lead) => {
     const comment = commentByLead[lead.id] || {};
     const postId = comment.post_id || lead.first_seen_post_id || '';
@@ -99,6 +127,13 @@ export function buildLeadExportRows({ leads = [], postsById = {}, commentByLead 
       status_tally: phoneRow ? phoneStatusMeta(phoneRow).label : '',
       formulario_telefone: phoneToShow(phoneRow) ? (phoneRow.phone_form_name || '') : '',
       data_cadastro: spreadsheetDate(lead.created_at),
+      // Uma coluna por ICP: com dois públicos, "Aprovado" na coluna Qualificação é o
+      // melhor veredito entre eles e não diz PARA QUEM. Estas dizem.
+      ...Object.fromEntries(icps.map((icp) => {
+        const qual = qualificationByLeadIcp.get(`${lead.id}|${icp.id}`);
+        const label = qual ? (icpVerdictLabels[qual.status] || qual.status) : 'Não avaliado';
+        return [icpColumnKey(icp.id), qual?.score == null ? label : `${label} (${qual.score})`];
+      })),
     };
   });
 }
@@ -113,9 +148,9 @@ function csvCell(value) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-export function buildLeadCsv(rows) {
-  const header = LEAD_EXPORT_COLUMNS.map((column) => csvCell(column.label)).join(';');
-  const body = rows.map((row) => LEAD_EXPORT_COLUMNS.map((column) => csvCell(row[column.key])).join(';'));
+export function buildLeadCsv(rows, columns = LEAD_EXPORT_COLUMNS) {
+  const header = columns.map((column) => csvCell(column.label)).join(';');
+  const body = rows.map((row) => columns.map((column) => csvCell(row[column.key])).join(';'));
   return `\uFEFF${[header, ...body].join('\r\n')}`;
 }
 
@@ -132,8 +167,8 @@ export function buildLeadExportFilename(extension, { status = 'qualificados', cr
   return `${parts.join('-')}.${extension}`;
 }
 
-export function downloadLeadCsv(rows, fileName) {
-  const blob = new Blob([buildLeadCsv(rows)], { type: 'text/csv;charset=utf-8' });
+export function downloadLeadCsv(rows, fileName, columns = LEAD_EXPORT_COLUMNS) {
+  const blob = new Blob([buildLeadCsv(rows, columns)], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -164,10 +199,10 @@ function excelColumnName(index) {
   return name;
 }
 
-export function buildLeadWorksheetXml(rows) {
+export function buildLeadWorksheetXml(rows, columns = LEAD_EXPORT_COLUMNS) {
   const allRows = [
-    LEAD_EXPORT_COLUMNS.map((column) => column.label),
-    ...rows.map((row) => LEAD_EXPORT_COLUMNS.map((column) => row[column.key])),
+    columns.map((column) => column.label),
+    ...rows.map((row) => columns.map((column) => row[column.key])),
   ];
   const sheetRows = allRows.map((row, rowIndex) => {
     const cells = row.map((value, columnIndex) => {
@@ -178,20 +213,20 @@ export function buildLeadWorksheetXml(rows) {
     }).join('');
     return `<row r="${rowIndex + 1}"${rowIndex === 0 ? ' ht="24" customHeight="1"' : ''}>${cells}</row>`;
   }).join('');
-  const columns = LEAD_EXPORT_COLUMNS.map((column, index) => `<col min="${index + 1}" max="${index + 1}" width="${column.width}" customWidth="1"/>`).join('');
-  const lastColumn = excelColumnName(LEAD_EXPORT_COLUMNS.length - 1);
+  const colunas = columns.map((column, index) => `<col min="${index + 1}" max="${index + 1}" width="${column.width}" customWidth="1"/>`).join('');
+  const lastColumn = excelColumnName(columns.length - 1);
   const lastRow = Math.max(1, allRows.length);
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
-  <cols>${columns}</cols>
+  <cols>${colunas}</cols>
   <sheetData>${sheetRows}</sheetData>
   <autoFilter ref="A1:${lastColumn}${lastRow}"/>
 </worksheet>`;
 }
 
-export async function buildLeadExcelBlob(rows) {
+export async function buildLeadExcelBlob(rows, columns = LEAD_EXPORT_COLUMNS) {
   const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
   zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -224,7 +259,7 @@ export async function buildLeadExcelBlob(rows) {
   <cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs>
   <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
 </styleSheet>`);
-  zip.folder('xl').folder('worksheets').file('sheet1.xml', buildLeadWorksheetXml(rows));
+  zip.folder('xl').folder('worksheets').file('sheet1.xml', buildLeadWorksheetXml(rows, columns));
 
   return zip.generateAsync({
     type: 'blob',
@@ -233,8 +268,8 @@ export async function buildLeadExcelBlob(rows) {
   });
 }
 
-export async function downloadLeadExcel(rows, fileName) {
-  const blob = await buildLeadExcelBlob(rows);
+export async function downloadLeadExcel(rows, fileName, columns = LEAD_EXPORT_COLUMNS) {
+  const blob = await buildLeadExcelBlob(rows, columns);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;

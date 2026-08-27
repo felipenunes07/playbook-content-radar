@@ -1,0 +1,11 @@
+-- Placeholder. Esta versão foi aplicada ad-hoc (MCP do Supabase / dashboard), que
+-- gera o próprio número na hora, então nunca existiu um arquivo para ela. O SQL de
+-- verdade é o do arquivo local equivalente, que já está marcado como aplicado — ver
+-- docs/migrations-historico.md.
+--
+-- O arquivo existe só para o histórico local bater com o remoto: sem ele,
+-- `supabase db push` recusa qualquer migration nova com
+-- "Remote migration versions not found in local migrations directory".
+-- Não acrescenta nada ao banco e nunca será executado (a versão já consta como
+-- aplicada no ledger).
+select 1;

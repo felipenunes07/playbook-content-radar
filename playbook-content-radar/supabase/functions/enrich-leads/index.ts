@@ -233,8 +233,8 @@ async function qualifyWithProvider(provider: LlmProvider, prompt: string, deadli
 async function qualifyLead(payload: Record<string, unknown>, deadlineAt: number, rulesOverride?: string | null) {
   const providers = requireClassificationProviders();
   const minHeadcount = Number(Deno.env.get('PROSPECT_MIN_HEADCOUNT') || 200);
-  // Critérios editáveis sem deploy: icp_profiles.icp_rules do ICP escolhido na
-  // prospecção (editável na UI, botão "Ver/editar ICP") > secret PROSPECT_ICP_RULES
+  // Critérios editáveis sem deploy: icp_profiles.icp_rules do ICP daquela qualificação
+  // (editável na UI, botão "Ver/editar ICPs") > secret PROSPECT_ICP_RULES
   // > default do escopo formal
   // de 2026-07-05 + ICP da Playbook (Victor: "se vier pouca gente a gente baixa;
   // se vier muito lixo, aperta").
@@ -244,7 +244,17 @@ async function qualifyLead(payload: Record<string, unknown>, deadlineAt: number,
 4. IMPORTANTE: se "currently_employed" for false, o lead está sem emprego atual — NUNCA aprove pela empresa antiga; status "rejeitado" com motivo explicando.
 5. Casos limítrofes (cargo alto mas empresa sem headcount conhecido, porte um pouco abaixo do corte com contexto forte): APROVE e deixe a incerteza explícita no motivo — quem decide se prospecta é o Victor, na revisão manual da lista.
 Score 0-100 (fit geral de cargo + área + porte + contexto do comentário): fit cravado fica 80+, aprovado com ressalva 50-79, rejeitado abaixo de 50.`;
-  const prompt = `Você qualifica leads B2B para a Playbook Lab (consultoria de IA para vendas). Avalie o lead abaixo e retorne SOMENTE JSON válido com:
+  // O enquadramento vem do ICP, não do código. Cravar "consultoria de IA para vendas"
+  // aqui enviesava QUALQUER ICP: o agente que julgava o público do Second Brain era
+  // informado de que trabalha numa consultoria comercial, e puxava o veredito para o
+  // corte comercial mesmo com outros critérios escritos. Com dois públicos
+  // "completamente diferentes" (palavras do Felipe, 27/08), isso deixa de funcionar.
+  //
+  // `seniority` e `area` continuam num enum fechado de propósito: são os valores que
+  // a regra dura por ICP filtra e que a tela mostra. Um ICP fora do corte comercial
+  // usa 'outro'/'desconhecido' nesses campos e é julgado pelo texto de critérios —
+  // o que manda no veredito é `status`, não o rótulo de área.
+  const prompt = `Você qualifica leads para uma operação de prospecção no LinkedIn, seguindo EXCLUSIVAMENTE os critérios abaixo. Não presuma nada sobre o negócio de quem prospecta além do que os critérios dizem: se eles descreverem um público não-comercial, julgue por eles e não por um padrão B2B de vendas. Avalie o lead abaixo e retorne SOMENTE JSON válido com:
 {"status": "aprovado"|"rejeitado", "score": number (0-100), "job_title": string|null, "seniority": "c-level"|"diretoria"|"gerencia"|"coordenacao"|"operacional"|"desconhecido", "area": "marketing"|"vendas"|"operacoes"|"growth"|"tecnologia"|"financeiro"|"rh"|"outro"|"desconhecido", "reason": string (1 frase em pt-BR explicando a decisão), "suggested_angle": string|null (1 frase em pt-BR sugerindo o ângulo de abordagem, conectando o comentário/tema do post com uma dor provável da empresa)}
 
 Critérios de qualificação:

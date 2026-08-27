@@ -58,7 +58,7 @@ import {
   summarizeBookingsByMaterial,
 } from './analytics.js';
 import { loadContentMetrics } from './repository.js';
-import { buildLeadExportFilename, buildLeadExportRows, downloadLeadCsv, downloadLeadExcel, selectLeadsForExport } from './leadExport.js';
+import { buildLeadExportFilename, buildLeadExportRows, downloadLeadCsv, downloadLeadExcel, leadExportColumns, selectLeadsForExport } from './leadExport.js';
 import {
   PHONE_FILTERS, countByPhoneFilter, evidenceLabel, indexPhonesByLead, isAutoMatch, matchesPhoneFilter,
   phoneDisplay, phoneStatusMeta, phoneStatusOf, reviewCandidates, reviewReason, whatsappLink,
@@ -2411,13 +2411,18 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
   }
 
 
+  // As colunas por ICP da planilha são as mesmas da tabela: quem exporta precisa
+  // enxergar "aprovado pra qual público" fora do app.
+  const exportColumns = useMemo(() => leadExportColumns(colunasIcp), [colunasIcp]);
   const exportRows = useMemo(() => buildLeadExportRows({
     leads: selectedExportLeads,
     postsById,
     commentByLead,
     outreachByLead,
     phonesByLead: phonesForExport,
-  }), [selectedExportLeads, postsById, commentByLead, outreachByLead, phonesForExport]);
+    icps: colunasIcp,
+    qualificationByLeadIcp: qualByLeadIcp,
+  }), [selectedExportLeads, postsById, commentByLead, outreachByLead, phonesForExport, colunasIcp, qualByLeadIcp]);
   const allEligibleSelected = eligibleExportLeads.length > 0 && selectedExportLeads.length === eligibleExportLeads.length;
 
   useEffect(() => {
@@ -2457,8 +2462,8 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
     });
     setExporting(format);
     try {
-      if (format === 'csv') downloadLeadCsv(exportRows, fileName);
-      else await downloadLeadExcel(exportRows, fileName);
+      if (format === 'csv') downloadLeadCsv(exportRows, fileName, exportColumns);
+      else await downloadLeadExcel(exportRows, fileName, exportColumns);
       onNotice(`${integer.format(exportRows.length)} lead(s) exportado(s) para ${format === 'csv' ? 'CSV' : 'Excel'}.`);
     } catch (error) {
       onNotice(`Falha ao exportar: ${error?.message || error}`);
@@ -3828,7 +3833,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   // Prospectar e os números. A lista de leads fica na página própria "Leads ICP".
   if (mode === 'prospecting') {
     return <div className="content-metrics-workspace">
-      <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Comercial</span><h1>Prospecção</h1><p>Rode um post para raspar quem comentou, cruzar com o banco de leads e ver as oportunidades novas. Ao prospectar, você escolhe o ICP que vai julgar os comentaristas — os aprovados aparecem na página Leads ICP.</p></div><div className="cm-header-meta">
+      <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Comercial</span><h1>Prospecção</h1><p>Rode um post para raspar quem comentou, cruzar com o banco de leads e ver as oportunidades novas. Ao prospectar, você marca quais ICPs vão julgar os comentaristas — dá para rodar os dois de uma vez, e os aprovados aparecem na página Leads ICP com uma coluna por ICP.</p></div><div className="cm-header-meta">
         <button type="button" onClick={() => setShowProspectIcpManager(true)}
           title="Criar e editar os ICPs que aparecem na hora de prospectar"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#334155', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
