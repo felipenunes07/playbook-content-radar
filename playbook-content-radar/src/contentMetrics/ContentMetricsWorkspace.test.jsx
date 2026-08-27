@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import ContentMetricsWorkspace, { buildLeadAnalysisPlan, waitForLeadAnalysisRetry, computeRateLimitBackoff, summarizeGrowth, buildGoalsWhatsappMessage, progressBar } from './ContentMetricsWorkspace.jsx';
 
 const data = {
@@ -308,6 +308,12 @@ describe('Prospecção paginada', () => {
     };
   }
 
+  // O diálogo lembra a última escolha em localStorage, então um teste que desmarca
+  // um ICP contaminaria o seguinte se a chave não fosse limpa entre eles.
+  beforeEach(() => {
+    try { window.localStorage.removeItem('cm.prospect.lastIcpIds'); } catch { /* jsdom sem storage */ }
+  });
+
   // Prospectar tem duas etapas desde os ICPs múltiplos: o botão da tabela abre o
   // diálogo "quais ICPs usar" e a confirmação é que dispara a function. O diálogo
   // abre com TODOS os ativos marcados (o caso comum é querer os dois), então pedir
@@ -321,7 +327,9 @@ describe('Prospecção paginada', () => {
         fireEvent.click(option);
       });
     }
-    const confirm = screen.getByRole('button', { name: /^Prospectar com/ });
+    // Exato: o aria-label do botão da tabela é "Prospectar comentaristas de …",
+    // que casaria com um /^Prospectar com/ solto.
+    const confirm = screen.getByRole('button', { name: /^Prospectar com (este ICP|\d+ ICPs)$/ });
     fireEvent.click(confirm);
   };
 
