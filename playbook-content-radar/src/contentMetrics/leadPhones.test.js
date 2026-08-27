@@ -77,8 +77,20 @@ describe('leadPhones: filtros', () => {
 
   it('conta por estado', () => {
     expect(countByPhoneFilter(rows)).toEqual({
-      todos: 5, matched: 1, aguardando: 2, revisar: 1, nao_encontrado: 1,
+      todos: 5, matched: 1, aguardando: 2, revisar: 1, nao_encontrado: 1, auto: 0,
     });
+  });
+
+  it('conta separado os matches que o robô decidiu sozinho', () => {
+    // O chip 'auto' é auditoria, não fila: só conta match COM telefone decidido sem
+    // humano, que é o único caso em que um erro custaria alguma coisa.
+    const comAuto = [
+      row({ lead_id: 'f', match_status: 'MATCHED', match_method: 'auto:unico_com_telefone' }),
+      row({ lead_id: 'g', match_status: 'MATCHED', match_method: 'nome_exato+form_do_post' }),
+      row({ lead_id: 'h', match_status: 'NOT_FOUND', match_method: 'auto:descartado_empate' }),
+    ];
+    expect(countByPhoneFilter(comAuto).auto).toBe(1);
+    expect(comAuto.filter((item) => matchesPhoneFilter(item, 'auto'))).toHaveLength(1);
   });
 
   it('"Todos" não filtra nada', () => {

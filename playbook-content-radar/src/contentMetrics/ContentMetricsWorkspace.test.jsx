@@ -309,34 +309,51 @@ describe('Prospecção paginada', () => {
   }
 
   // Prospectar tem duas etapas desde os ICPs múltiplos: o botão da tabela abre o
-  // diálogo "qual ICP usar" e a confirmação é que dispara a function.
-  const clickProspectar = (icpName) => {
+  // diálogo "quais ICPs usar" e a confirmação é que dispara a function. O diálogo
+  // abre com TODOS os ativos marcados (o caso comum é querer os dois), então pedir
+  // um ICP específico significa desmarcar os outros.
+  const clickProspectar = (apenasIcp) => {
     const button = screen.getAllByRole('button').find((node) => node.textContent.trim().startsWith('Prospectar'));
     fireEvent.click(button);
-    if (icpName) {
-      const option = screen.getAllByRole('button').find((node) => node.textContent.includes(icpName));
-      fireEvent.click(option);
+    if (apenasIcp) {
+      icps.filter((icp) => icp.name !== apenasIcp).forEach((icp) => {
+        const option = screen.getAllByRole('button').find((node) => node.textContent.includes(icp.name));
+        fireEvent.click(option);
+      });
     }
-    const confirm = screen.getByText('Prospectar com este ICP');
+    const confirm = screen.getByRole('button', { name: /^Prospectar com/ });
     fireEvent.click(confirm);
   };
 
   it('manda o ICP escolhido no diálogo para a function de prospecção', async () => {
-    const client = fakeClient([{ success: true, done: true, status: 'success', icpName: 'Second Brain', totalComments: 10, datasetTotal: 10, totalLeads: 10, opportunities: 4, queuedQualifications: 4 }]);
+    const client = fakeClient([{ success: true, done: true, status: 'success', icpNames: ['Second Brain'], totalComments: 10, datasetTotal: 10, totalLeads: 10, opportunities: 4, queuedQualifications: 4 }]);
     render(<ContentMetricsWorkspace client={client} initialData={prospectingData} mode="prospecting" />);
 
     clickProspectar('Second Brain');
 
     await waitFor(() => expect(client.calls).toContain('prospect-post'));
     const call = client.bodies.find((entry) => entry.name === 'prospect-post');
-    expect(call.body.icpId).toBe('icp-second-brain');
+    expect(call.body.icpIds).toEqual(['icp-second-brain']);
     expect(call.body.rescrape).toBeUndefined();
+  });
+
+  // O pedido do Felipe em 27/08: clicar UMA vez e o post ser julgado pelos dois
+  // públicos. Antes era um ICP por clique, e testar o segundo exigia rodar de novo.
+  it('sem desmarcar nada, prospecta com TODOS os ICPs ativos de uma vez', async () => {
+    const client = fakeClient([{ success: true, done: true, status: 'success', icpNames: ['Playbook Lab — comercial 200+', 'Second Brain'], totalComments: 10, datasetTotal: 10, totalLeads: 10, opportunities: 4, queuedQualifications: 8 }]);
+    render(<ContentMetricsWorkspace client={client} initialData={prospectingData} mode="prospecting" />);
+
+    clickProspectar();
+
+    await waitFor(() => expect(client.calls).toContain('prospect-post'));
+    const call = client.bodies.find((entry) => entry.name === 'prospect-post');
+    expect(call.body.icpIds).toEqual(['icp-comercial', 'icp-second-brain']);
   });
 
   // Rodar outro ICP num post já raspado não pode chamar a Apify de novo: os
   // comentários estão no banco e crédito de Apify é o recurso escasso.
   it('não dispara análise quando o post já tinha veredito de todos no ICP escolhido', async () => {
-    const client = fakeClient([{ success: true, done: true, status: 'success', requalifyOnly: true, icpName: 'Second Brain', queuedQualifications: 0, leadsInPost: 12, totalComments: 12, totalLeads: 12, opportunities: 0 }]);
+    const client = fakeClient([{ success: true, done: true, status: 'success', requalifyOnly: true, icpNames: ['Second Brain'], queuedQualifications: 0, leadsInPost: 12, totalComments: 12, totalLeads: 12, opportunities: 0 }]);
     render(<ContentMetricsWorkspace client={client} initialData={prospectingData} mode="prospecting" />);
 
     clickProspectar('Second Brain');

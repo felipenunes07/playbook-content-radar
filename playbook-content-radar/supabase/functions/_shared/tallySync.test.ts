@@ -233,22 +233,49 @@ describe('matchQualifiedLeads: reprocessamento e persistência', () => {
     expect(l2).toMatchObject({ match_status: 'MATCHED', phone_e164: '+5511992946933', submission_id: 's2' });
   });
 
-  it('REVIEW é gravado sem telefone nenhum', async () => {
+  it('caso ambíguo é resolvido sozinho e nunca grava telefone', async () => {
+    // Dois homônimos com telefones DIFERENTES: não há como escolher, e escolher
+    // errado manda WhatsApp para um estranho. Desde 27/08/2026 isso não vira mais
+    // fila humana — é descartado na hora, sem número nenhum gravado.
     const client = fakeClient({
-      // "joao silva": 2 tokens, sem corroboração -> REVIEW
+      leads: [{ id: 'L1', full_name: 'Joao Silva', company_name: null, company_url: null, qualification_status: 'qualified' }],
+      tally_submissions: [
+        submissionRow({
+          submission_id: 's9', first_name: 'Joao', last_name: 'Silva', full_name: 'Joao Silva',
+          normalized_name: 'joao silva', first_last_name: 'joao silva', email: 'joao@gmail.com',
+          phone_e164: '+5511111111111',
+        }),
+        submissionRow({
+          submission_id: 's10', first_name: 'Joao', last_name: 'Silva', full_name: 'Joao Silva',
+          normalized_name: 'joao silva', first_last_name: 'joao silva', email: 'outro@gmail.com',
+          phone_e164: '+5522222222222',
+        }),
+      ],
+    });
+    const { stats } = await matchQualifiedLeads({ client: client as any });
+    expect(stats).toMatchObject({ REVIEW: 0, MATCHED: 0, NOT_FOUND: 1, telefones: 0 });
+    const row = client.tables.lead_phone_matches[0];
+    expect(row.match_status).toBe('NOT_FOUND');
+    expect(row.match_method).toBe('auto:descartado_empate');
+    expect(row.phone_e164).toBeNull();
+    expect(row.phone_form_name).toBeNull();
+    expect(row.submission_id).toBeNull();
+  });
+
+  it('candidato único com telefone é vinculado sem passar por humano', async () => {
+    const client = fakeClient({
       leads: [{ id: 'L1', full_name: 'Joao Silva', company_name: null, company_url: null, qualification_status: 'qualified' }],
       tally_submissions: [submissionRow({
         submission_id: 's9', first_name: 'Joao', last_name: 'Silva', full_name: 'Joao Silva',
         normalized_name: 'joao silva', first_last_name: 'joao silva', email: 'joao@gmail.com',
+        phone_e164: '+5511999999999',
       })],
     });
     const { stats } = await matchQualifiedLeads({ client: client as any });
-    expect(stats).toMatchObject({ REVIEW: 1, MATCHED: 0, telefones: 0 });
+    expect(stats).toMatchObject({ REVIEW: 0, MATCHED: 1, telefones: 1 });
     const row = client.tables.lead_phone_matches[0];
-    expect(row.match_status).toBe('REVIEW');
-    expect(row.phone_e164).toBeNull();
-    expect(row.phone_form_name).toBeNull();
-    expect(row.submission_id).toBeNull();
+    expect(row.match_method).toBe('auto:unico_com_telefone');
+    expect(row.phone_e164).toBe('+5511999999999');
   });
 
   it('dryRun não grava nada', async () => {
