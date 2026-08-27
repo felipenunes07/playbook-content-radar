@@ -19,6 +19,9 @@ const empty = {
   icpProfiles: [],
   goals: [],
   bookings: [],
+  pipeline: [],
+  touchpoints: [],
+  pipelineCadence: null,
 };
 
 const CACHE_TTL_MS = 2 * 60 * 1000;
@@ -203,6 +206,23 @@ function queryPlan(supabase, mode) {
       .select('lead_id, icp_id, status, score, reason, suggested_angle, decided_by')
       .order('lead_id').order('icp_id'));
     addOptional('icpProfiles', supabase.from('icp_profiles').select('*').order('is_default', { ascending: false }).order('name'));
+  } else if (mode === 'pipeline') {
+    // O board lê a view, que já entrega toques, último contato, dias sem resposta e
+    // a fila "precisa de contato hoje" calculados. Uma linha por lead SELECIONADO —
+    // centenas, não os 3.1k de `leads` — mas pagina do mesmo jeito, porque foi
+    // exatamente assim que a lista de leads passou meses mostrando 230 de 2.199.
+    addPaginated('pipeline', () => supabase.from('v_lead_pipeline').select('*')
+      .order('lead_id'));
+    // Timeline do card. Inclui os anulados: a view os ignora nos cálculos, mas quem
+    // abre o histórico precisa ver que houve uma correção — é a auditoria.
+    addPaginated('touchpoints', () => supabase.from('lead_touchpoints')
+      .select('id, lead_id, direction, channel, touch_number, touched_at, note, created_by, cancelled_at, cancelled_by, cancel_reason')
+      .order('lead_id').order('touched_at'));
+    add('pipelineSettings', supabase.from('pipeline_settings').select('cadence').eq('id', true).limit(1));
+    add('icpProfiles', supabase.from('icp_profiles').select('id, name').order('name'));
+    // Post de origem do card: só o suficiente pro rótulo, não a tabela inteira.
+    add('linkedin', supabase.from('v_latest_linkedin_post_metrics')
+      .select('id, hook, published_at, post_url, owner_name'));
   } else if (mode === 'goals') {
     add('accounts', supabase.from('content_accounts').select('*'));
     add('accountMetrics', supabase.from('account_daily_metrics').select('*'));
@@ -266,6 +286,9 @@ async function fetchContentMetrics({ supabase, fallback, mode }) {
         comTelefone: results.tallyPhones?.count ?? 0,
         ultimaSync: results.tallyLatest?.data?.[0]?.imported_at || null,
       },
+      pipeline: results.pipeline?.data || [],
+      touchpoints: results.touchpoints?.data || [],
+      pipelineCadence: results.pipelineSettings?.data?.[0]?.cadence || null,
       goals: results.goals?.data || [],
       bookings: (results.bookings?.data || []).slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))),
       freshness: latestDate(linkedin),

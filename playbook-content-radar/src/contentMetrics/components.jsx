@@ -327,12 +327,12 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
                               type="button"
                               className={`cm-prospect-btn${isProspected(row.id) ? ' completed' : ''}`}
                               aria-label={`Prospectar comentaristas de ${row.hook || 'post'}`}
-                              // Post já prospectado continua clicável: é assim que se roda um ICP
-                              // diferente nos mesmos comentaristas. Os comentários já estão no banco,
-                              // então essa segunda passada não gasta crédito da Apify.
+                              // Post já prospectado continua clicável: é assim que se busca os
+                              // comentários NOVOS (o diálogo pergunta) ou se roda um ICP diferente
+                              // nos mesmos comentaristas.
                               title={isProspected(row.id)
-                                ? 'Já prospectado — clique para qualificar os mesmos comentaristas em outro ICP (sem gastar Apify)'
-                                : 'Escolher o ICP, raspar comentários e cruzar com o banco de leads'}
+                                ? 'Já prospectado — clique para buscar os comentários novos ou rodar outro ICP nos mesmos comentaristas'
+                                : 'Escolher os ICPs, raspar comentários e cruzar com o banco de leads'}
                               disabled={isRunning(row.id)}
                               onClick={() => onProspect(row)}
                             >
@@ -343,7 +343,7 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
                               ) : (
                                 <Play size={13} />
                               )}
-                              {isRunning(row.id) ? 'Rodando…' : isProspected(row.id) ? 'Prospectado · outro ICP' : 'Prospectar'}
+                              {isRunning(row.id) ? 'Rodando…' : isProspected(row.id) ? 'Prospectado · rodar de novo' : 'Prospectar'}
                             </button>
                           )}
                           {linkedinPostUrl(row) && (

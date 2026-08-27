@@ -345,6 +345,95 @@ describe('Prospecção paginada', () => {
     expect(call.body.rescrape).toBeUndefined();
   });
 
+  // Voltar num post semanas depois e pegar só quem comentou desde então, sem pagar o
+  // post inteiro na Apify de novo (pedido do Felipe em 27/08).
+  describe('post já prospectado: o que buscar', () => {
+    const jaProspectado = {
+      ...prospectingData,
+      prospecting: [{
+        post_id: 'post-1', status: 'success', total_comments: 120, total_leads: 118,
+        opportunities: 12, new_qualified: 4,
+      }],
+    };
+
+    // Pelo aria-label: o rótulo visível vira "Prospectado · rodar de novo" quando o
+    // post já foi prospectado, que é justamente o caso deste bloco.
+    const abrirDialogo = () => {
+      fireEvent.click(screen.getByRole('button', { name: /^Prospectar comentaristas de/ }));
+    };
+    const confirmar = () => {
+      fireEvent.click(screen.getByRole('button', { name: /^Prospectar com (este ICP|\d+ ICPs)$/ }));
+    };
+
+    it('oferece as três opções e vem com "só os novos" marcada', () => {
+      const client = fakeClient([{ success: true, done: true, status: 'success' }]);
+      render(<ContentMetricsWorkspace client={client} initialData={jaProspectado} mode="prospecting" />);
+      abrirDialogo();
+
+      expect(screen.getByText('Só os comentários novos')).toBeInTheDocument();
+      expect(screen.getByText('Nenhum — só analisar quem já está no banco')).toBeInTheDocument();
+      expect(screen.getByText('Raspar o post inteiro de novo')).toBeInTheDocument();
+      // A opção barata e útil é o padrão; ninguém paga o post inteiro sem escolher.
+      const radios = screen.getAllByRole('radio');
+      expect(radios[0]).toBeChecked();
+    });
+
+    it('manda mode "novos" para a function', async () => {
+      const client = fakeClient([{ success: true, done: true, status: 'success', alcancouOsAntigos: true, totalComments: 240 }]);
+      render(<ContentMetricsWorkspace client={client} initialData={jaProspectado} mode="prospecting" />);
+      abrirDialogo();
+      confirmar();
+
+      await waitFor(() => expect(client.calls).toContain('prospect-post'));
+      const call = client.bodies.find((entry) => entry.name === 'prospect-post');
+      expect(call.body.mode).toBe('novos');
+    });
+
+    it('escolher "raspar tudo de novo" manda mode "tudo"', async () => {
+      const client = fakeClient([{ success: true, done: true, status: 'success' }]);
+      render(<ContentMetricsWorkspace client={client} initialData={jaProspectado} mode="prospecting" />);
+      abrirDialogo();
+      fireEvent.click(screen.getByText('Raspar o post inteiro de novo'));
+      confirmar();
+
+      await waitFor(() => expect(client.calls).toContain('prospect-post'));
+      const call = client.bodies.find((entry) => entry.name === 'prospect-post');
+      expect(call.body.mode).toBe('tudo');
+    });
+
+    it('avisa que não havia comentário novo, sem ter disparado a Apify', async () => {
+      // A function responde nadaNovo quando o contador de comentários do post não
+      // mudou desde a última prospecção — nem chega a rodar o actor.
+      const client = fakeClient([{
+        success: true, done: true, status: 'success', nadaNovo: true,
+        comentariosNoLinkedIn: 810, comentariosNaUltimaVez: 810,
+        ultimaProspeccaoEm: '2026-08-20T14:00:00Z',
+        icpNames: ['Playbook Lab — comercial 200+'],
+        queuedQualifications: 0, leadsInPost: 118, totalLeads: 118, opportunities: 0,
+      }]);
+      render(<ContentMetricsWorkspace client={client} initialData={jaProspectado} mode="prospecting" />);
+      abrirDialogo();
+      confirmar();
+
+      await waitFor(() => expect(screen.getByText(/Nenhum comentário novo/)).toBeInTheDocument());
+      expect(screen.getByText(/nada foi cobrado na Apify/i)).toBeInTheDocument();
+    });
+
+    it('avisa quando raspou mas ninguém era novo', async () => {
+      const client = fakeClient([{
+        success: true, done: true, status: 'success', alcancouOsAntigos: true,
+        icpNames: ['Playbook Lab — comercial 200+'],
+        totalComments: 200, totalLeads: 118, opportunities: 0, queuedQualifications: 0,
+      }]);
+      render(<ContentMetricsWorkspace client={client} initialData={jaProspectado} mode="prospecting" />);
+      abrirDialogo();
+      confirmar();
+
+      await waitFor(() => expect(screen.getByText(/Nenhum comentarista novo neste post/)).toBeInTheDocument());
+    });
+
+  });
+
   // O pedido do Felipe em 27/08: clicar UMA vez e o post ser julgado pelos dois
   // públicos. Antes era um ICP por clique, e testar o segundo exigia rodar de novo.
   it('sem desmarcar nada, prospecta com TODOS os ICPs ativos de uma vez', async () => {

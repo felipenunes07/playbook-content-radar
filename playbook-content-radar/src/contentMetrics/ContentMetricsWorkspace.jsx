@@ -1483,6 +1483,27 @@ function lastUsedIcps() {
   } catch { return []; }
 }
 
+// As três coisas que fazem sentido pedir num post que já foi prospectado antes. A
+// do meio é a que o Felipe pediu em 27/08: voltar semanas depois e pegar só quem
+// comentou desde então, sem pagar o post inteiro de novo na Apify.
+const PROSPECT_MODES = [
+  {
+    id: 'novos',
+    label: 'Só os comentários novos',
+    hint: 'Lê do mais recente para trás e para assim que alcança os que já estão no banco. Gasta Apify só pelos novos.',
+  },
+  {
+    id: 'somente_fila',
+    label: 'Nenhum — só analisar quem já está no banco',
+    hint: 'Zero Apify. Serve para rodar um ICP novo sobre os comentaristas que já temos.',
+  },
+  {
+    id: 'tudo',
+    label: 'Raspar o post inteiro de novo',
+    hint: 'Paga todos os comentários outra vez. Só vale se desconfiar que a raspagem anterior ficou incompleta.',
+  },
+];
+
 // Diálogo do botão Prospectar: QUAIS ICPs vão julgar os comentaristas deste post.
 // Marca mais de um de propósito (pedido do Felipe em 27/08): um post atrai gente que
 // serve para o público comercial e gente que serve para o outro, e clicar duas vezes
@@ -1498,7 +1519,10 @@ function ProspectIcpModal({ post, icps = [], alreadyProspected, onConfirm, onClo
     if (remembered.length) return remembered;
     return available.map((icp) => icp.id);
   });
-  const [rescrape, setRescrape] = useState(false);
+  // O que fazer com um post que já foi prospectado. 'somente_fila' não toca na
+  // Apify; 'novos' raspa só o que entrou depois da última vez; 'tudo' raspa o post
+  // inteiro outra vez. Post novo não usa isto — não há o que reaproveitar.
+  const [mode, setMode] = useState('novos');
   const chosen = available.filter((icp) => icpIds.includes(icp.id));
 
   const toggle = (id) => setIcpIds((prev) => (
@@ -1511,7 +1535,7 @@ function ProspectIcpModal({ post, icps = [], alreadyProspected, onConfirm, onClo
     // é o que nomeia o job na tela de prospecção.
     const ordenados = available.filter((icp) => icpIds.includes(icp.id)).map((icp) => icp.id);
     rememberIcps(ordenados);
-    onConfirm({ icpIds: ordenados, rescrape });
+    onConfirm({ icpIds: ordenados, mode: alreadyProspected ? mode : 'novos' });
   };
 
   return (
@@ -1567,16 +1591,23 @@ function ProspectIcpModal({ post, icps = [], alreadyProspected, onConfirm, onClo
 
         {alreadyProspected && (
           <div style={{ marginTop: 14, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 12 }}>
-            <strong style={{ fontSize: 12.5, color: '#0f172a' }}>Este post já foi prospectado.</strong>
-            <p style={{ margin: '5px 0 8px', fontSize: 12, color: '#64748b' }}>
-              Os comentários já estão no banco, então rodar agora só coloca os comentaristas na fila dos ICPs
-              marcados — sem gastar crédito da Apify. Quem já tem veredito num ICP não é analisado de novo nele.
-              Marque abaixo só se o post recebeu comentários novos.
-            </p>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#334155', cursor: 'pointer' }}>
-              <input type="checkbox" checked={rescrape} onChange={(e) => setRescrape(e.target.checked)} style={{ width: 14, height: 14, accentColor: '#b45309' }} />
-              Raspar os comentários de novo na Apify (gasta crédito)
-            </label>
+            <strong style={{ fontSize: 12.5, color: '#0f172a' }}>Este post já foi prospectado. O que buscar?</strong>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 8 }}>
+              {PROSPECT_MODES.map((opcao) => {
+                const on = mode === opcao.id;
+                return (
+                  <label key={opcao.id}
+                    style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer', border: `1px solid ${on ? '#0a66c2' : '#e2e8f0'}`, background: on ? '#eff6ff' : '#fff', borderRadius: 9, padding: '9px 11px' }}>
+                    <input type="radio" name="prospect-mode" checked={on} onChange={() => setMode(opcao.id)}
+                      style={{ width: 14, height: 14, marginTop: 2, accentColor: '#0a66c2', flexShrink: 0 }} />
+                    <span style={{ minWidth: 0 }}>
+                      <strong style={{ fontSize: 12.5, color: '#0f172a', display: 'block' }}>{opcao.label}</strong>
+                      <small style={{ color: '#64748b', fontSize: 11.5, lineHeight: 1.45 }}>{opcao.hint}</small>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -3752,7 +3783,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     setProspectPicker({ post });
   };
 
-  const runProspect = async (post, { icpIds = [], rescrape } = {}) => {
+  const runProspect = async (post, { icpIds = [], mode = 'novos' } = {}) => {
     if (!client?.functions?.invoke) { setOperationMessage('Prospecção indisponível no modo offline. Publique as Edge Functions e conecte o Supabase.'); return; }
     setProspectPicker(null);
     setProspectingRunning((prev) => new Set(prev).add(post.id));
@@ -3764,7 +3795,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       // várias continuações; o teto é só freio de segurança contra loop infinito.
       let res = null;
       for (let call = 0; call < 200; call += 1) {
-        const { data, error } = await client.functions.invoke('prospect-post', { body: { manual: true, postId: post.id, icpIds, ...(rescrape ? { rescrape: true } : {}) } });
+        const { data, error } = await client.functions.invoke('prospect-post', { body: { manual: true, postId: post.id, icpIds, mode } });
         if (error) throw error;
         if (!data?.success) throw new Error(data?.error || 'Falha desconhecida na prospecção');
         res = data;
@@ -3794,18 +3825,44 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       if (res.icpOverridden) {
         setOperationMessage(`Atenção: este post já tinha uma prospecção em andamento${icpLabel}, então ela continuou com os ICPs originais. Rode de novo depois que terminar para incluir os outros.`);
       }
-      if (res.requalifyOnly) {
+      if (res.nadaNovo) {
+        // O caso mais barato de todos: o contador de comentários do post não mudou
+        // desde a última prospecção, então nem o actor foi disparado.
+        const desde = res.ultimaProspeccaoEm
+          ? ` desde a última prospecção (${dataHoraCurta(res.ultimaProspeccaoEm)})`
+          : ' desde a última prospecção';
+        const filaExtra = res.queuedQualifications
+          ? ` ${integer.format(res.queuedQualifications)} comentarista(s) entraram na fila${icpLabel}.`
+          : '';
+        setOperationMessage(`Nenhum comentário novo${desde}: o post continua com ${integer.format(res.comentariosNoLinkedIn || 0)} comentários. Nada foi raspado e nada foi cobrado na Apify.${filaExtra}`);
+      } else if (res.requalifyOnly) {
         // Nenhum crédito de Apify gasto: os comentários já estavam no banco.
         setOperationMessage(res.queuedQualifications
           ? `Post já estava raspado: ${integer.format(res.queuedQualifications)} comentarista(s) entraram na fila${icpLabel} (sem gastar Apify). Iniciando análise automaticamente.`
           : `Post já estava raspado e todos os ${integer.format(res.leadsInPost || 0)} comentarista(s) já tinham veredito${icpLabel} — nada novo pra analisar.`);
+      } else if (res.alcancouOsAntigos && !res.opportunities) {
+        // Raspou, alcançou os antigos e não trouxe ninguém novo: os comentários que
+        // entraram eram de gente que já estava no banco.
+        setOperationMessage(`Nenhum comentarista novo neste post${icpLabel}: li ${integer.format(res.totalComments || 0)} comentário(s) até alcançar os que já estavam no banco e parei — o resto não foi cobrado.`);
       } else {
-        setOperationMessage(`Prospecção concluída${icpLabel}: ${integer.format(res.totalComments || 0)} comentários, ${integer.format(res.totalLeads || 0)} leads, ${integer.format(res.opportunities || 0)} oportunidade(s) nova(s). Iniciando análise automaticamente.`);
+        // "Alcançou os antigos" é a boa notícia do modo incremental: a raspagem parou
+        // sozinha ao chegar no que já tínhamos, em vez de pagar o post inteiro.
+        const parouSozinho = res.alcancouOsAntigos
+          ? ' A raspagem parou ao alcançar os comentários que já estavam no banco — o resto não foi cobrado.'
+          : '';
+        setOperationMessage(`Prospecção concluída${icpLabel}: ${integer.format(res.totalComments || 0)} comentários lidos, ${integer.format(res.totalLeads || 0)} leads, ${integer.format(res.opportunities || 0)} oportunidade(s) nova(s).${parouSozinho} Iniciando análise automaticamente.`);
       }
       await reloadData().catch(() => {});
-      const pendingAfter = res.requalifyOnly
-        ? res.queuedQualifications || 0
-        : res.queuedQualifications || res.opportunities || res.totalLeads || 0;
+      // Quantos vereditos ficaram pendentes de verdade. queuedQualifications é a
+      // medida exata (pares lead × ICP que entraram na fila); os outros dois são
+      // fallback para respostas antigas da function, que não mandavam esse campo.
+      //
+      // Ler `opportunities || totalLeads` quando queuedQualifications veio 0 era o
+      // bug: num post sem nada novo, a tela disparava uma análise dos leads todos e
+      // reescrevia por cima o aviso de "nenhum comentário novo".
+      const pendingAfter = res.queuedQualifications != null
+        ? res.queuedQualifications
+        : (res.requalifyOnly ? 0 : (res.opportunities || res.totalLeads || 0));
       if (pendingAfter > 0) await runLeadAnalysisFromProspecting(pendingAfter);
     } catch (e) {
       setOperationMessage(`Falha na prospecção: ${e?.message || e}`);

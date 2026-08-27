@@ -17,10 +17,19 @@ import { adminClient, corsHeaders, json } from '../_shared/server.ts';
 // chamadas antigas) e, sem nada, usa o ICP default. Um job retomado mantém os ICPs
 // com que começou.
 //
-// Post já raspado + ICP diferente = REQUALIFICAÇÃO, sem Apify: os comentários já
-// estão em lead_comments, então só enfileiramos as qualificações do ICP novo. Rodar
-// o actor de novo custaria crédito da Apify (o recurso escasso aqui) para trazer o
-// mesmo dataset. Quem quiser comentários novos manda { rescrape: true }.
+// Post já raspado: o que fazer é escolhido pelo `mode` do body (o diálogo pergunta).
+//   'somente_fila' (padrão) → nenhuma Apify. Os comentários já estão em
+//       lead_comments; só enfileiramos as qualificações dos ICPs escolhidos.
+//   'novos'                 → INCREMENTAL: raspa só os comentários novos e PARA.
+//   'tudo'                  → raspa o post inteiro de novo (o antigo rescrape:true).
+//
+// O incremental é possível porque o dataset do actor vem do MAIS NOVO para o mais
+// antigo — verificado em 27/08/2026 nos lotes de ingestão do post das 36 Skills: à
+// medida que a ingestão avança, as datas dos comentários andam para trás. Então os
+// comentários novos estão todos no começo, e quando bate uma página inteira de gente
+// que já está no banco DESTE post, alcançamos o que já tínhamos e daí pra frente é
+// tudo repetido. Aí a run é ABORTADA na Apify — parar de raspar é o que economiza
+// crédito de verdade, porque o actor cobra pelo que raspa, não pelo que lemos.
 // Ver docs/superpowers/plans/2026-07-04-warm-prospecting-from-commenters.md
 //
 // PAGINADO desde 17/08/2026: um post viral não cabe numa invocação. O post das 36
@@ -184,6 +193,18 @@ async function persistPage(
       };
     })
     .filter(Boolean);
+  // Quem desta página JÁ comentava neste post. É o sinal de "alcançamos o que já
+  // tínhamos" do modo incremental, e tem que ser medido ANTES do upsert abaixo —
+  // depois dele todo mundo passa a existir.
+  const leadIdsDaPagina = (commentRows as Array<{ lead_id: string }>).map((row) => row.lead_id);
+  let jaNoPost = 0;
+  for (const batch of chunk(leadIdsDaPagina, 100)) {
+    const { data: conhecidos, error: conhecidosError } = await client.from('lead_comments')
+      .select('lead_id').eq('post_id', postId).in('lead_id', batch);
+    if (conhecidosError) throw conhecidosError;
+    jaNoPost += (conhecidos || []).length;
+  }
+
   // Lote menor: cada linha carrega o item cru da Apify em `raw`.
   for (const batch of chunk(commentRows as any[], 150)) {
     const { error: commentError } = await client
@@ -197,7 +218,7 @@ async function persistPage(
     icpIds,
   );
 
-  return { skipped, queued };
+  return { skipped, queued, jaNoPost, resolvidos: leadIdsDaPagina.length };
 }
 
 // Enfileira a qualificação destes leads em CADA ICP escolhido. ignoreDuplicates
@@ -265,6 +286,21 @@ async function resolveIcps(
 // Lê os ICPs pedidos do body aceitando as duas formas: `icpIds: []` (a tela nova) e
 // `icpId: '...'` (cron e chamadas antigas). Antes, um array em `icpId` era ignorado
 // em silêncio e os leads iam parar no ICP default sem nenhum sintoma.
+type ProspectMode = 'somente_fila' | 'novos' | 'tudo';
+
+// Uma página inteira de comentaristas que já estão neste post significa que passamos
+// da faixa nova. Uma página (200) é margem suficiente com o dataset ordenado do mais
+// novo pro mais antigo, e é barata perto de raspar o post todo.
+const PAGINAS_CONHECIDAS_PARA_PARAR = 1;
+
+// O que fazer com um post que já tem comentários no banco. `rescrape: true` é a forma
+// antiga de dizer 'tudo' e continua valendo.
+function requestedMode(body: Record<string, any> | null): ProspectMode {
+  const bruto = String(body?.mode || '').trim();
+  if (bruto === 'novos' || bruto === 'tudo' || bruto === 'somente_fila') return bruto;
+  return body?.rescrape === true ? 'tudo' : 'somente_fila';
+}
+
 function requestedIcpIds(body: Record<string, any> | null): string[] {
   const bruto = Array.isArray(body?.icpIds) ? body!.icpIds : [body?.icpId];
   const ids = bruto
@@ -361,6 +397,10 @@ Deno.serve(async (request) => {
     const icpOverridden = Boolean(doJobAberto.length && pedidos.length
       && pedidos.some((id) => !doJobAberto.includes(id)));
 
+    // Um job retomado mantém o modo com que começou: trocar de 'novos' para 'tudo' no
+    // meio da ingestão faria a segunda metade obedecer a uma regra de parada diferente.
+    const mode: ProspectMode = ((openJob?.raw as any)?.mode as ProspectMode) || requestedMode(body);
+
     // Post já raspado e ninguém pediu raspagem nova: o dataset da Apify seria o
     // mesmo, então o trabalho aqui é só colocar os comentaristas na fila dos ICPs
     // escolhidos. Quem já tem veredito num ICP nem entra (ON CONFLICT DO NOTHING).
@@ -370,7 +410,7 @@ Deno.serve(async (request) => {
     // no meio de um post grande) costuma ter ingerido milhares de comentários antes
     // de morrer — olhar só o status mandava re-raspar tudo e pagar a Apify de novo,
     // que é exatamente o crédito que falta pros coletores de conteúdo.
-    if (!openJob && body?.rescrape !== true) {
+    if (!openJob && mode === 'somente_fila') {
       const { count: comentariosNoBanco, error: doneError } = await client.from('lead_comments')
         .select('lead_id', { count: 'exact', head: true }).eq('post_id', post.id);
       if (doneError) throw doneError;
@@ -406,11 +446,77 @@ Deno.serve(async (request) => {
       }
     }
 
+    // Quantos comentários o LinkedIn diz que o post tem AGORA (vem da coleta diária).
+    const { data: metrica } = await client.from('v_latest_linkedin_post_metrics')
+      .select('comments').eq('id', post.id).maybeSingle();
+    const comentariosNoLinkedIn = Number(metrica?.comments || 0);
+
+    // O contador do LinkedIn na última vez que raspamos este post. Comparar ESTE
+    // número com o de agora é a única comparação honesta: os dois lados medem a mesma
+    // coisa. Comparar a métrica do LinkedIn com o que temos em lead_comments não
+    // serve, porque a métrica conta respostas (que não raspamos) e o banco conta
+    // comentaristas deduplicados — os números nunca batem nem quando nada mudou.
+    const { data: ultimoJob } = await client.from('prospecting_jobs')
+      .select('raw, finished_at').eq('post_id', post.id).in('status', ['success', 'partial'])
+      .not('raw->>comentariosNoLinkedIn', 'is', null)
+      .order('started_at', { ascending: false }).limit(1).maybeSingle();
+    const comentariosNaUltimaVez = Number((ultimoJob?.raw as any)?.comentariosNoLinkedIn ?? NaN);
+
+    // NADA NOVO: o post não recebeu comentário desde a última prospecção. Não dispara
+    // actor nenhum — a economia aqui é de 100%, não de "só os novos". É o caso comum
+    // de clicar num post que já foi trabalhado.
+    if (!openJob && mode === 'novos'
+        && Number.isFinite(comentariosNaUltimaVez) && comentariosNoLinkedIn > 0
+        && comentariosNoLinkedIn <= comentariosNaUltimaVez) {
+      const { count: leadsNoPost } = await client.from('lead_comments')
+        .select('lead_id', { count: 'exact', head: true }).eq('post_id', post.id);
+      const leadIds = await leadIdsOfPost(client, post.id);
+      // Mesmo sem comentário novo, os ICPs escolhidos podem nunca ter julgado esta
+      // gente — é de graça e é o que o usuário espera ao clicar.
+      const queued = await queueQualifications(client, leadIds, icpIds);
+      return json({
+        success: true, done: true, jobId: null, status: 'success',
+        nadaNovo: true, comentariosNoLinkedIn, comentariosNaUltimaVez,
+        ultimaProspeccaoEm: ultimoJob?.finished_at || null,
+        icpId: icpIds[0], icpIds, icpName: icpLabel, icpNames, icpOverridden,
+        queuedQualifications: queued, leadsInPost: leadIds.length,
+        totalComments: leadsNoPost ?? 0, datasetTotal: leadsNoPost ?? 0, remaining: 0,
+        totalLeads: leadsNoPost ?? 0, opportunities: 0, skipped: 0,
+      });
+    }
+
     let job = openJob;
     if (!job) {
       // maxItems alto de propósito: o custo da Apify é por comentário existente, não
       // pelo teto, e sem teto folgado um post viral seria truncado.
-      const maxItems = Math.max(1, Math.min(10000, Number(body?.maxItems || Deno.env.get('APIFY_COMMENTS_MAX_ITEMS') || 5000)));
+      const tetoPadrao = Math.max(1, Math.min(10000, Number(body?.maxItems || Deno.env.get('APIFY_COMMENTS_MAX_ITEMS') || 5000)));
+
+      // No modo incremental o teto vira orçamento: só precisamos alcançar os
+      // comentários que já temos.
+      //
+      // A folga de 1,5x + 200 existe porque os dois lados medem coisas diferentes: a
+      // métrica do LinkedIn conta respostas (que não raspamos, scrapeReplies:false) e
+      // o banco conta COMENTARISTAS deduplicados, não comentários. Errar pra mais
+      // aqui é barato — o abort abaixo para assim que alcançarmos —, errar pra menos
+      // truncaria os comentários novos em silêncio.
+      let maxItems = tetoPadrao;
+      if (mode === 'novos') {
+        const { count: jaTemos } = await client.from('lead_comments')
+          .select('lead_id', { count: 'exact', head: true }).eq('post_id', post.id);
+        // Quando sabemos quantos comentários entraram desde a última raspagem, o
+        // orçamento sai daí — é bem mais apertado que a diferença contra o banco.
+        const novosEstimados = Number.isFinite(comentariosNaUltimaVez)
+          ? Math.max(0, comentariosNoLinkedIn - comentariosNaUltimaVez)
+          : Math.max(0, comentariosNoLinkedIn - Number(jaTemos || 0));
+        // Duas guardas para não truncar em silêncio, que é o único erro caro aqui:
+        //  - sem métrica (post sem coleta recente) não dá pra estimar nada;
+        //  - post que ainda não tem comentário no banco não tem "faixa nova" — é a
+        //    primeira raspagem, e a métrica pode estar velha (coletada quando o post
+        //    tinha 10 comentários, hoje tem 500). Aí vale o teto padrão.
+        if (comentariosNoLinkedIn > 0 && Number(jaTemos || 0) > 0) {
+          maxItems = Math.max(INGEST_PAGE_SIZE * 2, Math.min(tetoPadrao, Math.ceil(novosEstimados * 1.5) + 200));
+        }
+      }
       // Dispara a run e NÃO espera: quem espera o actor terminar morre na parede.
       const run = await apify(`acts/${encodeURIComponent(actorId)}/runs?timeout=${ACTOR_TIMEOUT_SECS}`, token, {
         method: 'POST',
@@ -429,7 +535,7 @@ Deno.serve(async (request) => {
           apify_run_id: String(run.id),
           apify_dataset_id: String(run.defaultDatasetId),
           last_progress_at: new Date().toISOString(),
-          raw: { actorId, maxItems, skipped: 0, icpName: icpLabel, icpNames, queuedQualifications: 0 },
+          raw: { actorId, maxItems, mode, comentariosNoLinkedIn, skipped: 0, icpName: icpLabel, icpNames, queuedQualifications: 0 },
         }).select('id, apify_run_id, apify_dataset_id, ingested_count, dataset_total, raw, icp_id, icp_ids').single();
       if (jobError) throw jobError;
       job = created;
@@ -444,6 +550,10 @@ Deno.serve(async (request) => {
     let skipped = Number((job.raw as any)?.skipped || 0);
     let queuedQualifications = Number((job.raw as any)?.queuedQualifications || 0);
     let runStatus = 'RUNNING';
+    // Páginas cheias em que TODO comentarista já estava neste post. Sobrevive à
+    // retomada do job: uma invocação pode acabar no meio da faixa repetida.
+    let paginasConhecidas = Number((job.raw as any)?.paginasConhecidas || 0);
+    let alcancouOsAntigos = Boolean((job.raw as any)?.alcancouOsAntigos);
 
     // Ingere o quanto couber no orçamento. O dataset da Apify é append-only, então
     // dá pra consumir o que já saiu enquanto o actor ainda raspa o resto.
@@ -476,14 +586,40 @@ Deno.serve(async (request) => {
       queuedQualifications += persisted.queued;
       ingested += items.length;
 
+      // Modo incremental: página cheia em que ninguém era novo neste post = passamos
+      // da faixa de comentários novos. Daqui pra frente o actor só raspa repetido, e
+      // cada item raspado é crédito gasto — então a run é abortada na Apify.
+      if (mode === 'novos' && !alcancouOsAntigos) {
+        const paginaCheia = items.length >= INGEST_PAGE_SIZE;
+        const ninguemNovo = persisted.resolvidos > 0 && persisted.jaNoPost >= persisted.resolvidos;
+        paginasConhecidas = (paginaCheia && ninguemNovo) ? paginasConhecidas + 1 : 0;
+        if (paginasConhecidas >= PAGINAS_CONHECIDAS_PARA_PARAR) {
+          alcancouOsAntigos = true;
+          if (!TERMINAL_RUN_STATUS.includes(runStatus)) {
+            try {
+              await apify(`actor-runs/${job.apify_run_id}/abort`, token, { method: 'POST', timeoutMs: 15000 });
+              runStatus = 'ABORTED';
+            } catch (abortError) {
+              // Não conseguir abortar não é falha da prospecção: os comentários novos
+              // já estão no banco. O actor termina sozinho no teto de maxItems.
+              console.warn(`Não foi possível abortar a run ${job.apify_run_id}: ${errorMessage(abortError)}`);
+            }
+          }
+        }
+      }
+
       const { error: progressError } = await client.from('prospecting_jobs').update({
         ingested_count: ingested,
         dataset_total: datasetTotal,
         total_comments: ingested,
         last_progress_at: new Date().toISOString(),
-        raw: { ...(job.raw as any || {}), actorId, skipped, runStatus, icpName: icpLabel, icpNames, queuedQualifications },
+        raw: { ...(job.raw as any || {}), actorId, mode, skipped, runStatus, icpName: icpLabel, icpNames, queuedQualifications, paginasConhecidas, alcancouOsAntigos },
       }).eq('id', jobId);
       if (progressError) throw progressError;
+
+      // Alcançou os antigos: o resto do dataset é repetição. Sair agora evita
+      // processar de graça o que já está no banco.
+      if (alcancouOsAntigos) break;
     }
 
     // Contagens saem do banco, não de memória: com ingestão em fatias é a única
@@ -541,11 +677,11 @@ Deno.serve(async (request) => {
       finished_at: new Date().toISOString(),
       last_progress_at: new Date().toISOString(),
       error_message: notes || null,
-      raw: { ...(job.raw as any || {}), actorId, skipped, runStatus, icpName: icpLabel, icpNames, queuedQualifications },
+      raw: { ...(job.raw as any || {}), actorId, mode, skipped, runStatus, icpName: icpLabel, icpNames, queuedQualifications, paginasConhecidas, alcancouOsAntigos },
     }).eq('id', jobId);
 
     return json({
-      success: true, done: true, jobId, status, runStatus,
+      success: true, done: true, jobId, status, runStatus, mode, alcancouOsAntigos,
       icpId: icpIds[0], icpIds, icpName: icpLabel, icpNames, icpOverridden, queuedQualifications,
       totalComments: ingested, datasetTotal, remaining: 0,
       totalLeads: totalLeads ?? 0, opportunities: opportunities ?? 0, skipped,

@@ -6,7 +6,8 @@ import {
   Search, Download, Trash2, AlertCircle, MessageSquare, FileText,
   CheckCircle2, XCircle, AlertTriangle, ArrowLeft, Archive,
   ThumbsUp, ThumbsDown, Lightbulb, MoreHorizontal, Calendar,
-  TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock, Users, Target, ListTodo
+  TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock, Users, Target, ListTodo,
+  KanbanSquare
 } from 'lucide-react';
 import './styles.css';
 import { createClient } from '@supabase/supabase-js';
@@ -24,6 +25,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const ContentMetricsWorkspace = React.lazy(() => import('./contentMetrics/ContentMetricsWorkspace.jsx'));
+const PipelineBoard = React.lazy(() => import('./pipeline/PipelineBoard.jsx'));
 const NotionDevelopmentBoard = React.lazy(() => import('./notionDevelopment/NotionDevelopmentBoard.jsx'));
 const IdeaProductionWorkspace = React.lazy(() => import('./production/IdeaProductionWorkspace.jsx'));
 const CollaborativeStudioModal = React.lazy(() => import('./production/CollaborativeStudioModal.jsx'));
@@ -1188,6 +1190,12 @@ function App() {
                   <Users size={16} /> Leads ICP
                 </button>
                 <button
+                  className={view === 'pipeline' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('pipeline')}
+                >
+                  <KanbanSquare size={16} /> Kanban
+                </button>
+                <button
                   className={view === 'development' ? 'nav-link active' : 'nav-link'}
                   onClick={() => leaveMetrics('development')}
                 >
@@ -1245,6 +1253,12 @@ function App() {
                   onClick={() => leaveMetrics('leads')}
                 >
                   <Users size={16} /> Leads ICP
+                </button>
+                <button
+                  className={view === 'pipeline' ? 'nav-link active' : 'nav-link'}
+                  onClick={() => leaveMetrics('pipeline')}
+                >
+                  <KanbanSquare size={16} /> Kanban
                 </button>
                 <button
                   className={view === 'development' ? 'nav-link active' : 'nav-link'}
@@ -1398,6 +1412,12 @@ function App() {
           {view === 'leads' && (
             <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Carregando leads…</div>}>
               <ContentMetricsWorkspace client={supabase} mode="leads" currentUser={user} />
+            </React.Suspense>
+          )}
+
+          {view === 'pipeline' && (
+            <React.Suspense fallback={<div style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', color: '#64748b', fontSize: '13px' }}>Carregando pipeline…</div>}>
+              <PipelineBoard client={supabase} currentUser={user} />
             </React.Suspense>
           )}
           {view === 'goals' && (
