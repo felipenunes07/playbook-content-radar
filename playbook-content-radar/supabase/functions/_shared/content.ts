@@ -49,7 +49,11 @@ function hook(content: unknown) {
   return String(content || '').split(/\r?\n/).map((line) => line.trim()).find(Boolean)?.slice(0, 240) || '';
 }
 
-function cta(content: unknown) {
+// Exportada porque collect-instagram precisa da MESMA extração: quando o Instagram
+// tinha a própria cópia, as aspas tipográficas se perderam lá em algum salvamento e
+// o `["'“‘]` virou `["'"']` — CTA escrito com aspas curvas (o padrão do teclado de
+// celular, justamente onde o Instagram é escrito) deixava de ser detectado só nele.
+export function ctaKeyword(content: unknown) {
   const text = String(content || '');
   const quoted = text.match(/\bcoment(?:a|e)\s+["'“‘]\s*([\p{L}\p{N}_-]+)\s*["'”’]/iu);
   const unquoted = text.match(/\bcoment(?:a|e)\s+([\p{L}\p{N}_-]+)/iu)?.[1];
@@ -111,7 +115,7 @@ export function normalizeApifyPost(item: Record<string, any>, metricDate = new D
       content,
       hook: hook(content),
       format,
-      cta_keyword: cta(content),
+      cta_keyword: ctaKeyword(content),
       is_repost: isRepost,
       repost_id: repostOriginalId,
       ...media(item, format),
@@ -280,7 +284,7 @@ export function parsePublicYouTubeChannelStats(html: string) {
     }
   }
 
-  if (!best || best.subscribers == null) throw new Error('NÃ£o foi possÃ­vel ler inscritos do canal no HTML pÃºblico do YouTube');
+  if (!best || best.subscribers == null) throw new Error('Não foi possível ler inscritos do canal no HTML público do YouTube');
   return { subscribers: best.subscribers, totalVideos: best.totalVideos };
 }
 
@@ -297,7 +301,7 @@ export function youtubeRefreshSince(today = new Date(), refreshDays = 365) {
   const days = Math.trunc(Number(refreshDays));
   if (!Number.isFinite(days) || days <= 0) return null;
   const date = new Date(today);
-  if (Number.isNaN(date.getTime())) throw new Error('Data de referÃªncia do YouTube invÃ¡lida');
+  if (Number.isNaN(date.getTime())) throw new Error('Data de referência do YouTube inválida');
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString().slice(0, 10);
 }

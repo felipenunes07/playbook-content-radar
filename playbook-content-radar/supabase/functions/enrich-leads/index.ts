@@ -1,7 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { collectorDeadline, remainingMs, runActor } from '../_shared/apify.ts';
 import { buildCompanyActorInput, buildCompanyIndex, companyEmployeeCount, findCompany } from './company.ts';
-import { errorMessage } from '../_shared/content.ts';
+import { chunk, errorMessage } from '../_shared/content.ts';
 import { adminClient, corsHeaders, finishRun, json, startRun } from '../_shared/server.ts';
 import { llmHeaders, LlmProvider, parseLlmJson, requireClassificationProviders, withLlmFallback } from '../_shared/llm.ts';
 import { bdScrape, bdProfileToCanonical, bdCompanyToCanonical, BD_PROFILE_DATASET, BD_COMPANY_DATASET } from '../_shared/brightdata.ts';
@@ -14,6 +14,18 @@ import { bdScrape, bdProfileToCanonical, bdCompanyToCanonical, BD_PROFILE_DATASE
 // Processa em lotes pequenos e pode ser re-invocado até zerar a fila (o front chama
 // em loop; um cron futuro pode fazer o mesmo).
 // Ver docs/superpowers/plans/2026-07-04-warm-prospecting-from-commenters.md
+//
+// MULTI-ICP desde 27/08/2026: os critérios não são mais um texto global — cada
+// prospecção escolhe um ICP e a fila real é lead_qualifications (lead_id, icp_id),
+// uma linha por veredito a produzir. São duas filas aqui:
+//   (A) lead com enrichment_status='pending' → raspa profile+company e qualifica em
+//       cada ICP que o espera (uma chamada de LLM por ICP);
+//   (B) lead JÁ enriquecido com qualificação pendente de um ICP novo → só LLM,
+//       reaproveitando profile_raw/company_raw. É o caso de quem já estava no banco
+//       quando o post foi prospectado com outro ICP: nenhum actor roda de novo.
+// O enriquecimento é gravado ANTES da qualificação de propósito: se o LLM bater no
+// rate limit no meio, o que falta é só LLM — a fila (B) termina depois sem pagar
+// scrape outra vez.
 
 function pick(obj: Record<string, any>, keys: string[]): any {
   for (const key of keys) {
@@ -221,8 +233,9 @@ async function qualifyWithProvider(provider: LlmProvider, prompt: string, deadli
 async function qualifyLead(payload: Record<string, unknown>, deadlineAt: number, rulesOverride?: string | null) {
   const providers = requireClassificationProviders();
   const minHeadcount = Number(Deno.env.get('PROSPECT_MIN_HEADCOUNT') || 200);
-  // Critérios editáveis sem deploy: prospect_settings.icp_rules (editável na UI,
-  // botão "Ver/editar ICP") > secret PROSPECT_ICP_RULES > default do escopo formal
+  // Critérios editáveis sem deploy: icp_profiles.icp_rules do ICP escolhido na
+  // prospecção (editável na UI, botão "Ver/editar ICP") > secret PROSPECT_ICP_RULES
+  // > default do escopo formal
   // de 2026-07-05 + ICP da Playbook (Victor: "se vier pouca gente a gente baixa;
   // se vier muito lixo, aperta").
   const rules = rulesOverride || Deno.env.get('PROSPECT_ICP_RULES') || `1. Cargo alto (aprova): founder, sócio, CEO, C-level, diretor, Head, gerente, liderança comercial/marketing/operações, Growth, RevOps, gerente de inovação. Rejeita: estagiário, estudante, analista júnior, SDR/vendedor baixo na hierarquia, assistente.
@@ -246,18 +259,192 @@ ${JSON.stringify(payload)}`;
   );
 }
 
-// Recalcula "novos qualificados" dos posts afetados: conta leads qualificados que
-// entraram por aquele post e grava no job mais recente do post.
+// Recalcula "novos qualificados" dos posts afetados: conta leads aprovados que
+// entraram por aquele post em ALGUM dos ICPs do job — a coluna tem que refletir o que
+// aquela prospecção produziu, e uma prospecção pode ter rodado dois públicos.
+//
+// Conta LEADS distintos, não linhas de qualificação: aprovado nos dois ICPs é uma
+// oportunidade só, e somar as linhas mostraria o dobro na tela.
 async function refreshJobQualifiedCounts(client: ReturnType<typeof adminClient>, postIds: string[]) {
   for (const postId of postIds) {
-    const { count } = await client.from('leads')
-      .select('id', { count: 'exact', head: true })
-      .eq('first_seen_post_id', postId)
-      .in('qualification_status', ['qualified', 'review']);
     const { data: job } = await client.from('prospecting_jobs')
-      .select('id').eq('post_id', postId).order('started_at', { ascending: false }).limit(1).maybeSingle();
-    if (job) await client.from('prospecting_jobs').update({ new_qualified: count ?? 0 }).eq('id', job.id);
+      .select('id, icp_id, icp_ids').eq('post_id', postId).order('started_at', { ascending: false }).limit(1).maybeSingle();
+    if (!job) continue;
+    const jobIcpIds: string[] = (Array.isArray(job.icp_ids) && job.icp_ids.length)
+      ? job.icp_ids
+      : (job.icp_id ? [job.icp_id] : []);
+    let count: number | null = null;
+    if (jobIcpIds.length) {
+      // Paginado: o teto do PostgREST é 1.000 linhas e aqui são (leads aprovados ×
+      // ICPs do job). Hoje o maior post tem 163, mas um post viral com dois ICPs
+      // chega perto do teto — e um recount truncado mentiria pra menos em silêncio.
+      const distintos = new Set<string>();
+      const pageSize = 1000;
+      let falhou = false;
+      for (let from = 0; ; from += pageSize) {
+        const { data: rows, error } = await client.from('lead_qualifications')
+          .select('lead_id, lead:leads!inner(first_seen_post_id)')
+          .in('icp_id', jobIcpIds)
+          .in('status', ['qualified', 'review'])
+          .eq('lead.first_seen_post_id', postId)
+          .order('lead_id')
+          .range(from, from + pageSize - 1);
+        if (error) {
+          console.warn(`Recount por ICP falhou no post ${postId}: ${errorMessage(error)}`);
+          falhou = true;
+          break;
+        }
+        const page = rows || [];
+        for (const row of page) distintos.add((row as { lead_id: string }).lead_id);
+        if (page.length < pageSize) break;
+      }
+      if (!falhou) count = distintos.size;
+    }
+    if (count == null) {
+      // Job sem ICP (histórico) ou consulta com embed indisponível: cai no espelho.
+      const { count: mirrored } = await client.from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('first_seen_post_id', postId)
+        .in('qualification_status', ['qualified', 'review']);
+      count = mirrored ?? 0;
+    }
+    await client.from('prospecting_jobs').update({ new_qualified: count }).eq('id', job.id);
   }
+}
+
+type IcpProfile = { id: string; name: string; icp_rules: string | null };
+
+// Todos os ICPs cadastrados, indexados por id, + qual é o default. Um lote pode
+// misturar ICPs (dois posts diferentes na fila), então carregamos todos de uma vez.
+async function loadIcps(client: ReturnType<typeof adminClient>) {
+  const { data, error } = await client.from('icp_profiles').select('id, name, icp_rules, is_default');
+  if (error) throw error;
+  const byId = new Map<string, IcpProfile>();
+  let defaultId: string | null = null;
+  for (const row of data || []) {
+    byId.set(row.id, { id: row.id, name: row.name, icp_rules: row.icp_rules });
+    if (row.is_default) defaultId = row.id;
+  }
+  return { byId, defaultId };
+}
+
+// Quais ICPs ainda esperam veredito de cada lead.
+async function pendingIcpsByLead(client: ReturnType<typeof adminClient>, leadIds: string[]) {
+  const map = new Map<string, string[]>();
+  for (const batch of chunk(leadIds, 100)) {
+    const { data, error } = await client.from('lead_qualifications')
+      .select('lead_id, icp_id').eq('status', 'pending').in('lead_id', batch);
+    if (error) throw error;
+    for (const row of data || []) {
+      const list = map.get(row.lead_id) || [];
+      list.push(row.icp_id);
+      map.set(row.lead_id, list);
+    }
+  }
+  return map;
+}
+
+type QualificationResult = {
+  status: string;
+  qualified: boolean;
+  score: number | null;
+  reason: string | null;
+  suggested_angle: string | null;
+};
+
+// Grava o veredito daquele ICP. Só isso — o espelho em `leads` (que v_lead_phones, o
+// tally-sync e o export leem) é reescrito pelo trigger lead_qualifications_mirror,
+// com o MELHOR veredito entre os ICPs.
+//
+// Espelhar aqui na mão era o bug de 27/08: escrevia o veredito do ICP recém-julgado
+// por cima, então rodar um segundo ICP num lead já aprovado no primeiro o marcava
+// como descartado — sumia da aba Aprovados e saía do cruzamento de telefone. Quem é
+// aprovado em algum ICP é lead aprovado; qual ICP aprovou é o que as colunas por ICP
+// da tela mostram.
+async function persistQualification(
+  client: ReturnType<typeof adminClient>,
+  leadId: string,
+  icpId: string,
+  result: QualificationResult,
+) {
+  const { error: qualError } = await client.from('lead_qualifications').upsert({
+    lead_id: leadId,
+    icp_id: icpId,
+    status: result.status,
+    score: result.score,
+    reason: result.reason,
+    suggested_angle: result.suggested_angle,
+    decided_by: 'llm',
+    decided_at: new Date().toISOString(),
+  }, { onConflict: 'lead_id,icp_id' });
+  if (qualError) throw qualError;
+}
+
+// Fecha qualificações pendentes sem gastar LLM (pré-filtro, ou lead que não tem como
+// ser julgado). Sem isso a fila de um ICP novo nunca zeraria.
+async function resolvePendingQualifications(
+  client: ReturnType<typeof adminClient>,
+  leadIds: string[],
+  patch: { status: string; score: number | null; reason: string; decided_by: string },
+) {
+  let touched = 0;
+  for (const batch of chunk(leadIds.filter(Boolean), 100)) {
+    const { data, error } = await client.from('lead_qualifications')
+      .update({ ...patch, decided_at: new Date().toISOString() })
+      .in('lead_id', batch).eq('status', 'pending').select('id');
+    if (error) throw error;
+    touched += (data || []).length;
+  }
+  return touched;
+}
+
+// Comentário mais recente de cada lead + hook do post: entram no payload do agente
+// (motivo tipo "comentou em post sobre automação comercial" e ângulo de abordagem).
+async function fetchCommentContext(client: ReturnType<typeof adminClient>, leadIds: string[]) {
+  const commentByLead = new Map<string, { text: string | null; postId: string | null }>();
+  const hookByPost = new Map<string, string>();
+  if (!leadIds.length) return { commentByLead, hookByPost };
+  const { data: comments } = await client.from('lead_comments')
+    .select('lead_id, comment_text, post_id, created_at')
+    .in('lead_id', leadIds)
+    .order('created_at', { ascending: false });
+  for (const comment of comments || []) {
+    if (!commentByLead.has(comment.lead_id)) commentByLead.set(comment.lead_id, { text: comment.comment_text, postId: comment.post_id });
+  }
+  const postIds = [...new Set([...commentByLead.values()].map((c) => c.postId).filter(Boolean))] as string[];
+  if (postIds.length) {
+    const { data: posts } = await client.from('content_posts').select('id, hook').in('id', postIds);
+    for (const post of posts || []) hookByPost.set(post.id, post.hook || '');
+  }
+  return { commentByLead, hookByPost };
+}
+
+// Payload do agente montado só com o que JÁ está no banco — é o que permite
+// qualificar um lead antigo num ICP novo sem rodar actor nenhum. Mesmos campos da
+// fila (A), pra o veredito não depender de qual caminho trouxe o lead.
+function payloadFromStoredLead(
+  lead: Record<string, any>,
+  comment: { text: string | null; postId: string | null } | undefined,
+  hookByPost: Map<string, string>,
+) {
+  const profile = (lead.profile_raw || {}) as Record<string, any>;
+  const info = profile.basic_info || profile;
+  const companyRaw = (lead.company_raw || {}) as Record<string, any>;
+  const hasCompanyDetails = Object.keys(companyRaw).length > 0;
+  return {
+    name: lead.full_name,
+    headline: lead.headline,
+    current_title: lead.job_title,
+    about: String(pick(info, ['about', 'summary']) || '').slice(0, 600) || null,
+    currently_employed: Boolean(lead.company_name),
+    company_name: lead.company_name,
+    company_employee_count: lead.company_size,
+    company_industry: hasCompanyDetails ? pick(companyRaw, ['industry', 'industries']) : null,
+    company_description: hasCompanyDetails ? String(pick(companyRaw, ['description', 'tagline']) || '').slice(0, 400) || null : null,
+    location: lead.location,
+    comment_text: comment?.text ? String(comment.text).slice(0, 400) : null,
+    post_theme: comment?.postId ? hookByPost.get(comment.postId) || null : null,
+  };
 }
 
 Deno.serve(async (request) => {
@@ -378,9 +565,28 @@ Deno.serve(async (request) => {
       }, status === 'failed' ? 500 : 200);
     }
 
-    // Critérios do ICP editáveis pela UI (tabela singleton prospect_settings).
-    const { data: settings } = await client.from('prospect_settings').select('icp_rules').eq('id', true).maybeSingle();
-    const icpRules = settings?.icp_rules || null;
+    // Um ICP por prospecção: os critérios saem do ICP que cada qualificação
+    // pendente aponta (icp_profiles), não mais de um texto único global.
+    const { byId: icpById, defaultId: defaultIcpId } = await loadIcps(client);
+
+    // Qualificação pendente de lead que não tem como ser julgado: resolve sem gastar
+    // LLM, senão o "restam N" da tela nunca zera. 'skipped' é o pré-filtro júnior;
+    // 'error' é enriquecimento que falhou e não deixou dado de perfil pra julgar.
+    const UNQUALIFIABLE: Array<[string, { status: string; score: number | null; reason: string; decided_by: string }]> = [
+      ['skipped', { status: 'disqualified', score: 5, reason: 'Cargo júnior/estudante identificado no headline (pré-filtro, sem scrape)', decided_by: 'prefilter' }],
+      ['error', { status: 'disqualified', score: null, reason: 'Enriquecimento do perfil falhou — sem dados para julgar neste ICP (ver enrichment_error do lead)', decided_by: 'enrichment_error' }],
+    ];
+    let autoResolved = 0;
+    for (const [enrichmentStatus, patch] of UNQUALIFIABLE) {
+      const { data: blocked, error: blockedError } = await client.from('lead_qualifications')
+        .select('lead_id, lead:leads!inner(enrichment_status)')
+        .eq('status', 'pending').eq('lead.enrichment_status', enrichmentStatus).limit(500);
+      if (blockedError) {
+        console.warn(`Não foi possível resolver qualificações de leads '${enrichmentStatus}': ${errorMessage(blockedError)}`);
+        continue;
+      }
+      autoResolved += await resolvePendingQualifications(client, (blocked || []).map((row: any) => row.lead_id), patch);
+    }
 
     // Escopo opcional: quando o front filtra por um post, manda os leadIds daquele
     // post e a análise processa (e conta o "remaining") só esse subconjunto. Sem
@@ -396,6 +602,10 @@ Deno.serve(async (request) => {
     const leads = pending || [];
 
     // (1) Pré-filtro barato pelo headline que veio do scrape de comentários.
+    // O veredito escrito direto em `leads` aqui é só rede de segurança para lead
+    // legado sem nenhuma linha em lead_qualifications: o resolvePendingQualifications
+    // logo abaixo dispara o trigger do espelho, que sobrescreve isto com o melhor
+    // veredito entre os ICPs sempre que existir qualificação de verdade.
     const junior = leads.filter((lead) => isObviouslyJunior(lead.headline));
     for (const lead of junior) {
       await client.from('leads').update({
@@ -405,30 +615,34 @@ Deno.serve(async (request) => {
         score: 5,
       }).eq('id', lead.id);
     }
+    if (junior.length) {
+      await resolvePendingQualifications(client, junior.map((lead) => lead.id), {
+        status: 'disqualified',
+        score: 5,
+        reason: 'Cargo júnior/estudante identificado no headline (pré-filtro, sem scrape)',
+        decided_by: 'prefilter',
+      });
+    }
     const toEnrich = leads.filter((lead) => !junior.includes(lead) && lead.public_identifier);
     const noIdentifier = leads.filter((lead) => !junior.includes(lead) && !lead.public_identifier);
     for (const lead of noIdentifier) {
       await client.from('leads').update({ enrichment_status: 'error', enrichment_error: 'Lead sem public_identifier — impossível raspar profile' }).eq('id', lead.id);
     }
+    if (noIdentifier.length) {
+      await resolvePendingQualifications(client, noIdentifier.map((lead) => lead.id), {
+        status: 'disqualified',
+        score: null,
+        reason: 'Lead sem public_identifier — impossível raspar o perfil para julgar',
+        decided_by: 'enrichment_error',
+      });
+    }
+
+    // Quais ICPs esperam cada um destes leads. Um lead pode estar em mais de um.
+    const pendingIcps = await pendingIcpsByLead(client, toEnrich.map((lead) => lead.id));
 
     // O comentário e o tema do post entram no payload do agente (escopo: motivo tipo
     // "comentou em post sobre automação comercial" e ângulo de abordagem contextual).
-    const commentByLead = new Map<string, { text: string | null; postId: string | null }>();
-    const hookByPost = new Map<string, string>();
-    if (toEnrich.length) {
-      const { data: comments } = await client.from('lead_comments')
-        .select('lead_id, comment_text, post_id, created_at')
-        .in('lead_id', toEnrich.map((lead) => lead.id))
-        .order('created_at', { ascending: false });
-      for (const comment of comments || []) {
-        if (!commentByLead.has(comment.lead_id)) commentByLead.set(comment.lead_id, { text: comment.comment_text, postId: comment.post_id });
-      }
-      const postIds = [...new Set([...commentByLead.values()].map((c) => c.postId).filter(Boolean))] as string[];
-      if (postIds.length) {
-        const { data: posts } = await client.from('content_posts').select('id, hook').in('id', postIds);
-        for (const post of posts || []) hookByPost.set(post.id, post.hook || '');
-      }
-    }
+    const { commentByLead, hookByPost } = await fetchCommentContext(client, toEnrich.map((lead) => lead.id));
 
     // (2) Profile em lote (um run só, mesmo actor dos seguidores do collect-linkedin).
     const profileByIdentifier = new Map<string, Record<string, any>>();
@@ -518,32 +732,48 @@ Deno.serve(async (request) => {
           post_theme: leadComment?.postId ? hookByPost.get(leadComment.postId) || null : null,
         };
 
-        // Espaça as chamadas pro LLM se estiver usando o Gemini/fallback (free tier: ~10 req/min).
-        if (llmCalls > 0 && !hasPrincipal) await wait(6500);
-        llmCalls += 1;
-        const result = await qualifyLead(payload, deadlineAt, icpRules);
+        // O enriquecimento é gravado ANTES de qualificar: se o LLM bater no rate
+        // limit no meio, o que falta é só LLM e a fila (B) termina depois — reverter
+        // pra 'pending' aqui era o que fazia o lead ser raspado (e pago) duas vezes.
         const { error: updateError } = await client.from('leads').update({
           full_name: payload.name || lead.full_name,
           headline: payload.headline || lead.headline,
-          job_title: result.job_title || payload.current_title,
-          seniority: result.seniority,
-          area: result.area,
+          job_title: payload.current_title,
           company_name: payload.company_name,
           company_url: currentlyEmployed ? company.url : null,
           company_size: payload.company_employee_count,
           location: payload.location ? String(payload.location).slice(0, 200) : null,
-          qualification_status: result.status,
-          qualification_reason: result.reason,
-          score: result.score,
-          suggested_angle: result.suggested_angle,
           enrichment_status: 'enriched',
           enrichment_error: currentlyEmployed && !employeeCount ? 'Empresa não retornou porte no enriquecimento' : null,
           profile_raw: profile,
           company_raw: companyDetails || {},
         }).eq('id', lead.id);
         if (updateError) throw updateError;
+
+        // Uma chamada de LLM por ICP que espera este lead: o mesmo comentarista pode
+        // estar na fila do ICP comercial e na do Second Brain, com critérios
+        // diferentes e — de propósito — vereditos diferentes.
+        const targets = [...(pendingIcps.get(lead.id) || [])];
+        if (!targets.length && defaultIcpId) targets.push(defaultIcpId);
+        if (!targets.length) throw new Error('Nenhum ICP cadastrado para qualificar o lead');
+        let attributes: { job_title: string | null; seniority: string | null; area: string | null } | null = null;
+        for (const icpId of targets) {
+          // Espaça as chamadas pro LLM se estiver usando o Gemini/fallback (free tier: ~10 req/min).
+          if (llmCalls > 0 && !hasPrincipal) await wait(6500);
+          llmCalls += 1;
+          const result = await qualifyLead(payload, deadlineAt, icpById.get(icpId)?.icp_rules || null);
+          await persistQualification(client, lead.id, icpId, result);
+          // Cargo/área/senioridade normalizados pelo agente são atributos do LEAD,
+          // não do ICP: a última leitura serve pra todas as listas (e é o que a
+          // regra dura em SQL lê).
+          attributes = { job_title: result.job_title || payload.current_title, seniority: result.seniority, area: result.area };
+          if (result.qualified) qualified += 1;
+        }
+        if (attributes) {
+          const { error: attributesError } = await client.from('leads').update(attributes).eq('id', lead.id);
+          if (attributesError) throw attributesError;
+        }
         processed += 1;
-        if (result.qualified) qualified += 1;
         if (lead.first_seen_post_id) affectedPosts.add(lead.first_seen_post_id);
       } catch (leadError) {
         const message = errorMessage(leadError);
@@ -554,7 +784,9 @@ Deno.serve(async (request) => {
           rateLimited = true;
           lastRateLimitError = message;
           retryAfterSeconds = leadError instanceof RateLimitError ? leadError.retryAfterSeconds : GEMINI_RETRY_AFTER_SECONDS;
-          await client.from('leads').update({ enrichment_status: 'pending', enrichment_error: null }).eq('id', lead.id);
+          // Não volta pro 'pending' de enriquecimento: o profile/company já está
+          // gravado e as qualificações que faltam são só LLM — a fila (B) retoma no
+          // próximo lote sem pagar scrape de novo.
           break;
         }
         errors.push({ lead: lead.public_identifier || lead.id, error: message });
@@ -564,22 +796,81 @@ Deno.serve(async (request) => {
 
     // Posts dos leads pré-filtrados também precisam do recount.
     for (const lead of junior) if (lead.first_seen_post_id) affectedPosts.add(lead.first_seen_post_id);
+
+    // (5) Fila só-qualificação: lead JÁ enriquecido esperando o veredito de um ICP
+    // novo — quem já estava no banco quando o post foi prospectado com outro ICP.
+    // Nenhum actor roda aqui: o payload sai de profile_raw/company_raw. É o que faz
+    // "aprovado diferente por ICP" valer também pro público que repete comentário.
+    let requalified = 0;
+    const requalifyErrors: Array<{ lead: string; error: string }> = [];
+    if (!rateLimited && remainingMs(deadlineAt) > 50000) {
+      let pendingQualQuery = client.from('lead_qualifications')
+        .select('lead_id, icp_id, lead:leads!inner(id, full_name, headline, job_title, company_name, company_size, location, enrichment_status, first_seen_post_id, profile_raw, company_raw)')
+        .eq('status', 'pending')
+        .eq('lead.enrichment_status', 'enriched')
+        .order('created_at', { ascending: true })
+        .limit(limit);
+      if (leadIds) pendingQualQuery = pendingQualQuery.in('lead_id', leadIds);
+      const { data: pendingQuals, error: pendingQualError } = await pendingQualQuery;
+      if (pendingQualError) console.warn(`Fila de requalificação indisponível: ${errorMessage(pendingQualError)}`);
+      const requalifyRows = (pendingQuals || []) as any[];
+      const requalifyContext = await fetchCommentContext(client, [...new Set(requalifyRows.map((row) => row.lead_id))]);
+      for (const row of requalifyRows) {
+        if (remainingMs(deadlineAt) < 50000) break;
+        const storedLead = row.lead;
+        if (!storedLead) continue;
+        try {
+          if (llmCalls > 0 && !hasPrincipal) await wait(6500);
+          llmCalls += 1;
+          const payload = payloadFromStoredLead(storedLead, requalifyContext.commentByLead.get(row.lead_id), requalifyContext.hookByPost);
+          const result = await qualifyLead(payload, deadlineAt, icpById.get(row.icp_id)?.icp_rules || null);
+          await persistQualification(client, row.lead_id, row.icp_id, result);
+          requalified += 1;
+          if (result.qualified) qualified += 1;
+          if (storedLead.first_seen_post_id) affectedPosts.add(storedLead.first_seen_post_id);
+        } catch (qualError) {
+          const message = errorMessage(qualError);
+          console.error(`Erro na requalificação do lead ${row.lead_id}:`, qualError);
+          if (qualError instanceof RateLimitError || /\b429\b|\b50[03]\b|RESOURCE_EXHAUSTED|quota|rate|overloaded|unavailable/i.test(message)) {
+            rateLimited = true;
+            lastRateLimitError = message;
+            retryAfterSeconds = qualError instanceof RateLimitError ? qualError.retryAfterSeconds : GEMINI_RETRY_AFTER_SECONDS;
+            // A linha continua 'pending': o próximo lote pega de onde parou.
+            break;
+          }
+          requalifyErrors.push({ lead: row.lead_id, error: message });
+        }
+      }
+    }
+
     await refreshJobQualifiedCounts(client, [...affectedPosts]);
 
+    // "Restam N" agora conta VEREDITOS a produzir (cada linha pendente de
+    // lead_qualifications é uma chamada de LLM), não leads: o mesmo lead pode faltar
+    // em dois ICPs. O max com a fila de enriquecimento é rede de segurança — se
+    // algum lead ficar sem linha de qualificação, a fila não parece vazia à toa.
+    let pendingQualQueueQuery = client.from('lead_qualifications')
+      .select('id', { count: 'exact', head: true }).eq('status', 'pending');
+    if (leadIds) pendingQualQueueQuery = pendingQualQueueQuery.in('lead_id', leadIds);
+    const { count: pendingQualCount } = await pendingQualQueueQuery;
     let remainingQuery = client.from('leads')
       .select('id', { count: 'exact', head: true }).eq('enrichment_status', 'pending');
     if (leadIds) remainingQuery = remainingQuery.in('id', leadIds);
-    const { count: remainingCount } = await remainingQuery;
+    const { count: pendingEnrichCount } = await remainingQuery;
+    const remainingCount = Math.max(pendingQualCount ?? 0, pendingEnrichCount ?? 0);
 
-    const status = errors.length ? (processed ? 'partial' : 'failed') : 'success';
+    const allErrors = [...errors, ...requalifyErrors];
+    const status = allErrors.length ? (processed + requalified ? 'partial' : 'failed') : 'success';
     await finishRun(client, runId, {
       status,
-      items_processed: processed + junior.length,
-      error_message: errors.length ? `${errors.length} lead(s) falharam` : null,
+      items_processed: processed + junior.length + requalified,
+      error_message: allErrors.length ? `${allErrors.length} lead(s) falharam` : null,
       raw: {
-        errors,
+        errors: allErrors,
         prefiltered: junior.length,
         qualified,
+        requalified,
+        autoResolved,
         companyRecords: companyFetch.records.length,
         companyActorRuns: companyFetch.actorRuns,
         companyActorErrors: companyFetch.errors,
@@ -592,6 +883,8 @@ Deno.serve(async (request) => {
       processed,
       prefiltered: junior.length,
       qualified,
+      requalified,
+      autoResolved,
       rateLimited,
       rateLimitErrorReason: lastRateLimitError,
       retryAfterSeconds: rateLimited ? retryAfterSeconds : GEMINI_RETRY_AFTER_SECONDS,
@@ -600,8 +893,8 @@ Deno.serve(async (request) => {
       companyRecords: companyFetch.records.length,
       companyActorRuns: companyFetch.actorRuns,
       companyActorErrors: companyFetch.errors,
-      errors,
-      remaining: remainingCount ?? 0,
+      errors: allErrors,
+      remaining: remainingCount,
       ...(debugRaw ? { bdProfileSample, bdCompanySample: companyFetch.records[0] || null } : {}),
     });
   } catch (error) {

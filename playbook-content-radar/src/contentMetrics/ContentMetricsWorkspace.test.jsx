@@ -137,7 +137,8 @@ describe('ContentMetricsWorkspace', () => {
       ],
       leadOutreach: [{ lead_id: 'lead-sent', status: 'prospected' }],
       leadComments: [],
-      prospectSettings: null,
+      leadQualifications: [],
+      icpProfiles: [],
     }} />);
 
     const newLeadCheckbox = await screen.findByRole('checkbox', { name: 'Desmarcar Lead Novo para exportação' });
@@ -271,27 +272,35 @@ describe('ContentMetricsWorkspace', () => {
 // sobra coisa. Se a tela parasse na primeira resposta, o post das 36 Skills entraria
 // com 200 dos 4.373 comentários e ninguém notaria — o job fica "SUCESSO" na tabela.
 describe('Prospecção paginada', () => {
+  const icps = [
+    { id: 'icp-comercial', name: 'Playbook Lab — comercial 200+', is_default: true, active: true, hard_rules_enabled: true, min_company_size: 200, approved_areas: ['vendas'], blocked_areas: ['rh'], icp_rules: 'Cargo alto…' },
+    { id: 'icp-second-brain', name: 'Second Brain', is_default: false, active: true, hard_rules_enabled: false, min_company_size: null, approved_areas: [], blocked_areas: [], icp_rules: 'Quem constrói sistema pessoal…' },
+  ];
   const prospectingData = {
     ...data,
     prospecting: [],
+    icpProfiles: icps,
     linkedin: [{ ...data.linkedin[0], id: 'post-1' }],
   };
 
   function fakeClient(prospectResponses) {
     const calls = [];
+    const bodies = [];
     let index = 0;
     return {
       calls,
+      bodies,
       functions: {
-        invoke: async (name) => {
+        invoke: async (name, options) => {
           calls.push(name);
+          bodies.push({ name, body: options?.body || {} });
           if (name === 'prospect-post') {
             const data = prospectResponses[Math.min(index, prospectResponses.length - 1)];
             index += 1;
             return { data, error: null };
           }
           if (name === 'enrich-leads') {
-            return { data: { success: true, processed: 0, prefiltered: 0, qualified: 0, remaining: 0 }, error: null };
+            return { data: { success: true, processed: 0, prefiltered: 0, qualified: 0, requalified: 0, remaining: 0 }, error: null };
           }
           return { data: null, error: new Error(`function inesperada: ${name}`) };
         },
@@ -299,10 +308,42 @@ describe('Prospecção paginada', () => {
     };
   }
 
-  const clickProspectar = () => {
-    const button = screen.getAllByRole('button').find((node) => node.textContent.trim() === 'Prospectar');
+  // Prospectar tem duas etapas desde os ICPs múltiplos: o botão da tabela abre o
+  // diálogo "qual ICP usar" e a confirmação é que dispara a function.
+  const clickProspectar = (icpName) => {
+    const button = screen.getAllByRole('button').find((node) => node.textContent.trim().startsWith('Prospectar'));
     fireEvent.click(button);
+    if (icpName) {
+      const option = screen.getAllByRole('button').find((node) => node.textContent.includes(icpName));
+      fireEvent.click(option);
+    }
+    const confirm = screen.getByText('Prospectar com este ICP');
+    fireEvent.click(confirm);
   };
+
+  it('manda o ICP escolhido no diálogo para a function de prospecção', async () => {
+    const client = fakeClient([{ success: true, done: true, status: 'success', icpName: 'Second Brain', totalComments: 10, datasetTotal: 10, totalLeads: 10, opportunities: 4, queuedQualifications: 4 }]);
+    render(<ContentMetricsWorkspace client={client} initialData={prospectingData} mode="prospecting" />);
+
+    clickProspectar('Second Brain');
+
+    await waitFor(() => expect(client.calls).toContain('prospect-post'));
+    const call = client.bodies.find((entry) => entry.name === 'prospect-post');
+    expect(call.body.icpId).toBe('icp-second-brain');
+    expect(call.body.rescrape).toBeUndefined();
+  });
+
+  // Rodar outro ICP num post já raspado não pode chamar a Apify de novo: os
+  // comentários estão no banco e crédito de Apify é o recurso escasso.
+  it('não dispara análise quando o post já tinha veredito de todos no ICP escolhido', async () => {
+    const client = fakeClient([{ success: true, done: true, status: 'success', requalifyOnly: true, icpName: 'Second Brain', queuedQualifications: 0, leadsInPost: 12, totalComments: 12, totalLeads: 12, opportunities: 0 }]);
+    render(<ContentMetricsWorkspace client={client} initialData={prospectingData} mode="prospecting" />);
+
+    clickProspectar('Second Brain');
+
+    await waitFor(() => expect(screen.getByText(/já tinham veredito/)).toBeInTheDocument());
+    expect(client.calls).not.toContain('enrich-leads');
+  });
 
   it('continua chamando a function até done e só então dispara a análise ICP', async () => {
     const client = fakeClient([

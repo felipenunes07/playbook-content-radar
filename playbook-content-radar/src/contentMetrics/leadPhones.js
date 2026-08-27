@@ -8,17 +8,36 @@
 export const PHONE_STATUSES = {
   MATCHED: { label: 'Telefone encontrado', short: 'Encontrado', tone: 'ok' },
   MATCHED_NO_PHONE: { label: 'Aguardando telefone', short: 'Aguardando', tone: 'wait' },
+  // Herança: o matcher não produz mais REVIEW (o caso difuso se resolve sozinho desde
+  // 27/08/2026), mas linhas antigas carregam o status até o próximo sync reprocessá-las.
   REVIEW: { label: 'Revisar match', short: 'Revisar', tone: 'review' },
   NOT_FOUND: { label: 'Não encontrado no Tally', short: 'Não encontrado', tone: 'none' },
   NOT_PROCESSED: { label: 'Ainda não processado', short: 'Não processado', tone: 'none' },
 };
 
+/** Match que o robô decidiu sozinho, sem passar por humano. Serve para a tela marcar
+ *  o número como "confira antes de mandar" e para o filtro de auditoria — sem isso o
+ *  fim da fila de revisão viraria uma caixa-preta. */
+export function isAutoMatch(row) {
+  return String(row?.match_method || '').startsWith('auto:');
+}
+
+/** Só os automáticos que realmente entregaram telefone. É a lista curta que vale a
+ *  pena conferir de vez em quando: o resto dos automáticos não anexou número nenhum,
+ *  então não tem como estar "errado" de um jeito que custe alguma coisa. */
+export function isAutoMatchToAudit(row) {
+  return isAutoMatch(row) && phoneStatusOf(row) === 'MATCHED';
+}
+
 export const PHONE_FILTERS = [
   { id: 'todos', label: 'Todos', status: null },
   { id: 'matched', label: 'Telefone encontrado', status: 'MATCHED' },
   { id: 'aguardando', label: 'Aguardando telefone', status: 'MATCHED_NO_PHONE' },
-  { id: 'revisar', label: 'Revisar', status: 'REVIEW' },
   { id: 'nao_encontrado', label: 'Não encontrado', status: 'NOT_FOUND' },
+  // Auditoria opcional, não fila: nada trava esperando decisão aqui.
+  { id: 'auto', label: 'Decidido automático', status: null, predicate: isAutoMatchToAudit },
+  // Só aparece enquanto sobrar linha antiga em REVIEW.
+  { id: 'revisar', label: 'Revisar (antigos)', status: 'REVIEW', legacy: true },
 ];
 
 export function phoneStatusOf(row) {
@@ -77,7 +96,11 @@ export function indexPhonesByLead(rows = []) {
 
 export function matchesPhoneFilter(row, filterId) {
   const filter = PHONE_FILTERS.find((item) => item.id === filterId);
-  if (!filter || !filter.status) return true;
+  if (!filter) return true;
+  // Filtro por predicado (o de auditoria dos automáticos) atravessa status: um match
+  // decidido sozinho é MATCHED, então não dá para separá-lo só pelo status.
+  if (filter.predicate) return filter.predicate(row);
+  if (!filter.status) return true;
   return phoneStatusOf(row) === filter.status;
 }
 
@@ -86,8 +109,11 @@ export function countByPhoneFilter(rows = []) {
   for (const row of rows) {
     counts.todos += 1;
     const status = phoneStatusOf(row);
-    const filter = PHONE_FILTERS.find((item) => item.status === status);
-    if (filter) counts[filter.id] += 1;
+    for (const filter of PHONE_FILTERS) {
+      if (filter.id === 'todos') continue;
+      if (filter.predicate) { if (filter.predicate(row)) counts[filter.id] += 1; continue; }
+      if (filter.status === status) counts[filter.id] += 1;
+    }
   }
   return counts;
 }
@@ -123,13 +149,29 @@ export function evidenceLabel(evidence) {
 }
 
 const METHOD_REASONS = {
+  // Legado: métodos que existiam quando o caso difuso virava fila humana.
   nome_exato_generico: 'Nome bate por completo, mas tem só 2 palavras — nomes assim colidem com frequência.',
   nome_exato_ambiguo: 'Mais de uma pessoa no Tally tem exatamente este nome.',
   nome_exato_multiplos_candidatos: 'Nome exato, porém há mais de um candidato possível.',
   nome_parcial: 'Só o primeiro e o último nome coincidem — há nome do meio de diferença.',
   nome_parcial_ambiguo: 'Coincidência parcial de nome e mais de um candidato.',
+  // Decididos sem humano desde 27/08/2026.
+  'auto:unico_com_telefone': 'Nome bate por completo e só uma pessoa com este nome deixou telefone — vinculado automaticamente.',
+  'auto:sem_telefone_na_base': 'A pessoa aparece nas nossas submissions, mas nenhuma delas tem telefone. Não havia o que decidir.',
+  'auto:nome_curto_demais': 'O nome do lead tem uma palavra útil só — não dá para identificar ninguém com segurança.',
+  'auto:descartado_empate': 'Dois candidatos empatados em evidência, com telefones diferentes. Descartado para não mandar mensagem para a pessoa errada.',
+  'auto:descartado_homonimos': 'Vários homônimos no Tally e nenhuma evidência independente para escolher entre eles.',
+  'auto:descartado_nome_parcial': 'Só o primeiro e o último nome coincidem, sem nenhuma evidência independente.',
 };
 
 export function reviewReason(row) {
-  return METHOD_REASONS[row?.match_method] || 'Confiança insuficiente para vincular automaticamente.';
+  const method = String(row?.match_method || '');
+  if (METHOD_REASONS[method]) return METHOD_REASONS[method];
+  // As variantes de evidência forte carregam qual evidência decidiu no próprio nome
+  // (auto:evidencia_forte:form_do_post+dominio_empresa).
+  if (method.startsWith('auto:evidencia_forte:')) {
+    const evidencias = method.slice('auto:evidencia_forte:'.length).split('+').map(evidenceLabel);
+    return `Vinculado automaticamente: ${evidencias.join(' e ')}.`;
+  }
+  return 'Confiança insuficiente para vincular automaticamente.';
 }

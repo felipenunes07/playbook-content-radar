@@ -5,8 +5,8 @@
 // e sai intocado.
 //
 // A regra que manda: falso positivo é muito pior que não achar. Nome sozinho só
-// decide quando é específico o bastante (>=3 tokens) E o candidato é único; nos
-// outros casos exige uma segunda evidência independente, ou cai em REVIEW.
+// decide quando é específico o bastante E o candidato é único; nos outros casos
+// exige uma segunda evidência independente.
 //
 // Evidências independentes do nome:
 //   - form_do_post: a submission é do formulário mapeado para o post em que o lead
@@ -14,6 +14,27 @@
 //   - dominio_empresa: e-mail corporativo cujo domínio casa com company_name/url.
 // Sinal fraco (só desempata, nunca promove):
 //   - apos_comentario: submission depois do comentário.
+//
+// SEM FILA DE REVISÃO desde 27/08/2026 (pedido do Felipe: "ninguém está revisando").
+// Antes, todo caso difuso virava REVIEW e esperava decisão humana. Medido no banco em
+// 27/08: 119 leads em REVIEW — e só 11 deles tinham candidato COM telefone. Ou seja,
+// 108 das 119 revisões pendentes não podiam render telefone nenhum, decidisse o que
+// decidisse. A fila era quase toda trabalho sem prêmio, e por isso ninguém mexia.
+//
+// O que destrava isso é notar onde mora o risco: o único estrago que um match errado
+// faz é grudar o TELEFONE de outra pessoa no lead. Onde não há telefone em jogo, não
+// há falso positivo possível — e não há por que perguntar a um humano. Então:
+//
+//   1. Nenhum candidato tem telefone  → resolve sozinho, sem telefone. Risco zero.
+//   2. Tem telefone e um vencedor claro → resolve sozinho como MATCHED.
+//   3. Tem telefone e está ambíguo de verdade → DESCARTA (NOT_FOUND, sem telefone),
+//      em vez de virar fila. needsReprocessing() devolve esses leads ao matcher a
+//      cada sync, então "descartado" não é definitivo: submission nova com evidência
+//      melhor reabre o caso automaticamente.
+//
+// A regra de ouro anterior continua de pé: telefone só é anexado quando a decisão é
+// MATCHED, e ambiguidade real nunca vira MATCHED. O que mudou é que o caso ambíguo
+// morre em NOT_FOUND em vez de virar tarefa para alguém.
 
 import { emailMatchesCompany, fullNameKey, firstLastKey, nameSpecificity } from './person.ts';
 import type { TallySubmission } from './tallySource.ts';
@@ -68,10 +89,25 @@ const CONFIDENCE = {
   nameAndPostForm: 0.96,
   nameAndCompany: 0.94,
   specificNameUnique: 0.85,
-  reviewGenericName: 0.6,
-  reviewPartialName: 0.45,
-  reviewAmbiguous: 0.3,
+  // Decididos sozinhos com telefone em jogo. Confiança menor de propósito: o número
+  // é usável, mas a tela marca como "match automático" e deixa corrigir.
+  autoStrongEvidence: 0.8,
+  autoUniquePhone: 0.65,
+  // Resolvidos sem telefone: identidade provável, nada a perder se estiver errada.
+  autoNoPhoneAvailable: 0.5,
+  // Descartes. Não são "não existe" — são "não dá para afirmar sem risco".
+  autoDiscardedAmbiguous: 0.2,
 };
+
+/** Nome com menos de 2 tokens úteis não identifica ninguém: "Rafael F." vira só
+ *  ["rafael"] e casa com meia dúzia de Rafaéis diferentes. Caso real medido em 27/08:
+ *  um lead assim tinha 6 candidatos ("RAFAEL JUNIOR", "Rafael Filho", "rafael s"…),
+ *  um deles com telefone. Aceitar seria mandar WhatsApp para um estranho. */
+const MIN_TOKENS_PARA_DECIDIR = 2;
+
+/** Acima disso, nome exato repetido é colisão de nome comum, não a mesma pessoa
+ *  cadastrada várias vezes. Só evidência forte decide num pool desse tamanho. */
+const MAX_CANDIDATOS_SEM_EVIDENCIA_FORTE = 3;
 
 /** Uma pessoa = um e-mail. Medido no CSV: respondent_id não é confiável (o mesmo
  *  respondent trouxe "joao marcos" e "q q"), e-mail é. Sem e-mail, cai no nome. */
@@ -212,8 +248,10 @@ export function matchLeadToSubmissions(lead: LeadForMatch, index: SubmissionInde
   // Empate no topo com evidência forte igual = ambíguo de verdade.
   const tied = candidates.length > 1 && candidates[1].score === top.score;
 
-  const chosen = { person: people.get(top.personKey)!, anchor: top };
+  const pickOf = (candidate: MatchCandidate) => ({ person: people.get(candidate.personKey)!, anchor: candidate });
+  const chosen = pickOf(top);
 
+  // Os três caminhos de sempre: nome exato, único, com corroboração independente.
   if (nameKind === 'exato' && unique && topStrong.includes('form_do_post')) {
     return resultFrom(lead, 'MATCHED', 'nome_exato+form_do_post', CONFIDENCE.nameAndPostForm,
       top.evidence, candidates, chosen);
@@ -227,22 +265,60 @@ export function matchLeadToSubmissions(lead: LeadForMatch, index: SubmissionInde
     return resultFrom(lead, 'MATCHED', 'nome_exato_especifico', CONFIDENCE.specificNameUnique,
       top.evidence, candidates, chosen);
   }
-  // Nome de 2 tokens sem corroboração: "joao silva" colide, não promove.
-  if (nameKind === 'exato' && unique) {
-    return resultFrom(lead, 'REVIEW', 'nome_exato_generico', CONFIDENCE.reviewGenericName,
-      top.evidence, candidates, chosen);
+
+  // Daqui para baixo era tudo REVIEW. Agora decide sozinho — ver o cabeçalho.
+  //
+  // O que separa "vale decidir" de "não vale" é TELEFONE: sem número em jogo, o
+  // veredito não tem consequência nenhuma no fluxo (a tela só usa o match para
+  // mostrar/exportar o telefone).
+  const comTelefone = candidates.filter((candidate) => candidate.phoneE164);
+
+  // (1) Nenhum candidato tem telefone: não existe estrago possível. Registra a
+  // identidade provável quando o nome bate exato e é único — é informação honesta e
+  // deixa a linha legível na tela — e não afirma nada nos outros casos.
+  if (!comTelefone.length) {
+    if (nameKind === 'exato' && unique && specificity >= MIN_TOKENS_PARA_DECIDIR) {
+      return resultFrom(lead, 'MATCHED', 'auto:sem_telefone_na_base', CONFIDENCE.autoNoPhoneAvailable,
+        top.evidence, candidates, chosen);
+    }
+    return resultFrom(lead, 'NOT_FOUND', 'auto:sem_telefone_na_base', CONFIDENCE.autoNoPhoneAvailable,
+      top.evidence, candidates, null);
   }
-  if (nameKind === 'exato' && !tied && topStrong.length) {
-    return resultFrom(lead, 'REVIEW', 'nome_exato_multiplos_candidatos', CONFIDENCE.reviewGenericName,
-      top.evidence, candidates, chosen);
+
+  // Nome curto demais para identificar alguém: descarta sem olhar o resto.
+  if (specificity < MIN_TOKENS_PARA_DECIDIR) {
+    return resultFrom(lead, 'NOT_FOUND', 'auto:nome_curto_demais', CONFIDENCE.autoDiscardedAmbiguous,
+      top.evidence, candidates, null);
   }
-  if (nameKind === 'exato') {
-    return resultFrom(lead, 'REVIEW', 'nome_exato_ambiguo', CONFIDENCE.reviewAmbiguous,
-      top.evidence, candidates, chosen);
+
+  // (2a) Um único candidato COM telefone carrega evidência forte, e nenhum outro
+  // candidato com telefone disputa. É o vencedor claro: o formulário do post ou o
+  // domínio corporativo já é a segunda evidência que a regra sempre exigiu.
+  const fortesComTelefone = comTelefone.filter((candidate) => candidate.evidence.some((item) => STRONG.has(item)));
+  if (fortesComTelefone.length === 1) {
+    const vencedor = fortesComTelefone[0];
+    return resultFrom(lead, 'MATCHED', `auto:evidencia_forte:${vencedor.evidence.filter((item) => STRONG.has(item)).join('+')}`,
+      CONFIDENCE.autoStrongEvidence, vencedor.evidence, candidates, pickOf(vencedor));
   }
-  return resultFrom(lead, 'REVIEW', unique ? 'nome_parcial' : 'nome_parcial_ambiguo',
-    unique ? CONFIDENCE.reviewPartialName : CONFIDENCE.reviewAmbiguous,
-    top.evidence, candidates, chosen);
+
+  // (2b) Sem evidência forte: aceita quando existe UM só candidato com telefone e o
+  // nome bateu exato num pool pequeno. Pool grande com nome exato repetido é colisão
+  // de nome comum (os seis "Rafael"), não a mesma pessoa — aí não decide.
+  if (comTelefone.length === 1 && nameKind === 'exato'
+      && candidates.length <= MAX_CANDIDATOS_SEM_EVIDENCIA_FORTE) {
+    const vencedor = comTelefone[0];
+    return resultFrom(lead, 'MATCHED', 'auto:unico_com_telefone', CONFIDENCE.autoUniquePhone,
+      vencedor.evidence, candidates, pickOf(vencedor));
+  }
+
+  // (3) Ambíguo com telefone em jogo: DESCARTA. Dois homônimos com telefones
+  // diferentes é exatamente o caso em que chutar manda mensagem para a pessoa errada.
+  // Não é definitivo: needsReprocessing() traz o lead de volta no próximo sync.
+  const motivo = tied ? 'auto:descartado_empate'
+    : nameKind === 'exato' ? 'auto:descartado_homonimos'
+    : 'auto:descartado_nome_parcial';
+  return resultFrom(lead, 'NOT_FOUND', motivo, CONFIDENCE.autoDiscardedAmbiguous,
+    top.evidence, candidates, null);
 }
 
 export function matchLeads(leads: LeadForMatch[], submissions: TallySubmission[]) {

@@ -15,7 +15,8 @@ const empty = {
   tallyStats: { total: 0, comTelefone: 0, ultimaSync: null },
   leadOutreach: [],
   leadComments: [],
-  prospectSettings: null,
+  leadQualifications: [],
+  icpProfiles: [],
   goals: [],
   bookings: [],
 };
@@ -38,6 +39,9 @@ const LEAD_COLUMNS = [
   'seniority',
   'enrichment_status',
   'qualification_status',
+  // ICP dono do veredito espelhado: sem ele a lista não sabe dizer de qual ICP é o
+  // 'aprovado' que está mostrando.
+  'qualification_icp_id',
   'qualification_reason',
   'suggested_angle',
   'created_at',
@@ -126,6 +130,8 @@ function queryPlan(supabase, mode) {
     add('bookings', supabase.from('lead_magnet_bookings').select('booking_uid, lead_magnet, lead_name, lead_email, status, trigger_event, start_time, created_at, utm_source, utm_campaign'));
   } else if (mode === 'prospecting') {
     add('prospecting', supabase.from('v_post_prospecting_stats').select('*'));
+    // Os ICPs alimentam o diálogo do botão Prospectar ("qual ICP usar neste post?").
+    add('icpProfiles', supabase.from('icp_profiles').select('*').order('name'));
   } else if (mode === 'leads') {
     // As quatro paginadas: um único post viral já coloca ~2.200 linhas em `leads` e
     // ~2.300 em `lead_comments`, bem acima do teto de 1.000 do PostgREST.
@@ -134,7 +140,9 @@ function queryPlan(supabase, mode) {
     // created_at — por isso o desempate pelo id.
     addPaginated('leads', () => supabase.from('leads').select(LEAD_COLUMNS)
       .order('created_at', { ascending: false }).order('id'));
-    addPaginated('leadOutreach', () => supabase.from('lead_outreach').select('lead_id, status, generated_message').order('lead_id'));
+    // message_icp_id: lead_outreach é unique por lead, então a mensagem guardada pode
+    // ter sido escrita para o outro ICP. A tela usa isto para avisar antes de copiar.
+    addPaginated('leadOutreach', () => supabase.from('lead_outreach').select('lead_id, status, generated_message, message_icp_id').order('lead_id'));
     addPaginated('leadComments', () => supabase.from('lead_comments').select('lead_id, post_id, comment_text, commented_at, created_at')
       .order('lead_id').order('post_id'));
     // Telefone vindo da Base Tally. A view já filtra por qualification_status =
@@ -147,7 +155,12 @@ function queryPlan(supabase, mode) {
     add('tallyLatest', supabase.from('tally_submissions').select('imported_at').order('imported_at', { ascending: false }).limit(1));
     add('tallyTotal', supabase.from('tally_submissions').select('submission_id', { count: 'exact', head: true }));
     add('tallyPhones', supabase.from('tally_submissions').select('submission_id', { count: 'exact', head: true }).not('phone_e164', 'is', null).eq('is_junk', false));
-    add('prospectSettings', supabase.from('prospect_settings').select('icp_rules, message_template'));
+    // Veredito por ICP: o filtro de ICP da tela troca status/score/motivo por estes.
+    // Paginado pelo mesmo motivo das outras — são até um registro por lead por ICP.
+    addPaginated('leadQualifications', () => supabase.from('lead_qualifications')
+      .select('lead_id, icp_id, status, score, reason, suggested_angle, decided_by')
+      .order('lead_id').order('icp_id'));
+    add('icpProfiles', supabase.from('icp_profiles').select('*').order('name'));
   } else if (mode === 'goals') {
     add('accounts', supabase.from('content_accounts').select('*'));
     add('accountMetrics', supabase.from('account_daily_metrics').select('*'));
@@ -189,13 +202,14 @@ async function fetchContentMetrics({ supabase, fallback, mode }) {
       leads: (results.leads?.data || []).slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))),
       leadOutreach: results.leadOutreach?.data || [],
       leadComments: results.leadComments?.data || [],
+      leadQualifications: results.leadQualifications?.data || [],
+      icpProfiles: results.icpProfiles?.data || [],
       leadPhones: results.leadPhones?.data || [],
       tallyStats: {
         total: results.tallyTotal?.count ?? 0,
         comTelefone: results.tallyPhones?.count ?? 0,
         ultimaSync: results.tallyLatest?.data?.[0]?.imported_at || null,
       },
-      prospectSettings: results.prospectSettings?.data?.[0] || null,
       goals: results.goals?.data || [],
       bookings: (results.bookings?.data || []).slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))),
       freshness: latestDate(linkedin),

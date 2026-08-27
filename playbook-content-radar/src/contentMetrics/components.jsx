@@ -327,8 +327,13 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
                               type="button"
                               className={`cm-prospect-btn${isProspected(row.id) ? ' completed' : ''}`}
                               aria-label={`Prospectar comentaristas de ${row.hook || 'post'}`}
-                              title={isProspected(row.id) ? "Post já prospectado" : "Raspar comentários e cruzar com o banco de leads"}
-                              disabled={isRunning(row.id) || isProspected(row.id)}
+                              // Post já prospectado continua clicável: é assim que se roda um ICP
+                              // diferente nos mesmos comentaristas. Os comentários já estão no banco,
+                              // então essa segunda passada não gasta crédito da Apify.
+                              title={isProspected(row.id)
+                                ? 'Já prospectado — clique para qualificar os mesmos comentaristas em outro ICP (sem gastar Apify)'
+                                : 'Escolher o ICP, raspar comentários e cruzar com o banco de leads'}
+                              disabled={isRunning(row.id)}
                               onClick={() => onProspect(row)}
                             >
                               {isRunning(row.id) ? (
@@ -338,7 +343,7 @@ export function OperationalPostsTable({ rows, onAction, prospecting = {}, runnin
                               ) : (
                                 <Play size={13} />
                               )}
-                              {isRunning(row.id) ? 'Rodando…' : isProspected(row.id) ? 'Prospectado' : 'Prospectar'}
+                              {isRunning(row.id) ? 'Rodando…' : isProspected(row.id) ? 'Prospectado · outro ICP' : 'Prospectar'}
                             </button>
                           )}
                           {linkedinPostUrl(row) && (

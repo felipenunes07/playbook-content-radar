@@ -1,6 +1,6 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { collectorDeadline, remainingMs, runActor } from '../_shared/apify.ts';
-import { errorMessage, parseApifyInput } from '../_shared/content.ts';
+import { ctaKeyword, errorMessage, parseApifyInput } from '../_shared/content.ts';
 import { adminClient, corsHeaders, finishRun, json, startRun } from '../_shared/server.ts';
 
 const integer = (value: unknown) => {
@@ -32,17 +32,6 @@ function detectInstagramFormat(item: Record<string, any>): string {
 
 function hook(content: unknown) {
   return String(content || '').split(/\r?\n/).map((line: string) => line.trim()).find(Boolean)?.slice(0, 240) || '';
-}
-
-function cta(content: unknown) {
-  const text = String(content || '');
-  const quoted = text.match(/\bcoment(?:a|e)\s+["'"']\s*([\p{L}\p{N}_-]+)\s*["'"']/iu);
-  const unquoted = text.match(/\bcoment(?:a|e)\s+([\p{L}\p{N}_-]+)/iu)?.[1];
-  const uppercase = unquoted && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9][A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9_-]{0,29}$/u.test(unquoted) ? unquoted : null;
-  const rawKeyword = quoted?.[1] || uppercase;
-  if (!rawKeyword) return null;
-  const keyword = rawKeyword.replace(/["'""''.,!?;:]+$/g, '').toUpperCase();
-  return ['AQUI', 'ABAIXO', 'AGORA', 'ISSO'].includes(keyword) ? null : keyword;
 }
 
 // Parse an Instagram timestamp defensively. Accepts epoch seconds/millis (number or
@@ -83,7 +72,7 @@ function normalizeInstagramPost(item: Record<string, any>, metricDate: string) {
       caption,
       hook: hook(caption),
       format,
-      cta_keyword: cta(caption),
+      cta_keyword: ctaKeyword(caption),
       is_repost: false,
       media_url: firstValue(item, ['displayUrl', 'imageUrl', 'thumbnailUrl', 'videoUrl']) as string | null,
       media_type: format === 'reel' || format === 'video' ? 'video' : format,

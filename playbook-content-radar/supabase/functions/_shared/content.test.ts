@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   chunk,
+  ctaKeyword,
   normalizeApifyPost,
   normalizeApifyYouTubeVideo,
   normalizeYouTubeVideo,
@@ -60,6 +61,59 @@ describe('parsePublicYouTubeChannelStats', () => {
     const html = '<script>{"metadataParts":[{"text":{"content":"2 inscritos"}},{"text":{"content":"3 videos"}}]}</script>';
 
     expect(parsePublicYouTubeChannelStats(html)).toEqual({ subscribers: 2, totalVideos: 3 });
+  });
+});
+
+describe('ctaKeyword', () => {
+  // O Instagram tinha uma cópia desta função e as aspas tipográficas se perderam
+  // lá (`["'“‘]` virou `["'"']`), então CTA com aspas curvas — o padrão do teclado
+  // de celular — não era detectado. Agora os dois coletores usam esta função.
+  it('detecta CTA com aspas curvas, retas e simples', () => {
+    expect(ctaKeyword('Comenta “MAPS” que eu mando o material')).toBe('MAPS');
+    expect(ctaKeyword('Comenta ‘MAPS’ que eu mando o material')).toBe('MAPS');
+    expect(ctaKeyword('Comenta "MAPS" que eu mando o material')).toBe('MAPS');
+    expect(ctaKeyword("Comenta 'MAPS' que eu mando o material")).toBe('MAPS');
+  });
+
+  it('aceita a forma sem aspas quando a palavra está em CAIXA ALTA', () => {
+    expect(ctaKeyword('Comente AGENTES para receber o guia')).toBe('AGENTES');
+    expect(ctaKeyword('Comenta SDR que eu te mando')).toBe('SDR');
+  });
+
+  it('normaliza para caixa alta e remove pontuação colada', () => {
+    expect(ctaKeyword('Comenta “mcp”.')).toBe('MCP');
+    expect(ctaKeyword('Comenta “guia”!')).toBe('GUIA');
+  });
+
+  it('ignora palavras genéricas que não são keyword de CTA', () => {
+    for (const generic of ['Comenta AQUI', 'Comenta ABAIXO', 'Comenta AGORA', 'Comenta ISSO']) {
+      expect(ctaKeyword(generic), generic).toBeNull();
+    }
+  });
+
+  it('devolve null quando não há CTA', () => {
+    expect(ctaKeyword('Post sem chamada para comentário')).toBeNull();
+    expect(ctaKeyword('')).toBeNull();
+    expect(ctaKeyword(null)).toBeNull();
+    expect(ctaKeyword(undefined)).toBeNull();
+  });
+
+  it('não confunde texto minúsculo solto com keyword', () => {
+    expect(ctaKeyword('comenta aqui embaixo o que achou')).toBeNull();
+  });
+});
+
+describe('mensagens de erro do YouTube', () => {
+  // Estavam gravadas em mojibake ("NÃ£o foi possÃ­vel..."), o que escondia a causa
+  // real no log quando o parser do HTML público quebrava.
+  it('parsePublicYouTubeChannelStats falha com acentuação correta', () => {
+    expect(() => parsePublicYouTubeChannelStats('<html>sem inscritos</html>'))
+      .toThrow('Não foi possível ler inscritos do canal no HTML público do YouTube');
+  });
+
+  it('youtubeRefreshSince falha com acentuação correta em data inválida', () => {
+    expect(() => youtubeRefreshSince(new Date('data-que-nao-existe'), 30))
+      .toThrow('Data de referência do YouTube inválida');
   });
 });
 

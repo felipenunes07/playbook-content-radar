@@ -8,6 +8,19 @@ import { adminClient, corsHeaders, json } from '../_shared/server.ts';
 // NÃO enriquece nem qualifica ainda (isso é a Fase 2, enrich-leads). Disparado pelo
 // botão "Prospectar" da tabela de posts (modo manual) ou pelo cron/botão geral
 // futuro (com x-collector-secret), igual ao collect-instagram.
+//
+// ICPs ESCOLHIDOS NA CHAMADA desde 27/08/2026: o body traz { icpIds: [...] } (o
+// diálogo do botão Prospectar deixa marcar mais de um) e cada comentarista ganha uma
+// qualificação PENDENTE para CADA ICP marcado — inclusive quem já estava no banco,
+// porque o veredito agora é por (lead, ICP) e não por lead. Um clique em Prospectar
+// julga o post pelos dois públicos. Sem icpIds, aceita { icpId } avulso (cron e
+// chamadas antigas) e, sem nada, usa o ICP default. Um job retomado mantém os ICPs
+// com que começou.
+//
+// Post já raspado + ICP diferente = REQUALIFICAÇÃO, sem Apify: os comentários já
+// estão em lead_comments, então só enfileiramos as qualificações do ICP novo. Rodar
+// o actor de novo custaria crédito da Apify (o recurso escasso aqui) para trazer o
+// mesmo dataset. Quem quiser comentários novos manda { rescrape: true }.
 // Ver docs/superpowers/plans/2026-07-04-warm-prospecting-from-commenters.md
 //
 // PAGINADO desde 17/08/2026: um post viral não cabe numa invocação. O post das 36
@@ -104,6 +117,7 @@ async function persistPage(
   postId: string,
   items: Record<string, any>[],
   ownHandles: Set<string>,
+  icpIds: string[],
 ) {
   const byIdentifier = new Map<string, ReturnType<typeof normalizeComment> & { raw?: Record<string, unknown> }>();
   let skipped = 0;
@@ -177,7 +191,102 @@ async function persistPage(
     if (commentError) throw commentError;
   }
 
-  return skipped;
+  const queued = await queueQualifications(
+    client,
+    (commentRows as Array<{ lead_id: string }>).map((row) => row.lead_id),
+    icpIds,
+  );
+
+  return { skipped, queued };
+}
+
+// Enfileira a qualificação destes leads em CADA ICP escolhido. ignoreDuplicates
+// (ON CONFLICT DO NOTHING) é o coração da dedupe nova: quem já tem veredito num ICP
+// não volta pra fila do LLM daquele ICP, mas entra na fila dos outros — é o que faz o
+// mesmo comentarista poder ser rejeitado no ICP comercial e aprovado no do Second
+// Brain, inclusive quem já estava no banco antes do segundo ICP existir.
+async function queueQualifications(
+  client: ReturnType<typeof adminClient>,
+  leadIds: string[],
+  icpIds: string[],
+): Promise<number> {
+  const unique = [...new Set(leadIds.filter(Boolean))];
+  if (!unique.length || !icpIds.length) return 0;
+  let queued = 0;
+  // Lote por (lead × ICP): com 2 ICPs, 500 leads viram 1.000 linhas, ainda dentro do
+  // que o PostgREST aceita num insert.
+  for (const batch of chunk(unique, 400)) {
+    const rows = batch.flatMap((leadId) => icpIds.map((icpId) => ({ lead_id: leadId, icp_id: icpId, status: 'pending' })));
+    const { data, error } = await client.from('lead_qualifications')
+      .upsert(rows, { onConflict: 'lead_id,icp_id', ignoreDuplicates: true })
+      .select('id');
+    if (error) throw error;
+    queued += (data || []).length;
+  }
+  return queued;
+}
+
+type Icp = { id: string; name: string };
+
+// ICPs da prospecção, na ordem: os do job que está sendo retomado (trocar de ICP no
+// meio da ingestão deixaria metade dos comentaristas em cada fila) > os escolhidos no
+// diálogo > o default. Os nomes vão junto pra mensagem da tela não precisar de outra
+// query.
+//
+// Vários de uma vez desde 27/08/2026: o pedido é "clicar em Prospectar e a IA tentar
+// bater com os dois ICPs". Quem manda um só (cron, chamada antiga com `icpId`)
+// continua funcionando igual.
+async function resolveIcps(
+  client: ReturnType<typeof adminClient>,
+  requestedIds: string[],
+): Promise<Icp[]> {
+  if (requestedIds.length) {
+    const { data, error } = await client.from('icp_profiles')
+      .select('id, name, active').in('id', requestedIds);
+    if (error) throw error;
+    const found = data || [];
+    const faltando = requestedIds.filter((id) => !found.some((icp) => icp.id === id));
+    if (faltando.length) throw new Error('ICP escolhido não existe mais — recarregue a página e escolha de novo');
+    const desativado = found.find((icp) => icp.active === false);
+    if (desativado) throw new Error(`O ICP "${desativado.name}" está desativado`);
+    // Preserva a ordem em que a tela mandou: o primeiro é o que nomeia o job.
+    return requestedIds.map((id) => {
+      const icp = found.find((item) => item.id === id)!;
+      return { id: icp.id, name: icp.name };
+    });
+  }
+  const { data: fallback, error: fallbackError } = await client.from('icp_profiles')
+    .select('id, name').eq('is_default', true).maybeSingle();
+  if (fallbackError) throw fallbackError;
+  if (!fallback) throw new Error('Nenhum ICP cadastrado — crie um em "Gerenciar ICPs" antes de prospectar');
+  return [{ id: fallback.id, name: fallback.name }];
+}
+
+// Lê os ICPs pedidos do body aceitando as duas formas: `icpIds: []` (a tela nova) e
+// `icpId: '...'` (cron e chamadas antigas). Antes, um array em `icpId` era ignorado
+// em silêncio e os leads iam parar no ICP default sem nenhum sintoma.
+function requestedIcpIds(body: Record<string, any> | null): string[] {
+  const bruto = Array.isArray(body?.icpIds) ? body!.icpIds : [body?.icpId];
+  const ids = bruto
+    .filter((value: unknown) => typeof value === 'string' && value.trim())
+    .map((value: string) => value.trim());
+  return [...new Set(ids)];
+}
+
+// Todos os leads que comentaram no post, em páginas: o teto do PostgREST é 1.000
+// linhas e um post viral tem milhares.
+async function leadIdsOfPost(client: ReturnType<typeof adminClient>, postId: string): Promise<string[]> {
+  const ids: string[] = [];
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await client.from('lead_comments')
+      .select('lead_id').eq('post_id', postId).order('lead_id').range(from, from + pageSize - 1);
+    if (error) throw error;
+    const page = data || [];
+    for (const row of page) if (row.lead_id) ids.push(row.lead_id);
+    if (page.length < pageSize) break;
+  }
+  return ids;
 }
 
 Deno.serve(async (request) => {
@@ -233,10 +342,69 @@ Deno.serve(async (request) => {
     // Retoma o job aberto deste post em vez de abrir outro: reaproveitar a run da
     // Apify é o que evita pagar duas vezes pela mesma raspagem.
     const { data: openJob, error: openError } = await client.from('prospecting_jobs')
-      .select('id, apify_run_id, apify_dataset_id, ingested_count, dataset_total, raw')
+      .select('id, apify_run_id, apify_dataset_id, ingested_count, dataset_total, raw, icp_id, icp_ids')
       .eq('post_id', post.id).eq('status', 'running')
       .order('started_at', { ascending: false }).limit(1).maybeSingle();
     if (openError) throw openError;
+
+    // Job aberto manda: trocar de ICP no meio da ingestão deixaria metade dos
+    // comentaristas em cada fila. Quando isso descarta a escolha da tela, a resposta
+    // avisa (icpOverridden) em vez de fingir que obedeceu.
+    const pedidos = requestedIcpIds(body);
+    const doJobAberto: string[] = Array.isArray(openJob?.icp_ids) && openJob!.icp_ids.length
+      ? openJob!.icp_ids
+      : (openJob?.icp_id ? [openJob.icp_id] : []);
+    const icps = await resolveIcps(client, doJobAberto.length ? doJobAberto : pedidos);
+    const icpIds = icps.map((item) => item.id);
+    const icpNames = icps.map((item) => item.name);
+    const icpLabel = icpNames.join(' + ');
+    const icpOverridden = Boolean(doJobAberto.length && pedidos.length
+      && pedidos.some((id) => !doJobAberto.includes(id)));
+
+    // Post já raspado e ninguém pediu raspagem nova: o dataset da Apify seria o
+    // mesmo, então o trabalho aqui é só colocar os comentaristas na fila dos ICPs
+    // escolhidos. Quem já tem veredito num ICP nem entra (ON CONFLICT DO NOTHING).
+    //
+    // A pergunta é "este post já tem comentário no banco?", NÃO "existe job com
+    // status success". Job carimbado 'failed' pelo sweep de linha órfã (worker morto
+    // no meio de um post grande) costuma ter ingerido milhares de comentários antes
+    // de morrer — olhar só o status mandava re-raspar tudo e pagar a Apify de novo,
+    // que é exatamente o crédito que falta pros coletores de conteúdo.
+    if (!openJob && body?.rescrape !== true) {
+      const { count: comentariosNoBanco, error: doneError } = await client.from('lead_comments')
+        .select('lead_id', { count: 'exact', head: true }).eq('post_id', post.id);
+      if (doneError) throw doneError;
+      if ((comentariosNoBanco ?? 0) > 0) {
+        const leadIds = await leadIdsOfPost(client, post.id);
+        const queued = await queueQualifications(client, leadIds, icpIds);
+        const totalLeadsAgain = comentariosNoBanco ?? 0;
+        const { count: opportunitiesAgain } = await client.from('leads')
+          .select('id', { count: 'exact', head: true }).eq('first_seen_post_id', post.id);
+        const { data: requalJob, error: requalError } = await client.from('prospecting_jobs').insert({
+          post_id: post.id,
+          icp_id: icpIds[0],
+          icp_ids: icpIds,
+          status: 'success',
+          total_comments: totalLeadsAgain,
+          total_leads: totalLeadsAgain,
+          opportunities: opportunitiesAgain ?? 0,
+          new_qualified: queued > 0 ? null : 0,
+          started_at: new Date().toISOString(),
+          finished_at: new Date().toISOString(),
+          last_progress_at: new Date().toISOString(),
+          ingested_count: 0,
+          raw: { requalifyOnly: true, icpName: icpLabel, icpNames, queuedQualifications: queued, leadsInPost: leadIds.length },
+        }).select('id').single();
+        if (requalError) throw requalError;
+        return json({
+          success: true, done: true, jobId: requalJob.id, status: 'success',
+          requalifyOnly: true, icpId: icpIds[0], icpIds, icpName: icpLabel, icpNames, icpOverridden,
+          queuedQualifications: queued, leadsInPost: leadIds.length,
+          totalComments: totalLeadsAgain, datasetTotal: totalLeadsAgain, remaining: 0,
+          totalLeads: totalLeadsAgain, opportunities: opportunitiesAgain ?? 0, skipped: 0,
+        });
+      }
+    }
 
     let job = openJob;
     if (!job) {
@@ -255,12 +423,14 @@ Deno.serve(async (request) => {
       const { data: created, error: jobError } = await client
         .from('prospecting_jobs').insert({
           post_id: post.id,
+          icp_id: icpIds[0],
+          icp_ids: icpIds,
           status: 'running',
           apify_run_id: String(run.id),
           apify_dataset_id: String(run.defaultDatasetId),
           last_progress_at: new Date().toISOString(),
-          raw: { actorId, maxItems, skipped: 0 },
-        }).select('id, apify_run_id, apify_dataset_id, ingested_count, dataset_total, raw').single();
+          raw: { actorId, maxItems, skipped: 0, icpName: icpLabel, icpNames, queuedQualifications: 0 },
+        }).select('id, apify_run_id, apify_dataset_id, ingested_count, dataset_total, raw, icp_id, icp_ids').single();
       if (jobError) throw jobError;
       job = created;
     }
@@ -272,6 +442,7 @@ Deno.serve(async (request) => {
     let ingested = Number(job.ingested_count || 0);
     let datasetTotal = job.dataset_total == null ? null : Number(job.dataset_total);
     let skipped = Number((job.raw as any)?.skipped || 0);
+    let queuedQualifications = Number((job.raw as any)?.queuedQualifications || 0);
     let runStatus = 'RUNNING';
 
     // Ingere o quanto couber no orçamento. O dataset da Apify é append-only, então
@@ -300,7 +471,9 @@ Deno.serve(async (request) => {
         continue;
       }
 
-      skipped += await persistPage(client, post.id, items, ownHandles);
+      const persisted = await persistPage(client, post.id, items, ownHandles, icpIds);
+      skipped += persisted.skipped;
+      queuedQualifications += persisted.queued;
       ingested += items.length;
 
       const { error: progressError } = await client.from('prospecting_jobs').update({
@@ -308,7 +481,7 @@ Deno.serve(async (request) => {
         dataset_total: datasetTotal,
         total_comments: ingested,
         last_progress_at: new Date().toISOString(),
-        raw: { ...(job.raw as any || {}), actorId, skipped, runStatus },
+        raw: { ...(job.raw as any || {}), actorId, skipped, runStatus, icpName: icpLabel, icpNames, queuedQualifications },
       }).eq('id', jobId);
       if (progressError) throw progressError;
     }
@@ -339,11 +512,12 @@ Deno.serve(async (request) => {
         total_leads: totalLeads ?? 0,
         opportunities: opportunities ?? 0,
         last_progress_at: new Date().toISOString(),
-        raw: { ...(job.raw as any || {}), actorId, skipped, runStatus },
+        raw: { ...(job.raw as any || {}), actorId, skipped, runStatus, icpName: icpLabel, icpNames, queuedQualifications },
       }).eq('id', jobId);
 
       return json({
         success: true, done: false, jobId, status: 'running', runStatus,
+        icpId: icpIds[0], icpIds, icpName: icpLabel, icpNames, icpOverridden, queuedQualifications,
         totalComments: ingested, datasetTotal, remaining,
         totalLeads: totalLeads ?? 0, opportunities: opportunities ?? 0, skipped,
       });
@@ -367,11 +541,12 @@ Deno.serve(async (request) => {
       finished_at: new Date().toISOString(),
       last_progress_at: new Date().toISOString(),
       error_message: notes || null,
-      raw: { ...(job.raw as any || {}), actorId, skipped, runStatus },
+      raw: { ...(job.raw as any || {}), actorId, skipped, runStatus, icpName: icpLabel, icpNames, queuedQualifications },
     }).eq('id', jobId);
 
     return json({
       success: true, done: true, jobId, status, runStatus,
+      icpId: icpIds[0], icpIds, icpName: icpLabel, icpNames, icpOverridden, queuedQualifications,
       totalComments: ingested, datasetTotal, remaining: 0,
       totalLeads: totalLeads ?? 0, opportunities: opportunities ?? 0, skipped,
     });

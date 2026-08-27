@@ -138,7 +138,10 @@ describe('loadContentMetrics', () => {
       'tally_submissions',
       'tally_submissions',
       'tally_submissions',
-      'prospect_settings',
+      // Veredito por ICP + a lista de ICPs: é o que permite a tela mostrar
+      // "aprovado" segundo o ICP escolhido, e não um veredito global.
+      'lead_qualifications',
+      'icp_profiles',
     ].sort());
     const tallyCalls = calls.filter((call) => call.name === 'tally_submissions');
     expect(tallyCalls).toHaveLength(3);

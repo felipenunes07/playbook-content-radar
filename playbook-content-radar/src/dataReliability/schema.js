@@ -243,6 +243,148 @@ export const TABLES = {
       engagement_score: (r) => num(r.likes) + num(r.comments) * 3 + num(r.shares) * 4 + num(r.saves) * 2,
     },
   },
+  // ── Camada comercial ───────────────────────────────────────────────────────
+  // Transcritas de 20260704120000_prospecting.sql, 20260705100000_prospecting_v2.sql,
+  // 20260827120000_icp_multiplos.sql e 20260827160000_pipeline_comercial.sql.
+  // Não estavam aqui porque a harness nasceu antes da prospecção existir — sem elas
+  // o scanner estático pulava lead-outreach/lead-pipeline por completo.
+
+  leads: {
+    columns: [
+      col('id', { generatedByDefault: true }),
+      col('public_identifier'),
+      col('profile_url'),
+      col('full_name'),
+      col('headline'),
+      col('job_title'),
+      col('seniority'),
+      col('area'),
+      col('company_name'),
+      col('company_url'),
+      col('company_size', { nullable: true, min: 0 }),
+      col('company_revenue_estimated'),
+      col('location'),
+      col('qualification_status', { notNull: true, check: ['pending', 'qualified', 'disqualified', 'review'], default: 'pending' }),
+      col('qualification_reason'),
+      col('qualification_icp_id'),
+      col('score', { nullable: true, min: 0 }),
+      col('suggested_angle'),
+      col('enrichment_status', { notNull: true, check: ['pending', 'enriched', 'error', 'skipped'], default: 'pending' }),
+      col('enrichment_error'),
+      col('first_seen_post_id'),
+      col('profile_raw', { notNull: true, default: {} }),
+      col('company_raw', { notNull: true, default: {} }),
+      col('created_at', { generatedByDefault: true }),
+      col('updated_at', { generatedByDefault: true }),
+    ],
+    unique: [['id'], ['public_identifier']],
+    primaryKey: ['id'],
+  },
+
+  lead_qualifications: {
+    columns: [
+      col('id', { generatedByDefault: true }),
+      col('lead_id', { notNull: true }),
+      col('icp_id', { notNull: true }),
+      col('status', { notNull: true, check: ['pending', 'qualified', 'disqualified', 'review'], default: 'pending' }),
+      col('score', { nullable: true, min: 0 }),
+      col('reason'),
+      col('suggested_angle'),
+      col('decided_by', { check: ['llm', 'hard_rule', 'prefilter', 'enrichment_error'], nullable: true }),
+      col('decided_at'),
+      col('created_at', { generatedByDefault: true }),
+      col('updated_at', { generatedByDefault: true }),
+    ],
+    unique: [['id'], ['lead_id', 'icp_id']],
+    primaryKey: ['id'],
+  },
+
+  lead_outreach: {
+    columns: [
+      col('id', { generatedByDefault: true }),
+      col('lead_id', { notNull: true }),
+      col('generated_message'),
+      col('angle'),
+      col('status', { notNull: true, check: ['new', 'prospected', 'replied', 'ignored'], default: 'new' }),
+      col('channel', { check: ['linkedin', 'whatsapp'], nullable: true }),
+      // De 20260827180000_icp_espelho_e_ajustes.sql: qual ICP gerou generated_message.
+      col('message_icp_id'),
+      col('prospected_at'),
+      col('created_at', { generatedByDefault: true }),
+      col('updated_at', { generatedByDefault: true }),
+    ],
+    unique: [['id'], ['lead_id']],
+    primaryKey: ['id'],
+  },
+
+  // Estado atual do card no Kanban. A chave é lead_id (não há coluna id).
+  lead_pipeline: {
+    columns: [
+      col('lead_id', { notNull: true }),
+      col('stage', { notNull: true, check: ['a_prospectar', 'em_cadencia', 'respondeu', 'reuniao', 'proposta', 'cliente', 'perdido'], default: 'a_prospectar' }),
+      col('icp_id'),
+      col('owner'),
+      col('campaign'),
+      col('notes'),
+      col('next_action_at'),
+      col('lost_reason'),
+      col('archived_at'),
+      col('archive_reason'),
+      col('entered_at', { generatedByDefault: true }),
+      col('updated_at', { generatedByDefault: true }),
+    ],
+    unique: [['lead_id']],
+    primaryKey: ['lead_id'],
+  },
+
+  lead_touchpoints: {
+    columns: [
+      col('id', { generatedByDefault: true }),
+      col('lead_id', { notNull: true }),
+      col('direction', { notNull: true, check: ['out', 'in'] }),
+      col('channel', { notNull: true, check: ['linkedin', 'whatsapp', 'email', 'call'], default: 'linkedin' }),
+      col('touch_number', { nullable: true, min: 1 }),
+      col('touched_at', { generatedByDefault: true }),
+      col('note'),
+      col('created_by'),
+      // Anulação: o toque sai das contagens e do funil, mas a linha permanece.
+      col('cancelled_at'),
+      col('cancelled_by'),
+      col('cancel_reason'),
+      col('created_at', { generatedByDefault: true }),
+    ],
+    unique: [['id']],
+    primaryKey: ['id'],
+  },
+
+  // Append-only no banco (trigger lead_stage_events_no_mutation). 'arquivado' e
+  // 'reativado' são eventos de auditoria, não etapas do board — por isso entram no
+  // CHECK de to_stage mas não no de from_stage nem no de lead_pipeline.stage.
+  lead_stage_events: {
+    columns: [
+      col('id', { generatedByDefault: true }),
+      col('lead_id', { notNull: true }),
+      col('from_stage', { check: ['a_prospectar', 'em_cadencia', 'respondeu', 'reuniao', 'proposta', 'cliente', 'perdido'], nullable: true }),
+      col('to_stage', { notNull: true, check: ['a_prospectar', 'em_cadencia', 'respondeu', 'reuniao', 'proposta', 'cliente', 'perdido', 'arquivado', 'reativado'] }),
+      col('occurred_at', { generatedByDefault: true }),
+      col('actor'),
+      col('note'),
+      col('created_at', { generatedByDefault: true }),
+    ],
+    unique: [['id']],
+    primaryKey: ['id'],
+  },
+
+  // Linha única (id boolean default true), padrão do prospect_settings.
+  pipeline_settings: {
+    columns: [
+      col('id', { notNull: true, default: true }),
+      col('cadence', { notNull: true, default: {} }),
+      col('updated_at', { generatedByDefault: true }),
+    ],
+    unique: [['id']],
+    primaryKey: ['id'],
+  },
 };
 
 function num(value) {

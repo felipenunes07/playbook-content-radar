@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, BarChart3, Database, ExternalLink, FileClock, FileText, Image as ImageIcon, MessageSquare,
   Play, RefreshCw, Settings, SlidersHorizontal, Users, Video, Target, Copy, Check, Globe, Download, FileSpreadsheet,
-  Phone, AlertTriangle, X, MessageCircle, Info,
+  Phone, AlertTriangle, X, MessageCircle, Info, Sparkles,
 } from 'lucide-react';
 
 // lucide-react removeu os ícones de marca (Instagram, LinkedIn…) por questão de
@@ -60,7 +60,7 @@ import {
 import { loadContentMetrics } from './repository.js';
 import { buildLeadExportFilename, buildLeadExportRows, downloadLeadCsv, downloadLeadExcel, selectLeadsForExport } from './leadExport.js';
 import {
-  PHONE_FILTERS, countByPhoneFilter, evidenceLabel, indexPhonesByLead, matchesPhoneFilter,
+  PHONE_FILTERS, countByPhoneFilter, evidenceLabel, indexPhonesByLead, isAutoMatch, matchesPhoneFilter,
   phoneDisplay, phoneStatusMeta, phoneStatusOf, reviewCandidates, reviewReason, whatsappLink,
 } from './leadPhones.js';
 import { METRICS_SECTIONS } from './routes.js';
@@ -1141,6 +1141,64 @@ const leadStatusSets = {
 
 const seniorityLabels = { 'c-level': 'C-Level', diretoria: 'Diretoria', gerencia: 'Gerência', coordenacao: 'Coordenação', operacional: 'Operacional', desconhecido: '—' };
 
+// Como cada veredito aparece na coluna do seu ICP. 'review' é legado (o terceiro
+// status foi extinto em 05/07) e conta como aprovado, igual em leadStatusSets.
+const ICP_VERDICT_STYLES = {
+  qualified: { label: 'Aprovado', bg: '#e7f6ee', color: '#057642', border: '#a3d9b1' },
+  review: { label: 'Aprovado', bg: '#e7f6ee', color: '#057642', border: '#a3d9b1' },
+  disqualified: { label: 'Descartado', bg: '#fef2f2', color: '#b42318', border: '#fecaca' },
+  pending: { label: 'Analisando', bg: '#fff9e6', color: '#92650e', border: '#fde4ad' },
+};
+
+/** Veredito de UM lead em UM ICP. Sem linha em lead_qualifications significa que
+ *  aquele ICP nunca olhou esta pessoa — diferente de "olhou e descartou", e a coluna
+ *  precisa mostrar essa diferença: é ela que diz se vale rodar o ICP no post. */
+function IcpVerdictCell({ qualification }) {
+  if (!qualification) {
+    return (
+      <span title="Este ICP ainda não avaliou este lead. Prospecte o post com ele para avaliar."
+        style={{ color: '#cbd5e1', fontSize: 12, fontWeight: 600 }}>—</span>
+    );
+  }
+  const style = ICP_VERDICT_STYLES[qualification.status] || ICP_VERDICT_STYLES.pending;
+  const porRegra = qualification.decided_by === 'hard_rule';
+  const porPrefiltro = qualification.decided_by === 'prefilter' || qualification.decided_by === 'enrichment_error';
+  return (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+      <span title={qualification.reason || ''}
+        style={{ display: 'inline-block', background: style.bg, color: style.color, border: `1px solid ${style.border}`, borderRadius: 999, padding: '2px 9px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+        {style.label}
+      </span>
+      {qualification.score != null && (
+        <small style={{ color: '#94a3b8', fontSize: 10.5, fontWeight: 700 }}>{qualification.score}</small>
+      )}
+      {porRegra && <small style={{ color: '#94a3b8', fontSize: 9.5 }} title="Veredito da regra dura deste ICP, não do modelo">regra</small>}
+      {porPrefiltro && <small style={{ color: '#94a3b8', fontSize: 9.5 }} title="Fechado sem gastar IA (pré-filtro ou falha de enriquecimento)">auto</small>}
+    </span>
+  );
+}
+
+/** Quanto tempo passou desde o comentário, em linguagem de gente. O time trabalha a
+ *  lista por recência ("comentou hoje de tarde ainda está quente"), então a tabela
+ *  mostra isto ao lado da data em vez de obrigar a fazer a conta de cabeça. */
+function tempoDesde(value) {
+  if (!value) return '';
+  const minutos = Math.floor((Date.now() - new Date(value).getTime()) / 60000);
+  if (!Number.isFinite(minutos) || minutos < 0) return '';
+  if (minutos < 60) return `há ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `há ${horas}h`;
+  const dias = Math.floor(horas / 24);
+  if (dias < 30) return `há ${dias}d`;
+  const meses = Math.floor(dias / 30);
+  return `há ${meses} ${meses === 1 ? 'mês' : 'meses'}`;
+}
+
+/** Data + hora do comentário, curto o bastante pra caber na coluna. */
+const dataHoraCurta = (value) => (value
+  ? new Date(value).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  : '—');
+
 function MessageModal({ lead, message, onClose }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
@@ -1161,43 +1219,378 @@ function MessageModal({ lead, message, onClose }) {
   );
 }
 
-// Modal de configuração do ICP + mensagem padrão. O agente de qualificação usa
-// exatamente o texto de "Critérios" salvo aqui; a mensagem usa os placeholders
-// {nome}, {company} e {tema_post}. Salvar vale já pra próxima análise, sem deploy.
-function IcpSettingsModal({ settings, client, onClose, onNotice, onReload }) {
-  const [rules, setRules] = useState(settings?.icp_rules || '');
-  const [template, setTemplate] = useState(settings?.message_template || '');
+// Vocabulário de área que o agente de qualificação devolve. A regra dura por ICP
+// filtra por estes valores exatos — uma área digitada fora desta lista viraria um
+// filtro que nunca casa, então o formulário só oferece estes.
+const ICP_AREAS = [
+  ['vendas', 'Vendas / comercial'],
+  ['marketing', 'Marketing'],
+  ['operacoes', 'Operações'],
+  ['growth', 'Growth'],
+  ['tecnologia', 'Tecnologia / produto'],
+  ['financeiro', 'Financeiro'],
+  ['rh', 'RH'],
+  ['outro', 'Outro'],
+  ['desconhecido', 'Desconhecido'],
+];
+
+const EMPTY_ICP_FORM = {
+  id: null, name: '', icp_rules: '', message_template: '',
+  is_default: false, active: true,
+  hard_rules_enabled: false, min_company_size: '', approved_areas: [], blocked_areas: [],
+};
+
+// Chip de seleção de área (aprova/barra) da regra dura.
+function AreaChips({ label, hint, selected, onToggle }) {
+  return (
+    <div style={{ marginTop: 8 }}>
+      <span style={{ fontSize: 11.5, fontWeight: 700, color: '#475569' }}>{label}</span>
+      {hint && <small style={{ display: 'block', color: '#94a3b8', fontSize: 11 }}>{hint}</small>}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 5 }}>
+        {ICP_AREAS.map(([value, text]) => {
+          const on = selected.includes(value);
+          return (
+            <button key={value} type="button" onClick={() => onToggle(value)}
+              style={{ border: `1px solid ${on ? '#0a66c2' : '#e2e8f0'}`, background: on ? '#eff6ff' : '#fff', color: on ? '#0a66c2' : '#64748b', borderRadius: 999, padding: '4px 10px', fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}>
+              {text}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Cadastro dos ICPs. Cada ICP é um público: o texto de "Critérios" é usado
+// LITERALMENTE pelo agente ao julgar quem comentou num post prospectado com ele, e a
+// mensagem de 1º contato também é dele. A regra dura é o corte objetivo que
+// sobrescreve o modelo (liderança + área + porte) — nasce desligada num ICP novo,
+// porque público fora do corte comercial tem que ficar na mão do texto, não de um if
+// herdado de outro ICP.
+function IcpSettingsModal({ icps = [], client, onClose, onNotice, onReload }) {
+  const [selectedId, setSelectedId] = useState(() => icps.find((icp) => icp.is_default)?.id || icps[0]?.id || 'new');
+  const [form, setForm] = useState(EMPTY_ICP_FORM);
   const [saving, setSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  // Trocar de ICP na lista recarrega o formulário (e descarta edição não salva —
+  // comportamento esperado de um seletor de cadastro).
+  useEffect(() => {
+    setConfirmingDelete(false);
+    if (selectedId === 'new') { setForm({ ...EMPTY_ICP_FORM }); return; }
+    const icp = icps.find((item) => item.id === selectedId);
+    if (!icp) { setForm({ ...EMPTY_ICP_FORM }); return; }
+    setForm({
+      id: icp.id,
+      name: icp.name || '',
+      icp_rules: icp.icp_rules || '',
+      message_template: icp.message_template || '',
+      is_default: Boolean(icp.is_default),
+      active: icp.active !== false,
+      hard_rules_enabled: Boolean(icp.hard_rules_enabled),
+      min_company_size: icp.min_company_size == null ? '' : String(icp.min_company_size),
+      approved_areas: icp.approved_areas || [],
+      blocked_areas: icp.blocked_areas || [],
+    });
+  }, [selectedId, icps]);
+
+  const patch = (changes) => setForm((prev) => ({ ...prev, ...changes }));
+  const toggleArea = (field, value) => setForm((prev) => ({
+    ...prev,
+    [field]: prev[field].includes(value) ? prev[field].filter((item) => item !== value) : [...prev[field], value],
+  }));
+
   const save = async () => {
     if (!client?.functions?.invoke) { onNotice('Indisponível no modo offline.'); return; }
+    if (!form.name.trim()) { onNotice('Dê um nome ao ICP (ex.: "Second Brain").'); return; }
     setSaving(true);
     try {
-      const { data: res, error } = await client.functions.invoke('lead-outreach', { body: { manual: true, action: 'save_settings', icpRules: rules, messageTemplate: template } });
+      const { data: res, error } = await client.functions.invoke('lead-outreach', {
+        body: {
+          manual: true,
+          action: 'save_icp',
+          icpId: form.id || undefined,
+          name: form.name,
+          icpRules: form.icp_rules,
+          messageTemplate: form.message_template,
+          hardRulesEnabled: form.hard_rules_enabled,
+          minCompanySize: form.min_company_size === '' ? null : Number(form.min_company_size),
+          approvedAreas: form.approved_areas,
+          blockedAreas: form.blocked_areas,
+          isDefault: form.is_default,
+          active: form.active,
+        },
+      });
       if (error) throw error;
       if (!res?.success) throw new Error(res?.error || 'Falha ao salvar');
-      onNotice('ICP e mensagem salvos. Valem já pra próxima análise de leads.');
+      onNotice(`ICP "${res.name || form.name}" salvo. Vale já na próxima prospecção e na próxima análise.`);
       await onReload?.();
-      onClose();
+      if (res.icpId) setSelectedId(res.icpId);
     } catch (e) {
-      onNotice(`Falha ao salvar configurações: ${e?.message || e}`);
+      onNotice(`Falha ao salvar o ICP: ${e?.message || e}`);
     } finally {
       setSaving(false);
     }
   };
+
+  const remove = async () => {
+    if (!client?.functions?.invoke || !form.id) return;
+    setSaving(true);
+    try {
+      const { data: res, error } = await client.functions.invoke('lead-outreach', {
+        body: { manual: true, action: 'delete_icp', icpId: form.id },
+      });
+      if (error) throw error;
+      if (!res?.success) throw new Error(res?.error || 'Falha ao apagar');
+      onNotice(res.message || `ICP "${form.name}" apagado.`);
+      await onReload?.();
+      setSelectedId('new');
+    } catch (e) {
+      onNotice(`Não foi possível apagar: ${e?.message || e}`);
+    } finally {
+      setSaving(false);
+      setConfirmingDelete(false);
+    }
+  };
+
   const fieldStyle = { width: '100%', border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, fontSize: 13, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit', color: '#0f172a' };
+  const inputStyle = { ...fieldStyle, padding: '9px 12px' };
+  const isNew = !form.id;
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: 16 }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 14, padding: 22, width: 'min(680px, 100%)', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 50px rgba(15,23,42,0.25)' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 22, width: 'min(820px, 100%)', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 50px rgba(15,23,42,0.25)' }} onClick={(e) => e.stopPropagation()}>
         <span className="cm-eyebrow">Configuração da prospecção</span>
-        <h2 style={{ margin: '4px 0 4px', fontSize: 17 }}>ICP — critérios de qualificação</h2>
-        <p style={{ margin: '0 0 10px', fontSize: 12.5, color: '#64748b' }}>É este texto, literalmente, que o agente de IA usa pra aprovar/rejeitar/revisar cada lead. Edite à vontade (ex.: mudar o corte de 200+ colaboradores) — vale na próxima análise.</p>
-        <textarea value={rules} onChange={(e) => setRules(e.target.value)} rows={11} style={fieldStyle} />
-        <h2 style={{ margin: '18px 0 4px', fontSize: 17 }}>Mensagem padrão de 1º contato</h2>
-        <p style={{ margin: '0 0 10px', fontSize: 12.5, color: '#64748b' }}>Enviada exatamente como está, preenchendo <code>{'{nome}'}</code>, <code>{'{company}'}</code> e <code>{'{tema_post}'}</code>. Se ficar vazia, a IA improvisa uma mensagem contextual.</p>
-        <textarea value={template} onChange={(e) => setTemplate(e.target.value)} rows={8} style={fieldStyle} />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
-          <button type="button" onClick={onClose} style={{ background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
-          <button type="button" onClick={save} disabled={saving} style={{ background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>{saving ? 'Salvando…' : 'Salvar'}</button>
+        <h2 style={{ margin: '4px 0 4px', fontSize: 17 }}>ICPs — quem é lead pra cada tipo de post</h2>
+        <p style={{ margin: '0 0 12px', fontSize: 12.5, color: '#64748b' }}>
+          Cada ICP tem os próprios critérios e a própria mensagem. Na hora de prospectar um post você escolhe qual usar,
+          e o "aprovado" sai do ICP escolhido — o mesmo comentarista pode ser aprovado num e rejeitado no outro.
+        </p>
+
+        {/* Seletor de ICP + criar novo */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+          {icps.map((icp) => {
+            const on = icp.id === selectedId;
+            return (
+              <button key={icp.id} type="button" onClick={() => setSelectedId(icp.id)}
+                style={{ border: `1px solid ${on ? '#0a66c2' : '#e2e8f0'}`, background: on ? '#0a66c2' : '#fff', color: on ? '#fff' : '#334155', borderRadius: 999, padding: '6px 13px', fontSize: 12, fontWeight: 700, cursor: 'pointer', opacity: icp.active === false ? 0.55 : 1 }}
+                title={icp.active === false ? 'ICP desativado — não aparece na hora de prospectar' : ''}>
+                {icp.name}{icp.is_default ? ' · padrão' : ''}{icp.active === false ? ' · desativado' : ''}
+              </button>
+            );
+          })}
+          <button type="button" onClick={() => setSelectedId('new')}
+            style={{ border: `1px dashed ${selectedId === 'new' ? '#0a66c2' : '#cbd5e1'}`, background: selectedId === 'new' ? '#eff6ff' : '#fff', color: '#0a66c2', borderRadius: 999, padding: '6px 13px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            + Novo ICP
+          </button>
+        </div>
+
+        <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Nome do ICP</label>
+        <input value={form.name} onChange={(e) => patch({ name: e.target.value })} placeholder='Ex.: Second Brain — construtores de sistema pessoal' style={inputStyle} />
+
+        <h3 style={{ margin: '18px 0 4px', fontSize: 15 }}>Critérios de qualificação</h3>
+        <p style={{ margin: '0 0 10px', fontSize: 12.5, color: '#64748b' }}>É este texto, literalmente, que o agente de IA usa pra aprovar ou rejeitar cada lead deste ICP. Vale na próxima análise, sem deploy.</p>
+        <textarea value={form.icp_rules} onChange={(e) => patch({ icp_rules: e.target.value })} rows={10} style={fieldStyle}
+          placeholder="1. Cargo/perfil que aprova… 2. Quem rejeita… 3. Porte/contexto… Score 0-100…" />
+
+        <h3 style={{ margin: '18px 0 4px', fontSize: 15 }}>Mensagem de 1º contato deste ICP</h3>
+        <p style={{ margin: '0 0 10px', fontSize: 12.5, color: '#64748b' }}>Preenche <code>{'{nome}'}</code>, <code>{'{company}'}</code> e <code>{'{tema_post}'}</code>. Vazia: usa a mensagem do ICP padrão e, se ela também estiver vazia, a IA improvisa.</p>
+        <textarea value={form.message_template} onChange={(e) => patch({ message_template: e.target.value })} rows={7} style={fieldStyle} />
+
+        {/* Regra dura */}
+        <div style={{ marginTop: 18, border: '1px solid #e2e8f0', borderRadius: 12, padding: 14, background: '#f8fafc' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 700, color: '#0f172a', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.hard_rules_enabled} onChange={(e) => patch({ hard_rules_enabled: e.target.checked })} style={{ width: 15, height: 15, accentColor: '#0a66c2' }} />
+            Regra dura (sobrescreve o modelo)
+          </label>
+          <p style={{ margin: '6px 0 0', fontSize: 12, color: '#64748b' }}>
+            Cargo de liderança + área aprovada + porte mínimo = aprovado, sem discussão. Cargo operacional
+            (estagiário, analista, SDR…) sem marcador de liderança, ou área barrada = rejeitado. Existe porque o
+            modelo já contradisse os critérios escritos e inventou corte próprio. Deixe DESLIGADA num público que
+            não tem corte de porte/área — aí quem decide é só o texto acima.
+          </p>
+          {form.hard_rules_enabled && (
+            <>
+              <div style={{ marginTop: 10 }}>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#475569', marginBottom: 4 }}>Porte mínimo da empresa (colaboradores)</label>
+                <input type="number" min="0" value={form.min_company_size} onChange={(e) => patch({ min_company_size: e.target.value })}
+                  placeholder="Vazio = sem corte de porte" style={{ ...inputStyle, maxWidth: 220 }} />
+              </div>
+              <AreaChips label="Áreas que a regra APROVA (com liderança + porte)" selected={form.approved_areas} onToggle={(value) => toggleArea('approved_areas', value)} />
+              <AreaChips label="Áreas que a regra REJEITA direto" hint="Deixe vazio para não rejeitar ninguém por área." selected={form.blocked_areas} onToggle={(value) => toggleArea('blocked_areas', value)} />
+            </>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 14 }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#334155', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.is_default} onChange={(e) => patch({ is_default: e.target.checked })} disabled={form.is_default && !isNew}
+              style={{ width: 14, height: 14, accentColor: '#0a66c2' }} />
+            ICP padrão (pré-selecionado ao prospectar)
+          </label>
+          {!isNew && (
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#334155', cursor: 'pointer' }}>
+              <input type="checkbox" checked={form.active} onChange={(e) => patch({ active: e.target.checked })} disabled={form.is_default}
+                style={{ width: 14, height: 14, accentColor: '#0a66c2' }} />
+              Ativo
+            </label>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
+          <div>
+            {!isNew && !form.is_default && (
+              confirmingDelete ? (
+                <button type="button" onClick={remove} disabled={saving}
+                  style={{ background: '#b42318', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  Confirmar exclusão de "{form.name}"
+                </button>
+              ) : (
+                <button type="button" onClick={() => setConfirmingDelete(true)} disabled={saving}
+                  style={{ background: '#fff', color: '#b42318', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  Apagar ICP
+                </button>
+              )
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={onClose} style={{ background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Fechar</button>
+            <button type="button" onClick={save} disabled={saving} style={{ background: '#0a66c2', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}>
+              {saving ? 'Salvando…' : isNew ? 'Criar ICP' : 'Salvar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const LAST_ICP_STORAGE_KEY = 'cm.prospect.lastIcpIds';
+
+function rememberIcps(icpIds) {
+  try { window.localStorage.setItem(LAST_ICP_STORAGE_KEY, JSON.stringify(icpIds)); } catch { /* modo privado: sem memória, sem drama */ }
+}
+
+// Lê a última escolha. Aceita o formato antigo (uma string com um id só) porque a
+// chave mudou de nome mas navegador de quem já usou a tela ainda pode ter a antiga.
+function lastUsedIcps() {
+  try {
+    const bruto = window.localStorage.getItem(LAST_ICP_STORAGE_KEY);
+    if (!bruto) return [];
+    const lido = JSON.parse(bruto);
+    if (Array.isArray(lido)) return lido.filter((id) => typeof id === 'string');
+    return typeof lido === 'string' && lido ? [lido] : [];
+  } catch { return []; }
+}
+
+// Diálogo do botão Prospectar: QUAIS ICPs vão julgar os comentaristas deste post.
+// Marca mais de um de propósito (pedido do Felipe em 27/08): um post atrai gente que
+// serve para o público comercial e gente que serve para o outro, e clicar duas vezes
+// no mesmo post para testar cada ICP era o contorno. Todos os ativos vêm marcados —
+// o caso comum é querer os dois; desmarcar é a exceção.
+//
+// Custo: a raspagem da Apify é a mesma (um dataset por post, não por ICP), mas cada
+// ICP marcado é uma chamada de LLM a mais por lead na fase de análise.
+function ProspectIcpModal({ post, icps = [], alreadyProspected, onConfirm, onClose, onManage }) {
+  const available = icps.filter((icp) => icp.active !== false);
+  const [icpIds, setIcpIds] = useState(() => {
+    const remembered = lastUsedIcps().filter((id) => available.some((icp) => icp.id === id));
+    if (remembered.length) return remembered;
+    return available.map((icp) => icp.id);
+  });
+  const [rescrape, setRescrape] = useState(false);
+  const chosen = available.filter((icp) => icpIds.includes(icp.id));
+
+  const toggle = (id) => setIcpIds((prev) => (
+    prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+  ));
+
+  const confirm = () => {
+    if (!chosen.length) return;
+    // Grava na ordem em que estão na lista, não na ordem dos cliques: o primeiro ICP
+    // é o que nomeia o job na tela de prospecção.
+    const ordenados = available.filter((icp) => icpIds.includes(icp.id)).map((icp) => icp.id);
+    rememberIcps(ordenados);
+    onConfirm({ icpIds: ordenados, rescrape });
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1000, display: 'grid', placeItems: 'center', padding: 16 }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 22, width: 'min(600px, 100%)', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 50px rgba(15,23,42,0.25)' }} onClick={(e) => e.stopPropagation()}>
+        <span className="cm-eyebrow">Prospectar post</span>
+        <h2 style={{ margin: '4px 0 2px', fontSize: 17 }}>Quais ICPs usar neste post?</h2>
+        <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#64748b' }}>
+          {post?.hook ? `“${String(post.hook).slice(0, 110)}${String(post.hook).length > 110 ? '…' : ''}”` : 'Post selecionado'}
+        </p>
+
+        {!available.length ? (
+          <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', borderRadius: 10, padding: 12, fontSize: 13 }}>
+            Nenhum ICP ativo cadastrado. Crie um em <strong>Gerenciar ICPs</strong> antes de prospectar.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {available.map((icp) => {
+              const on = icpIds.includes(icp.id);
+              return (
+                <button key={icp.id} type="button" onClick={() => toggle(icp.id)}
+                  aria-pressed={on}
+                  style={{ textAlign: 'left', border: `1px solid ${on ? '#0a66c2' : '#e2e8f0'}`, background: on ? '#eff6ff' : '#fff', borderRadius: 10, padding: '11px 13px', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <input type="checkbox" checked={on} readOnly tabIndex={-1}
+                    style={{ width: 15, height: 15, marginTop: 2, accentColor: '#0a66c2', pointerEvents: 'none', flexShrink: 0 }} />
+                  <span style={{ minWidth: 0 }}>
+                  <strong style={{ fontSize: 13.5, color: '#0f172a' }}>
+                    {icp.name}
+                    {icp.is_default && <span style={{ marginLeft: 6, fontSize: 10.5, color: '#0a66c2', fontWeight: 700 }}>PADRÃO</span>}
+                  </strong>
+                  <small style={{ display: 'block', color: '#64748b', marginTop: 3, lineHeight: 1.45 }}>
+                    {icp.hard_rules_enabled
+                      ? `Regra dura ligada${icp.min_company_size ? ` · ${icp.min_company_size}+ colaboradores` : ''}${(icp.approved_areas || []).length ? ` · ${(icp.approved_areas || []).join(', ')}` : ''}`
+                      : 'Sem regra dura — quem decide é o texto de critérios'}
+                  </small>
+                  <small style={{ display: 'block', color: '#94a3b8', marginTop: 3 }}>
+                    {String(icp.icp_rules || 'Sem critérios escritos — o agente cai no padrão do código.').slice(0, 130)}
+                    {String(icp.icp_rules || '').length > 130 ? '…' : ''}
+                  </small>
+                  </span>
+                </button>
+              );
+            })}
+            {available.length > 1 && (
+              <small style={{ color: '#64748b', fontSize: 11.5, marginTop: 2 }}>
+                {chosen.length > 1
+                  ? `Cada comentarista vai ser lido e julgado pelos ${chosen.length} ICPs marcados — o mesmo perfil pode ser aprovado num e rejeitado no outro. A raspagem é uma só; a análise custa uma passada de IA por ICP.`
+                  : 'Marque mais de um para julgar o mesmo post pelos dois públicos numa tacada.'}
+              </small>
+            )}
+          </div>
+        )}
+
+        {alreadyProspected && (
+          <div style={{ marginTop: 14, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 12 }}>
+            <strong style={{ fontSize: 12.5, color: '#0f172a' }}>Este post já foi prospectado.</strong>
+            <p style={{ margin: '5px 0 8px', fontSize: 12, color: '#64748b' }}>
+              Os comentários já estão no banco, então rodar agora só coloca os comentaristas na fila dos ICPs
+              marcados — sem gastar crédito da Apify. Quem já tem veredito num ICP não é analisado de novo nele.
+              Marque abaixo só se o post recebeu comentários novos.
+            </p>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: '#334155', cursor: 'pointer' }}>
+              <input type="checkbox" checked={rescrape} onChange={(e) => setRescrape(e.target.checked)} style={{ width: 14, height: 14, accentColor: '#b45309' }} />
+              Raspar os comentários de novo na Apify (gasta crédito)
+            </label>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
+          <button type="button" onClick={onManage} style={{ background: '#fff', color: '#0a66c2', border: '1px solid #cfe0f5', borderRadius: 8, padding: '8px 14px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
+            Gerenciar ICPs
+          </button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button type="button" onClick={onClose} style={{ background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+            <button type="button" onClick={confirm} disabled={!chosen.length}
+              style={{ background: chosen.length ? '#0a66c2' : '#cbd5e1', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: chosen.length ? 'pointer' : 'not-allowed' }}>
+              {chosen.length > 1 ? `Prospectar com ${chosen.length} ICPs` : 'Prospectar com este ICP'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1437,23 +1830,40 @@ function LeadMagnetsModal({ client, reviewer, onClose, onNotice }) {
 
   const load = React.useCallback(async () => {
     setErro('');
-    // Duas etapas separadas de propósito: os vínculos atuais vêm do Supabase e a
-    // lista de formulários vem do Tally, pelo proxy. Se só o Tally falhar, ainda dá
-    // para VER o que está vinculado — só o dropdown fica indisponível.
+    // O LinkedIn cortou o alcance de post com CTA de comentário (jul/2026), então os
+    // lead magnets novos entram SEM cta_keyword — e o coletor sobrescreve cta_keyword
+    // todo dia, então não dá pra "marcar" o post por ali. Por isso a lista não pode
+    // mais se limitar a "tem CTA": mostra também os posts recentes (últimos 60 dias) e
+    // os que já têm vínculo, pra QUALQUER post poder ser ligado a um formulário aqui.
+    const recentSince = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
     try {
       const [posts, links] = await Promise.all([
         client.from('content_posts').select('id, hook, cta_keyword, published_at, author_name')
-          .not('cta_keyword', 'is', null).order('published_at', { ascending: false }).limit(400),
+          .or(`cta_keyword.not.is.null,published_at.gte.${recentSince}`)
+          .order('published_at', { ascending: false }).limit(400),
         client.from('post_lead_magnets').select('post_id, tally_form_id, tally_form_name, source'),
       ]);
       if (posts.error) throw posts.error;
       if (links.error) throw links.error;
       const byPost = new Map((links.data || []).map((link) => [link.post_id, link]));
-      // Só posts com CTA real: 'Sem CTA' é o valor que o classificador grava quando o
-      // post não tem chamada, então não é um lead magnet para vincular.
-      setRows((posts.data || [])
-        .filter((post) => String(post.cta_keyword || '').trim() && String(post.cta_keyword).trim() !== 'Sem CTA')
-        .map((post) => ({ post, link: byPost.get(post.id) || null })));
+      // 'Sem CTA' é o valor de post sem chamada nenhuma; escondemos SÓ quando o post é
+      // antigo (fora da janela recente) e não tem vínculo — senão o lead magnet novo
+      // (que hoje entra sem CTA) sumiria de novo, que é o bug que estamos consertando.
+      const list = (posts.data || []).filter((post) => {
+        const cta = String(post.cta_keyword || '').trim();
+        const recente = String(post.published_at || '').slice(0, 10) >= recentSince;
+        return recente || byPost.has(post.id) || (cta && cta !== 'Sem CTA');
+      });
+      // Garante que todo post já vinculado apareça, mesmo se caiu fora do limit/janela.
+      const carregados = new Set(list.map((post) => post.id));
+      const faltando = [...byPost.keys()].filter((id) => !carregados.has(id));
+      if (faltando.length) {
+        const extra = await client.from('content_posts')
+          .select('id, hook, cta_keyword, published_at, author_name').in('id', faltando);
+        if (!extra.error) list.push(...(extra.data || []));
+      }
+      list.sort((a, b) => String(b.published_at || '').localeCompare(String(a.published_at || '')));
+      setRows(list.map((post) => ({ post, link: byPost.get(post.id) || null })));
     } catch (error) {
       setErro(`Não consegui carregar os posts: ${error instanceof Error ? error.message : String(error)}`);
       setRows([]);
@@ -1503,7 +1913,8 @@ function LeadMagnetsModal({ client, reviewer, onClose, onNotice }) {
             <p style={{ margin: '5px 0 0', color: '#64748b', fontSize: 12, maxWidth: 620 }}>
               Quem preencheu o formulário do próprio post em que comentou ganha confiança máxima no
               cruzamento. Vínculo errado viraria telefone na pessoa errada — por isso os casos ambíguos
-              ficaram sem vínculo automático e são resolvidos aqui.
+              ficaram sem vínculo automático e são resolvidos aqui. Posts recentes sem CTA (o LinkedIn
+              cortou o formato de comentário) também aparecem, para você vinculá-los à mão.
             </p>
           </div>
           <button type="button" onClick={onClose} style={closeButton} aria-label="Fechar">×</button>
@@ -1514,7 +1925,7 @@ function LeadMagnetsModal({ client, reviewer, onClose, onNotice }) {
           {rows === null ? (
             <div className="cm-empty">Carregando posts e formulários…</div>
           ) : !rows.length ? (
-            <div className="cm-empty">Nenhum post com CTA de lead magnet.</div>
+            <div className="cm-empty">Nenhum post recente ou vinculado para configurar.</div>
           ) : (
             <>
               <small style={{ display: 'block', marginBottom: 9, color: '#64748b', fontWeight: 600 }}>
@@ -1530,7 +1941,7 @@ function LeadMagnetsModal({ client, reviewer, onClose, onNotice }) {
                           <small title={post.hook}>{String(post.hook || '').slice(0, 70) || '—'}</small>
                           <small style={{ display: 'block', color: '#94a3b8' }}>{String(post.published_at || '').slice(0, 10)} · {post.author_name || '—'}</small>
                         </td>
-                        <td><code style={{ fontSize: 11.5 }}>{post.cta_keyword}</code></td>
+                        <td><code style={{ fontSize: 11.5 }}>{post.cta_keyword || '— sem CTA —'}</code></td>
                         <td>
                           <select
                             value={link?.tally_form_id || ''}
@@ -1605,13 +2016,25 @@ function PhoneCell({ row, onDetail, onReview }) {
           style={{ display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: '#94a3b8', padding: 2, cursor: 'pointer' }}>
           <Info size={12} />
         </button>
+        {/* Vinculado sozinho: marca discreta + caminho para corrigir. Não é fila —
+            o número já está usável; isto existe para quem quiser conferir. */}
+        {isAutoMatch(row) && (
+          <button type="button" onClick={() => onReview(row)}
+            title={`Vínculo automático. ${reviewReason(row)} Clique para conferir ou corrigir.`}
+            aria-label={`Conferir o vínculo automático do telefone de ${row.full_name || 'lead'}`}
+            style={{ display: 'inline-flex', alignItems: 'center', border: 0, background: 'transparent', color: '#cbd5e1', padding: 2, cursor: 'pointer' }}>
+            <Sparkles size={11} />
+          </button>
+        )}
       </span>
     );
   }
 
+  // Linha antiga que ficou parada na fila humana. O matcher não produz mais REVIEW;
+  // estas somem no próximo sync do Tally, que as reprocessa e decide sozinho.
   if (status === 'REVIEW') {
     return (
-      <button type="button" onClick={() => onReview(row)} title="Revisar os candidatos encontrados"
+      <button type="button" onClick={() => onReview(row)} title="Revisar os candidatos encontrados (fila antiga — o próximo sync do Tally decide sozinho)"
         style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${tone.border}`, background: tone.bg, color: tone.color, borderRadius: 7, padding: '4px 8px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
         <AlertTriangle size={11} /> Revisar match
       </button>
@@ -1678,6 +2101,9 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
   const currentProfile = ['Felipe', 'Victor', 'Fernando', 'Junior'].includes(currentUser) ? currentUser : 'Felipe';
   const [filter, setFilter] = useState('qualified');
   const [postFilter, setPostFilter] = useState('');
+  // '' = todos os ICPs (mostra o veredito espelhado, o mais recente de cada lead).
+  // Com um ICP escolhido, a lista é só quem passou por ele, com o veredito DELE.
+  const [icpFilter, setIcpFilter] = useState('');
   const [creatorFilter, setCreatorFilter] = useState('');
   const [enriching, setEnriching] = useState(false);
   const [progress, setProgress] = useState(null); // { done, total, qualified, status: 'running'|'done'|'error', message }
@@ -1700,7 +2126,59 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
   const [excludedExportIds, setExcludedExportIds] = useState(() => new Set());
   const exportAllRef = React.useRef(null);
 
-  const leads = data?.leads || [];
+  const allLeads = data?.leads || [];
+  const icps = data?.icpProfiles || [];
+  const icpNameById = useMemo(() => {
+    const map = {};
+    icps.forEach((icp) => { if (icp.id) map[icp.id] = icp.name; });
+    return map;
+  }, [icps]);
+  // Uma coluna por ICP na tabela — só faz sentido a partir de dois: com um ICP só,
+  // "aprovado" já é inequívoco e a coluna seria ruído. ICP desativado continua tendo
+  // coluna enquanto houver veredito dele para ler; o histórico não some da tela
+  // porque alguém tirou o ICP de circulação.
+  const colunasIcp = useMemo(() => {
+    if (icps.length < 2) return [];
+    const comVeredito = new Set((data?.leadQualifications || []).map((row) => row.icp_id));
+    return icps.filter((icp) => icp.active !== false || comVeredito.has(icp.id));
+  }, [icps, data?.leadQualifications]);
+  // Veredito por (lead, ICP). É o que permite "aprovado" significar coisas
+  // diferentes em ICPs diferentes para a mesma pessoa.
+  const qualByLeadIcp = useMemo(() => {
+    const map = new Map();
+    (data?.leadQualifications || []).forEach((row) => { map.set(`${row.lead_id}|${row.icp_id}`, row); });
+    return map;
+  }, [data?.leadQualifications]);
+  // Leads que ainda esperam veredito (do ICP filtrado, ou de qualquer um).
+  const leadsWithPendingVerdict = useMemo(() => {
+    const set = new Set();
+    (data?.leadQualifications || []).forEach((row) => {
+      if (row.status !== 'pending') return;
+      if (icpFilter && row.icp_id !== icpFilter) return;
+      set.add(row.lead_id);
+    });
+    return set;
+  }, [data?.leadQualifications, icpFilter]);
+  // Com um ICP selecionado, a lista inteira passa a falar a língua dele: quem nunca
+  // foi avaliado por aquele ICP sai da tela, e status/score/motivo vêm da
+  // qualificação daquele ICP em vez do espelho.
+  const leads = useMemo(() => {
+    if (!icpFilter) return allLeads;
+    const projected = [];
+    allLeads.forEach((lead) => {
+      const qual = qualByLeadIcp.get(`${lead.id}|${icpFilter}`);
+      if (!qual) return;
+      projected.push({
+        ...lead,
+        qualification_status: qual.status,
+        score: qual.score,
+        qualification_reason: qual.reason,
+        suggested_angle: qual.suggested_angle ?? lead.suggested_angle,
+        qualification_icp_id: icpFilter,
+      });
+    });
+    return projected;
+  }, [allLeads, icpFilter, qualByLeadIcp]);
   const outreachByLead = useMemo(() => {
     const map = {};
     (data?.leadOutreach || []).forEach((o) => { map[o.lead_id] = o; });
@@ -1783,10 +2261,12 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
       if (!postId) return;
       if (!map[postId]) map[postId] = { total: 0, pending: 0 };
       map[postId].total += 1;
-      if (lead.enrichment_status === 'pending') map[postId].pending += 1;
+      // "Falta analisar" é falta de veredito: depois de rodar outro ICP num post já
+      // raspado, os leads estão enriquecidos e ainda assim faltam ser julgados.
+      if (lead.enrichment_status === 'pending' || leadsWithPendingVerdict.has(lead.id)) map[postId].pending += 1;
     });
     return map;
-  }, [leads, commentByLead]);
+  }, [leads, commentByLead, leadsWithPendingVerdict]);
 
   // Opções do filtro por post: só posts que têm lead.
   const postOptions = useMemo(() => {
@@ -1808,6 +2288,8 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
       case 'company_name': return (lead.company_name || '').toLowerCase();
       case 'company_size': return lead.company_size == null ? -1 : lead.company_size;
       case 'comment': return (commentByLead[lead.id]?.comment_text || '').toLowerCase();
+      // String ISO ordena igual a data; '' joga quem não tem comentário pro fim.
+      case 'commented_at': return commentByLead[lead.id]?.commented_at || '';
       case 'post': return (postHookById[leadPostId(lead)] || '').toLowerCase();
       default: return '';
     }
@@ -1986,15 +2468,18 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
   };
 
   // Fila pendente na ordem que o backend processa (mais antigos primeiro).
+  // "Pendente" é falta de VEREDITO, não só de enriquecimento: quem já estava no
+  // banco e entrou na fila de um ICP novo já está enriquecido e ainda assim precisa
+  // de análise (só LLM, sem raspar de novo).
   const pendingQueue = useMemo(() => (
     leads
-      .filter((l) => l.enrichment_status === 'pending')
+      .filter((l) => l.enrichment_status === 'pending' || leadsWithPendingVerdict.has(l.id))
       .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')))
-  ), [leads]);
+  ), [leads, leadsWithPendingVerdict]);
   // Se há filtro de post/criador ativo, a fila a analisar é só a daquele recorte —
   // o botão "Analisar fila" processa exatamente o que está filtrado na tela. Sem
   // filtro, é a fila inteira (comportamento de antes).
-  const hasQueueFilter = Boolean(postFilter || creatorFilter);
+  const hasQueueFilter = Boolean(postFilter || creatorFilter || icpFilter);
   const filteredPendingQueue = useMemo(() => {
     if (!hasQueueFilter) return pendingQueue;
     return pendingQueue.filter((l) => {
@@ -2035,7 +2520,7 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
         if (error) throw error;
         if (res?.busy) throw new Error(res.error || 'Já existe uma análise em andamento.');
         if (!res?.success) throw new Error(res?.error || 'Falha no enriquecimento');
-        done += (res.processed || 0) + (res.prefiltered || 0);
+        done += (res.processed || 0) + (res.prefiltered || 0) + (res.requalified || 0);
         qualifiedTotal += res.qualified || 0;
         const remaining = res.remaining ?? 0;
         const nextPlan = buildLeadAnalysisPlan({
@@ -2084,7 +2569,8 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
     if (existing?.generated_message) { setModal({ lead, message: existing.generated_message }); return; }
     setBusyLead(lead.id);
     try {
-      const { data: res, error } = await client.functions.invoke('lead-outreach', { body: { manual: true, action: 'generate_message', leadId: lead.id } });
+      // O ICP em foco define a mensagem: cada público tem o próprio texto de 1º contato.
+      const { data: res, error } = await client.functions.invoke('lead-outreach', { body: { manual: true, action: 'generate_message', leadId: lead.id, icpId: icpFilter || lead.qualification_icp_id || undefined } });
       if (error) throw error;
       if (!res?.success) throw new Error(res?.error || 'Falha ao gerar mensagem');
       setOutreachOverrides((prev) => ({ ...prev, [lead.id]: { ...(outreachByLead[lead.id] || {}), lead_id: lead.id, generated_message: res.message, status: res.status || 'new' } }));
@@ -2133,10 +2619,10 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
           <span style={{ width: 1, height: 28, background: '#e2e8f0', flexShrink: 0 }} />
           <button type="button" onClick={() => setShowIcpModal(true)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#334155', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'border-color .15s, background .15s' }}
-            title="Ver e editar os critérios que o agente usa pra qualificar + a mensagem padrão"
+            title="Criar e editar os ICPs: critérios de qualificação, mensagem de 1º contato e regra dura de cada um"
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#0a66c2'; e.currentTarget.style.background = '#f0f7fd'; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.background = '#fff'; }}>
-            <Settings size={13} /> Ver/editar ICP
+            <Settings size={13} /> Ver/editar ICPs
           </button>
           {pendingEnrichment > 0 && !enriching && (
             <button type="button" onClick={runEnrich}
@@ -2209,11 +2695,33 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
             onChange={setPostFilter}
             counts={postCounts}
           />
-          {(postFilter || creatorFilter) && (
-            <button type="button" onClick={() => { setPostFilter(''); setCreatorFilter(''); }}
+          {/* Filtro de ICP: com um ICP escolhido, a lista mostra o veredito DELE. */}
+          {icps.length > 1 && (
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, color: '#475569', letterSpacing: '.02em' }}>
+              ICP
+              <select value={icpFilter} onChange={(e) => setIcpFilter(e.target.value)}
+                aria-label="Filtrar leads pelo ICP que os qualificou"
+                style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 10px', fontSize: 12.5, fontWeight: 600, color: '#0f172a', background: '#fff', cursor: 'pointer' }}>
+                <option value="">Todos · melhor veredito entre os ICPs</option>
+                {icps.map((icp) => (
+                  <option key={icp.id} value={icp.id}>
+                    {icp.name}{icp.active === false ? ' (desativado)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {(postFilter || creatorFilter || icpFilter) && (
+            <button type="button" onClick={() => { setPostFilter(''); setCreatorFilter(''); setIcpFilter(''); }}
               style={{ background: 'transparent', border: 'none', color: '#0a66c2', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
               Limpar filtros
             </button>
+          )}
+          {icpFilter && (
+            <small style={{ color: '#64748b', fontSize: 11.5 }}>
+              Mostrando só quem foi avaliado por <strong>{icpNameById[icpFilter] || 'este ICP'}</strong> — status, score e motivo são os dele.
+              {icps.find((icp) => icp.id === icpFilter)?.active === false && ' Este ICP está desativado: a lista é histórico, não recebe leads novos.'}
+            </small>
           )}
         </div>
         {/* Linha 2: chips de status */}
@@ -2271,6 +2779,9 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
           </span>
           {PHONE_FILTERS.map((chip) => {
             const isActive = phoneFilter === chip.id;
+            // A fila de revisão acabou: o chip legado só existe enquanto sobrar linha
+            // antiga em REVIEW (some sozinho depois do próximo sync do Tally).
+            if (chip.legacy && !(phoneCounts[chip.id] || 0) && !isActive) return null;
             return (
               <button type="button" key={chip.id} onClick={() => setPhoneFilter(chip.id)}
                 aria-pressed={isActive}
@@ -2303,10 +2814,21 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
               </th>
               <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('full_name')}>Lead{sortArrow('full_name')}</th>
               <th style={{ cursor: 'pointer', userSelect: 'none' }} title="Score 0-100 do agente de qualificação" onClick={() => requestSort('score')}>Score{sortArrow('score')}</th>
+              {/* Uma coluna por ICP: "aprovado" só quer dizer alguma coisa junto com
+                  "aprovado PRA QUEM" quando existe mais de um público. */}
+              {colunasIcp.map((icp) => (
+                <th key={icp.id} style={{ textAlign: 'center', minWidth: 96 }}
+                  title={`Veredito deste lead no ICP "${icp.name}"${icp.active === false ? ' (ICP desativado)' : ''}`}>
+                  <span style={{ display: 'block', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {icp.name}
+                  </span>
+                </th>
+              ))}
               <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('job_title')}>Cargo{sortArrow('job_title')}</th>
               <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('company_name')}>Empresa{sortArrow('company_name')}</th>
               <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('company_size')}>Porte{sortArrow('company_size')}</th>
               <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('comment')}>Comentário feito{sortArrow('comment')}</th>
+              <th style={{ cursor: 'pointer', userSelect: 'none' }} title="Data e hora em que a pessoa comentou no post" onClick={() => requestSort('commented_at')}>Comentou em{sortArrow('commented_at')}</th>
               <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => requestSort('post')}>Post de origem{sortArrow('post')}</th>
               <th title="Telefone encontrado nas nossas submissions do Tally">Telefone / Tally</th>
               <th title="Motivo da decisão + ângulo sugerido de abordagem">Motivo / ângulo</th><th>Mensagem</th><th style={{ textAlign: 'center' }}>Prospectado</th><th style={{ textAlign: 'center' }}>Ignorar</th>
@@ -2343,10 +2865,23 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
                         ? <strong style={{ color: lead.score >= 70 ? '#059669' : lead.score >= 40 ? '#d97706' : '#94a3b8' }}>{lead.score}</strong>
                         : '—'}
                     </td>
+                    {colunasIcp.map((icp) => (
+                      <td key={icp.id} style={{ textAlign: 'center' }}>
+                        <IcpVerdictCell qualification={qualByLeadIcp.get(`${lead.id}|${icp.id}`)} />
+                      </td>
+                    ))}
                     <td style={{ maxWidth: 200 }}><span title={lead.headline || ''}>{lead.job_title || lead.headline || '—'}</span>{lead.area && lead.area !== 'desconhecido' && <small style={{ display: 'block', color: '#94a3b8' }}>{lead.area}{seniorityLabels[lead.seniority] && seniorityLabels[lead.seniority] !== '—' ? ` · ${seniorityLabels[lead.seniority]}` : ''}</small>}</td>
                     <td>{lead.company_name || (lead.enrichment_status === 'enriched' ? 'Sem emprego atual' : '—')}</td>
                     <td>{lead.company_size ? integer.format(lead.company_size) : '—'}</td>
                     <td style={{ maxWidth: 220 }}><small style={{ color: '#475569' }} title={comment?.comment_text || ''}>{comment?.comment_text ? `“${String(comment.comment_text).slice(0, 90)}${String(comment.comment_text).length > 90 ? '…' : ''}”` : '—'}</small></td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      {comment?.commented_at ? (
+                        <>
+                          <small style={{ color: '#475569', fontWeight: 600 }}>{dataHoraCurta(comment.commented_at)}</small>
+                          <small style={{ display: 'block', color: '#94a3b8', fontSize: 10.5 }}>{tempoDesde(comment.commented_at)}</small>
+                        </>
+                      ) : <small style={{ color: '#cbd5e1' }}>—</small>}
+                    </td>
                     <td style={{ maxWidth: 180 }}><small>{postHookById[comment?.post_id || lead.first_seen_post_id] || '—'}</small></td>
                     <td style={{ maxWidth: 170 }}>
                       <PhoneCell
@@ -2356,8 +2891,15 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
                       />
                     </td>
                     <td style={{ maxWidth: 260 }}>
-                      <small style={{ color: '#64748b' }}>{lead.qualification_reason || (lead.enrichment_status === 'pending' ? 'Aguardando análise' : '—')}</small>
+                      <small style={{ color: '#64748b' }}>{lead.qualification_reason || (lead.enrichment_status === 'pending' || leadsWithPendingVerdict.has(lead.id) ? 'Aguardando análise' : '—')}</small>
                       {lead.suggested_angle && <small style={{ display: 'block', color: '#0a66c2', fontStyle: 'italic', marginTop: 3 }} title="Ângulo sugerido de abordagem">→ {lead.suggested_angle}</small>}
+                      {/* De qual ICP é este veredito. Com as colunas por ICP à mostra
+                          isto seria repetição — só aparece quando elas não existem. */}
+                      {!colunasIcp.length && lead.qualification_icp_id && icpNameById[lead.qualification_icp_id] && (
+                        <small style={{ display: 'block', color: '#94a3b8', marginTop: 3, fontWeight: 600 }} title="ICP que produziu este veredito">
+                          ICP: {icpNameById[lead.qualification_icp_id]}
+                        </small>
+                      )}
                     </td>
                     <td>
                       <button type="button" onClick={() => generateMessage(lead)} disabled={busyLead === lead.id}
@@ -2383,7 +2925,7 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
         </div>
       )}
       {modal && <MessageModal lead={modal.lead} message={modal.message} onClose={() => setModal(null)} />}
-      {showIcpModal && <IcpSettingsModal settings={data?.prospectSettings} client={client} onClose={() => setShowIcpModal(false)} onNotice={onNotice} onReload={onReload} />}
+      {showIcpModal && <IcpSettingsModal icps={icps} client={client} onClose={() => setShowIcpModal(false)} onNotice={onNotice} onReload={onReload} />}
       {phoneDetail && <PhoneDetailModal lead={phoneDetail.lead} row={phoneDetail.row} onClose={() => setPhoneDetail(null)} />}
       {reviewModal && (
         <ReviewMatchModal
@@ -3026,6 +3568,9 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   const [operationMessage, setOperationMessage] = useState('');
   const [prospectOverrides, setProspectOverrides] = useState({});
   const [prospectingRunning, setProspectingRunning] = useState(() => new Set());
+  // { post } enquanto o diálogo "qual ICP usar" está aberto.
+  const [prospectPicker, setProspectPicker] = useState(null);
+  const [showProspectIcpManager, setShowProspectIcpManager] = useState(false);
 
   // A coleta roda no servidor diariamente, mas esta tela pode ficar aberta por dias.
   // Recarregar somente na montagem deixava "Seguidores por rede" congelado até F5,
@@ -3173,7 +3718,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       if (error) throw error;
       if (res?.busy) { setOperationMessage(res.error || 'Ja existe uma analise de leads em andamento.'); return; }
       if (!res?.success) throw new Error(res?.error || 'Falha na analise de leads');
-      done += (res.processed || 0) + (res.prefiltered || 0);
+      done += (res.processed || 0) + (res.prefiltered || 0) + (res.requalified || 0);
       qualified += res.qualified || 0;
       const remaining = res.remaining ?? 0;
       const nextPlan = buildLeadAnalysisPlan({
@@ -3194,8 +3739,17 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
     setOperationMessage(`Analise automatica concluida: ${integer.format(done)} leads analisados, ${integer.format(qualified)} aprovados no ICP.`);
   };
 
-  const handleProspect = async (post) => {
+  // O clique no Prospectar não dispara nada: abre o diálogo dos ICPs. Quais ICPs
+  // julgam os comentaristas é decisão por post (o post comercial e o do Second Brain
+  // atraem público diferente), então não tem default silencioso aqui.
+  const handleProspect = (post) => {
     if (!client?.functions?.invoke) { setOperationMessage('Prospecção indisponível no modo offline. Publique as Edge Functions e conecte o Supabase.'); return; }
+    setProspectPicker({ post });
+  };
+
+  const runProspect = async (post, { icpIds = [], rescrape } = {}) => {
+    if (!client?.functions?.invoke) { setOperationMessage('Prospecção indisponível no modo offline. Publique as Edge Functions e conecte o Supabase.'); return; }
+    setProspectPicker(null);
     setProspectingRunning((prev) => new Set(prev).add(post.id));
     setOperationMessage('Iniciando raspagem dos comentários…');
     try {
@@ -3205,7 +3759,7 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
       // várias continuações; o teto é só freio de segurança contra loop infinito.
       let res = null;
       for (let call = 0; call < 200; call += 1) {
-        const { data, error } = await client.functions.invoke('prospect-post', { body: { manual: true, postId: post.id } });
+        const { data, error } = await client.functions.invoke('prospect-post', { body: { manual: true, postId: post.id, icpIds, ...(rescrape ? { rescrape: true } : {}) } });
         if (error) throw error;
         if (!data?.success) throw new Error(data?.error || 'Falha desconhecida na prospecção');
         res = data;
@@ -3225,9 +3779,29 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
         setOperationMessage(`Raspando comentários: ${integer.format(data.totalComments || 0)}${total} processados, ${integer.format(data.opportunities || 0)} oportunidade(s) nova(s). Continuando…`);
       }
       if (!res?.done) throw new Error('A prospecção não terminou dentro do limite de continuações. Clique em Prospectar novamente para retomar de onde parou.');
-      setOperationMessage(`Prospecção concluída: ${integer.format(res.totalComments || 0)} comentários, ${integer.format(res.totalLeads || 0)} leads, ${integer.format(res.opportunities || 0)} oportunidade(s) nova(s). Iniciando análise ICP automaticamente.`);
+      const nomes = res.icpNames || (res.icpName ? [res.icpName] : []);
+      const icpLabel = nomes.length > 1
+        ? ` nos ICPs ${nomes.map((nome) => `"${nome}"`).join(' e ')}`
+        : (nomes.length ? ` no ICP "${nomes[0]}"` : '');
+      // O post tinha uma raspagem em andamento: a function manteve os ICPs com que o
+      // job começou e ignorou o que foi marcado agora. Avisar, em vez de deixar o
+      // usuário achar que o ICP novo entrou na fila.
+      if (res.icpOverridden) {
+        setOperationMessage(`Atenção: este post já tinha uma prospecção em andamento${icpLabel}, então ela continuou com os ICPs originais. Rode de novo depois que terminar para incluir os outros.`);
+      }
+      if (res.requalifyOnly) {
+        // Nenhum crédito de Apify gasto: os comentários já estavam no banco.
+        setOperationMessage(res.queuedQualifications
+          ? `Post já estava raspado: ${integer.format(res.queuedQualifications)} comentarista(s) entraram na fila${icpLabel} (sem gastar Apify). Iniciando análise automaticamente.`
+          : `Post já estava raspado e todos os ${integer.format(res.leadsInPost || 0)} comentarista(s) já tinham veredito${icpLabel} — nada novo pra analisar.`);
+      } else {
+        setOperationMessage(`Prospecção concluída${icpLabel}: ${integer.format(res.totalComments || 0)} comentários, ${integer.format(res.totalLeads || 0)} leads, ${integer.format(res.opportunities || 0)} oportunidade(s) nova(s). Iniciando análise automaticamente.`);
+      }
       await reloadData().catch(() => {});
-      await runLeadAnalysisFromProspecting(res.opportunities || res.totalLeads || 0);
+      const pendingAfter = res.requalifyOnly
+        ? res.queuedQualifications || 0
+        : res.queuedQualifications || res.opportunities || res.totalLeads || 0;
+      if (pendingAfter > 0) await runLeadAnalysisFromProspecting(pendingAfter);
     } catch (e) {
       setOperationMessage(`Falha na prospecção: ${e?.message || e}`);
     } finally {
@@ -3254,11 +3828,36 @@ export default function ContentMetricsWorkspace({ client, initialData, initialSe
   // Prospectar e os números. A lista de leads fica na página própria "Leads ICP".
   if (mode === 'prospecting') {
     return <div className="content-metrics-workspace">
-      <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Comercial</span><h1>Prospecção</h1><p>Rode um post para raspar quem comentou, cruzar com o banco de leads e ver as oportunidades novas. Os qualificados aparecem na página Leads ICP.</p></div><div className="cm-header-meta"><span>{data.linkedin.length} posts</span><Users size={16} /></div></header>
+      <header className="cm-header"><div><span className="cm-eyebrow">Playbook Lab · Comercial</span><h1>Prospecção</h1><p>Rode um post para raspar quem comentou, cruzar com o banco de leads e ver as oportunidades novas. Ao prospectar, você escolhe o ICP que vai julgar os comentaristas — os aprovados aparecem na página Leads ICP.</p></div><div className="cm-header-meta">
+        <button type="button" onClick={() => setShowProspectIcpManager(true)}
+          title="Criar e editar os ICPs que aparecem na hora de prospectar"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: '#334155', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 13px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+          <SlidersHorizontal size={13} /> Gerenciar ICPs
+        </button>
+        <span>{data.linkedin.length} posts</span><Users size={16} /></div></header>
       <SourceNotice data={data} />
       {refreshErrorNotice}
       {operationMessage && <div className="cm-operation-message">{operationMessage}<button type="button" onClick={() => setOperationMessage('')}>Fechar</button></div>}
       <PostsSection filtered={filtered} allPosts={data.linkedin} filters={filters} setFilters={setFilters} prospecting={prospectingByPost} runningIds={prospectingRunning} onProspect={handleProspect} onAction={() => {}} showProspecting />
+      {prospectPicker && (
+        <ProspectIcpModal
+          post={prospectPicker.post}
+          icps={data.icpProfiles || []}
+          alreadyProspected={['success', 'partial'].includes(prospectingByPost[prospectPicker.post.id]?.status)}
+          onConfirm={(choice) => runProspect(prospectPicker.post, choice)}
+          onClose={() => setProspectPicker(null)}
+          onManage={() => { setProspectPicker(null); setShowProspectIcpManager(true); }}
+        />
+      )}
+      {showProspectIcpManager && (
+        <IcpSettingsModal
+          icps={data.icpProfiles || []}
+          client={client}
+          onClose={() => setShowProspectIcpManager(false)}
+          onNotice={setOperationMessage}
+          onReload={reloadData}
+        />
+      )}
     </div>;
   }
 

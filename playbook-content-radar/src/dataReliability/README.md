@@ -21,6 +21,7 @@ npm run test:run       # the whole project suite
 | `normalizerContract.test.js` | **Contract fuzz.** Feeds hostile Apify payloads through the real shared normalizers and asserts every row they emit is one the DB will accept (valid columns/enums, non-negative metrics, no writes to generated columns). |
 | `fakeSupabase.js` | In-memory Supabase that **enforces the real schema** (UNIQUE, CHECK, generated cols, `onConflict`, `.single()`), so the write path can run end-to-end in CI without touching production. |
 | `syncE2E.test.js` | **End-to-end.** Runs the collector write pattern against `fakeSupabase` and locks in: per-item isolation (one bad row can't abort the account), idempotent re-collection, classification not reset to `pending`, and `post_url` collisions contained to a single item. |
+| `pipelineE2E.test.js` | **End-to-end do pipeline comercial.** Roda as escritas reais (`_shared/pipelineOps.ts`) contra `fakeSupabase` e prova que a jornada inteira é reconstruível a partir das linhas: entrada → prospectado → 1º contato → resposta → reunião → proposta → cliente. Trava as invariantes: selecionar não cria touchpoint, "contatado" é derivado do 1º toque outbound, "Respondeu" manual grava evidência inbound, arquivar não destrói histórico. **Não executa as views SQL** (não há Postgres no CI) — `reconstructFunnel` espelha o `min()/filter` de `v_lead_funnel`. |
 
 ## Bugs this harness was built around (found by the red-team sweep, all fixed)
 

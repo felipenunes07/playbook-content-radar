@@ -19,6 +19,12 @@ const FILES = [
   'supabase/functions/classify-content/index.ts',
   'supabase/functions/content-dashboard-api/index.ts',
   'supabase/functions/scrape-linkedin/index.ts',
+  // Camada comercial: passou a ser escaneável quando leads/lead_outreach/
+  // lead_qualifications e as tabelas do pipeline entraram no schema.js.
+  'supabase/functions/lead-outreach/index.ts',
+  'supabase/functions/lead-pipeline/index.ts',
+  'supabase/functions/enrich-leads/index.ts',
+  'supabase/functions/prospect-post/index.ts',
   'scripts/bulk-import-all.mjs',
 ];
 
@@ -75,7 +81,17 @@ function topLevelKeys(objText) {
   let m;
   while ((m = re.exec(inner))) {
     const at = m.index;
-    if ((marks[at] || 0) === 0) keys.push({ key: m[1], at });
+    if ((marks[at] || 0) !== 0) { idx = at; continue; }
+    // Um `nome:` só é CHAVE se vier logo depois de '{' (início do objeto) ou de ','.
+    // Sem esta checagem, o ':' de um ternário no VALOR de uma propriedade
+    // (`company_url: empregado ? company.url : null`) fazia o identificador
+    // anterior — 'url' — ser lido como coluna, e o guard acusava fantasma onde o
+    // código estava certo. Falso positivo é tão ruim quanto falso negativo aqui:
+    // ele treina quem lê a suíte a ignorar o vermelho.
+    let before = at - 1;
+    while (before >= 0 && /\s/.test(inner[before])) before -= 1;
+    if (before >= 0 && inner[before] !== ',' && inner[before] !== '{') { idx = at; continue; }
+    keys.push({ key: m[1], at });
     idx = at;
   }
   void idx;
@@ -196,5 +212,20 @@ describe('scanner self-test (guards against a no-op scanner)', () => {
   it('does not false-positive on valid references', () => {
     const good = `client.from('content_posts').update({ theme: 'IA', classification_status: 'manual' })`;
     expect(scanSource(good)).toEqual([]);
+  });
+
+  // Um ternário no VALOR de uma propriedade tem ':' no meio da expressão. O token
+  // antes dele não é chave — e antes desta guarda o scanner acusava coluna fantasma
+  // em código correto (enrich-leads e lead-outreach, ambos legítimos).
+  it('does not mistake a ternary inside a value for a column key', () => {
+    const good = `client.from('leads').update({ company_url: empregado ? company.url : null })`;
+    expect(scanSource(good)).toEqual([]);
+  });
+
+  it('still catches a phantom column that FOLLOWS a ternary in the same payload', () => {
+    const bad = `client.from('leads').update({ company_url: empregado ? company.url : null, classified_at: hoje })`;
+    expect(scanSource(bad)).toEqual(expect.arrayContaining([
+      expect.stringContaining('leads.classified_at'),
+    ]));
   });
 });
