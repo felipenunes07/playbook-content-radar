@@ -5,6 +5,7 @@ import { chunk, errorMessage } from '../_shared/content.ts';
 import { adminClient, corsHeaders, finishRun, json, startRun } from '../_shared/server.ts';
 import { llmHeaders, LlmProvider, parseLlmJson, requireClassificationProviders, withLlmFallback } from '../_shared/llm.ts';
 import { bdScrape, bdProfileToCanonical, bdCompanyToCanonical, BD_PROFILE_DATASET, BD_COMPANY_DATASET } from '../_shared/brightdata.ts';
+import { cargoJaReprova } from '../_shared/cargo.ts';
 
 // Fase 2 da prospecção: pega leads com enrichment_status='pending', enriquece com
 // profile (apimaestro, em lote) + company (harvestapi, em lote) e passa um payload
@@ -322,17 +323,17 @@ async function refreshJobQualifiedCounts(client: ReturnType<typeof adminClient>,
   }
 }
 
-type IcpProfile = { id: string; name: string; icp_rules: string | null };
+type IcpProfile = { id: string; name: string; icp_rules: string | null; hard_rules_enabled: boolean };
 
 // Todos os ICPs cadastrados, indexados por id, + qual é o default. Um lote pode
 // misturar ICPs (dois posts diferentes na fila), então carregamos todos de uma vez.
 async function loadIcps(client: ReturnType<typeof adminClient>) {
-  const { data, error } = await client.from('icp_profiles').select('id, name, icp_rules, is_default');
+  const { data, error } = await client.from('icp_profiles').select('id, name, icp_rules, is_default, hard_rules_enabled');
   if (error) throw error;
   const byId = new Map<string, IcpProfile>();
   let defaultId: string | null = null;
   for (const row of data || []) {
-    byId.set(row.id, { id: row.id, name: row.name, icp_rules: row.icp_rules });
+    byId.set(row.id, { id: row.id, name: row.name, icp_rules: row.icp_rules, hard_rules_enabled: row.hard_rules_enabled === true });
     if (row.is_default) defaultId = row.id;
   }
   return { byId, defaultId };
@@ -684,10 +685,31 @@ Deno.serve(async (request) => {
     // (3) Company em lotes pequenos. URL e nome usam campos de input distintos no
     // actor atual; o resultado é indexado por id/URL/nome e nomes sem match ganham
     // uma tentativa de fallback. Uma falha total não pode mais virar falso sucesso.
+    // (2.5) CORTE PELO CARGO, antes de comprar a empresa. O perfil já disse o cargo
+    // real; se ele reprova na regra dura de TODOS os ICPs que esperam este lead, o
+    // porte da empresa não pode salvá-lo — então nem a empresa nem o LLM são pagos.
+    // Um ICP com a regra dura desligada nunca entra aqui: lá quem decide é o texto de
+    // critérios, e o modelo pode muito bem aprovar um analista.
+    const reprovadosPeloCargo = new Map<string, string[]>();
+    for (const lead of toEnrich) {
+      const profile = profileByIdentifier.get(String(lead.public_identifier).toLowerCase());
+      if (!profile) continue;
+      const experience = currentExperience(profile);
+      const tituloReal = pick(experience || {}, ['title', 'position', 'job_title']) || lead.headline;
+      if (!cargoJaReprova(tituloReal ? String(tituloReal) : null, lead.headline)) continue;
+      const icpsDoLead = [...(pendingIcps.get(lead.id) || [])];
+      const alvo = icpsDoLead.length ? icpsDoLead : (defaultIcpId ? [defaultIcpId] : []);
+      if (!alvo.length) continue;
+      if (!alvo.every((icpId) => icpById.get(icpId)?.hard_rules_enabled)) continue;
+      reprovadosPeloCargo.set(lead.id, alvo);
+    }
+
     const leadCompany = new Map<string, { name: string | null; url: string | null }>();
     for (const lead of toEnrich) {
       const profile = profileByIdentifier.get(String(lead.public_identifier).toLowerCase());
       if (!profile) continue;
+      // Empresa só de quem ainda pode ser aprovado.
+      if (reprovadosPeloCargo.has(lead.id)) continue;
       leadCompany.set(lead.id, companyRefFromProfile(profile));
     }
     const companyRefs = [...leadCompany.values()].filter((company) => company.url || company.name);
@@ -699,6 +721,9 @@ Deno.serve(async (request) => {
     let processed = 0;
     let qualified = 0;
     let llmCalls = 0;
+    // Quantos leads foram fechados só pelo cargo: economia de 1 raspagem de empresa
+    // + 1 chamada de LLM por ICP em cada um.
+    let cortadosPeloCargo = 0;
     let rateLimited = false;
     let lastRateLimitError: string | null = null;
     // Metadados de ritmo pro front montar a estimativa/espera (Task 2 do plano
@@ -759,6 +784,29 @@ Deno.serve(async (request) => {
           company_raw: companyDetails || {},
         }).eq('id', lead.id);
         if (updateError) throw updateError;
+
+        // Cargo já reprovado pela regra dura de todos os ICPs deste lead: grava o
+        // veredito direto e pula o LLM. Chamar o modelo aqui seria pagar por uma
+        // resposta que o cron da regra dura sobrescreveria em até 10 minutos.
+        const alvosReprovados = reprovadosPeloCargo.get(lead.id);
+        if (alvosReprovados) {
+          for (const icpId of alvosReprovados) {
+            await persistQualification(client, lead.id, icpId, {
+              status: 'disqualified',
+              qualified: false,
+              score: 15,
+              reason: `Cargo operacional sem marcador de liderança ("${payload.current_title || payload.headline || 'sem cargo'}") — rejeitado pela regra dura deste ICP, sem gastar IA nem raspagem de empresa.`,
+              suggested_angle: null,
+            });
+          }
+          const { error: cargoError } = await client.from('leads')
+            .update({ job_title: payload.current_title, seniority: 'operacional' }).eq('id', lead.id);
+          if (cargoError) throw cargoError;
+          cortadosPeloCargo += 1;
+          processed += 1;
+          if (lead.first_seen_post_id) affectedPosts.add(lead.first_seen_post_id);
+          continue;
+        }
 
         // Uma chamada de LLM por ICP que espera este lead: o mesmo comentarista pode
         // estar na fila do ICP comercial e na do Second Brain, com critérios
@@ -878,6 +926,8 @@ Deno.serve(async (request) => {
       raw: {
         errors: allErrors,
         prefiltered: junior.length,
+      cortadosPeloCargo,
+        cortadosPeloCargo,
         qualified,
         requalified,
         autoResolved,
