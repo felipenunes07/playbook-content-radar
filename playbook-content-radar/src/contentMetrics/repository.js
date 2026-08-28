@@ -1,6 +1,30 @@
-import bundledHistory from './data/linkedin-history.json';
-import bundledYoutubeHistory from './data/youtube-history.json';
-import bundledInstagramHistory from './data/instagram-history.json';
+// As três séries históricas empacotadas somam ~1,2 MB de JSON e existem só como rede
+// de segurança: o snapshot local de quando o Supabase falha, e o histórico de
+// YouTube/Instagram do dashboard completo. Importadas de forma estática, esse 1 MB
+// caía no mesmo chunk de QUEM SÓ QUER ABRIR LEADS ICP — a página que nunca lê nada
+// disso. Agora só descem quando alguém realmente precisa delas.
+let historyPromise = null;
+function bundledHistories() {
+  if (!historyPromise) {
+    historyPromise = Promise.all([
+      import('./data/linkedin-history.json'),
+      import('./data/youtube-history.json'),
+      import('./data/instagram-history.json'),
+    ]).then(([linkedin, youtube, instagram]) => ({
+      linkedin: linkedin.default || linkedin,
+      youtube: youtube.default || youtube,
+      instagram: instagram.default || instagram,
+    })).catch(() => {
+      // Deixar de baixar a rede de segurança não pode ser pior que não ter rede de
+      // segurança: quem chama aqui já está no caminho do erro, e uma rejeição
+      // silenciosa deixaria a tela em "Carregando…" para sempre. Da próxima vez
+      // tenta de novo, em vez de guardar a falha em cache.
+      historyPromise = null;
+      return { linkedin: { records: [] }, youtube: { records: [] }, instagram: { records: [] } };
+    });
+  }
+  return historyPromise;
+}
 
 const empty = {
   youtube: [],
@@ -53,6 +77,29 @@ const LEAD_COLUMNS_BASE = [
 const LEAD_COLUMNS = [...LEAD_COLUMNS_BASE, 'qualification_icp_id'].join(', ');
 const LEAD_COLUMNS_SEM_ICP = LEAD_COLUMNS_BASE.join(', ');
 
+// A view do telefone repete identidade que a tela já tem em `leads` (nome, empresa,
+// headline, cargo, profile_url) — colunas de texto longo que dobravam o payload sem
+// nada de novo. Aqui fica só o que a célula, os modais e a exportação leem de fato.
+const LEAD_PHONE_COLUMNS = [
+  'lead_id',
+  'match_status',
+  'match_method',
+  'confidence',
+  'phone_e164',
+  'phone_form_name',
+  'phone_submitted_at',
+  'submission_id',
+  'evidence',
+  // `candidates` continua vindo: é dele que sai "qual isca a pessoa baixou" nos 86
+  // leads em MATCHED_NO_PHONE, todos sem phone_form_name.
+  'candidates',
+  'rejected_submission_ids',
+  'review_decision',
+  'reviewed_by',
+  'reviewed_at',
+  'matched_at',
+].join(', ');
+
 const LEAD_POST_COLUMNS = [
   'id',
   'external_post_id',
@@ -61,7 +108,9 @@ const LEAD_POST_COLUMNS = [
   'published_at',
   'post_url',
   'hook',
-  'content',
+  // `content` (o corpo inteiro do post) ficava aqui só como texto reserva para o
+  // rótulo quando `hook` faltasse — e não falta em nenhum dos 225 posts. Eram 264 KB
+  // e ~0,8s por abertura para alimentar um fallback que nunca dispara.
   'format',
   'media_url',
   'media_type',
@@ -69,14 +118,18 @@ const LEAD_POST_COLUMNS = [
   'repost_id',
 ].join(', ');
 
-function localSnapshot(fallback, warning, { loadError = false } = {}) {
+// Caminho de erro: aqui o custo de baixar o histórico já não importa, porque a
+// alternativa é a tela sem dado nenhum.
+async function localSnapshot(fallback, warning, { loadError = false } = {}) {
+  const bundled = await bundledHistories();
+  const base = fallback || bundled.linkedin;
   return {
     source: 'local_snapshot',
-    linkedin: withoutReposts(fallback.records),
+    linkedin: withoutReposts(base.records),
     ...empty,
-    youtube: bundledYoutubeHistory.records || [],
-    instagram: bundledInstagramHistory.records || [],
-    freshness: fallback.collected_at || null,
+    youtube: bundled.youtube.records || [],
+    instagram: bundled.instagram.records || [],
+    freshness: base.collected_at || null,
     warning,
     loadError,
   };
@@ -99,9 +152,13 @@ export const SUPABASE_PAGE_SIZE = 1000;
 // Freio contra loop infinito se o servidor devolver sempre página cheia.
 const MAX_PAGES = 60;
 
-async function fetchAllPages(buildQuery) {
-  const rows = [];
-  for (let page = 0; page < MAX_PAGES; page += 1) {
+const TOO_MANY_PAGES = { message: `Paginação passou de ${MAX_PAGES} páginas — consulta parece não terminar` };
+
+// Página por página, uma esperando a outra: é o que sobra quando o servidor não diz
+// quantas linhas existem. Continua correto — só é lento.
+async function fetchPagesSequentially(buildQuery, firstRows) {
+  const rows = [...firstRows];
+  for (let page = 1; page < MAX_PAGES; page += 1) {
     const from = page * SUPABASE_PAGE_SIZE;
     // O builder do supabase-js só executa uma vez, então cada página remonta a query.
     const result = await buildQuery().range(from, from + SUPABASE_PAGE_SIZE - 1);
@@ -110,7 +167,42 @@ async function fetchAllPages(buildQuery) {
     rows.push(...data);
     if (data.length < SUPABASE_PAGE_SIZE) return { data: rows, error: null };
   }
-  return { data: rows, error: { message: `Paginação passou de ${MAX_PAGES} páginas — consulta parece não terminar` } };
+  return { data: rows, error: TOO_MANY_PAGES };
+}
+
+// A primeira página pede o total junto: `count: 'exact'` viaja no Content-Range da
+// MESMA resposta, não custa uma consulta a mais. Sabendo o total, as páginas que
+// faltam saem todas de uma vez.
+//
+// Antes elas saíam em fila indiana, e a espera não era teórica: `leads` (3.154),
+// `lead_comments` (3.263) e `lead_qualifications` (3.154) são quatro páginas cada,
+// de ~1s — doze idas e voltas encadeadas que sozinhas respondiam por metade do
+// tempo de abrir a tela de Leads ICP.
+async function fetchAllPages(buildQuery) {
+  const first = await buildQuery({ count: 'exact' }).range(0, SUPABASE_PAGE_SIZE - 1);
+  if (first.error) return first;
+  const firstRows = first.data || [];
+  // Coube tudo na primeira página: o caso da maioria das tabelas.
+  if (firstRows.length < SUPABASE_PAGE_SIZE) return { data: firstRows, error: null };
+
+  const total = Number(first.count);
+  // Sem contagem confiável não dá para saber quantas páginas pedir, e chutar
+  // arriscaria parar antes do fim — que é justamente o bug que a paginação existe
+  // para evitar. Volta para a fila indiana.
+  if (!Number.isFinite(total) || total <= 0) return fetchPagesSequentially(buildQuery, firstRows);
+
+  const totalPages = Math.ceil(total / SUPABASE_PAGE_SIZE);
+  // Continua sendo erro, não truncamento silencioso: lista cortada nesta tela já
+  // fez o comercial trabalhar achando que via tudo.
+  if (totalPages > MAX_PAGES) return { data: firstRows, error: TOO_MANY_PAGES };
+
+  const rest = await Promise.all(Array.from({ length: totalPages - 1 }, (_, index) => {
+    const from = (index + 1) * SUPABASE_PAGE_SIZE;
+    return buildQuery().range(from, from + SUPABASE_PAGE_SIZE - 1);
+  }));
+  const failed = rest.find((page) => page.error);
+  if (failed) return failed;
+  return { data: [...firstRows, ...rest.flatMap((page) => page.data || [])], error: null };
 }
 
 // Tabela que pode legitimamente ainda não existir no banco: o código nasce antes da
@@ -178,22 +270,22 @@ function queryPlan(supabase, mode) {
     // created_at — por isso o desempate pelo id.
     addPaginatedWithFallback(
       'leads',
-      () => supabase.from('leads').select(LEAD_COLUMNS).order('created_at', { ascending: false }).order('id'),
-      () => supabase.from('leads').select(LEAD_COLUMNS_SEM_ICP).order('created_at', { ascending: false }).order('id'),
+      (options) => supabase.from('leads').select(LEAD_COLUMNS, options).order('created_at', { ascending: false }).order('id'),
+      (options) => supabase.from('leads').select(LEAD_COLUMNS_SEM_ICP, options).order('created_at', { ascending: false }).order('id'),
     );
     // message_icp_id: lead_outreach é unique por lead, então a mensagem guardada pode
     // ter sido escrita para o outro ICP. A tela usa isto para avisar antes de copiar.
     addPaginatedWithFallback(
       'leadOutreach',
-      () => supabase.from('lead_outreach').select('lead_id, status, generated_message, message_icp_id').order('lead_id'),
-      () => supabase.from('lead_outreach').select('lead_id, status, generated_message').order('lead_id'),
+      (options) => supabase.from('lead_outreach').select('lead_id, status, generated_message, message_icp_id', options).order('lead_id'),
+      (options) => supabase.from('lead_outreach').select('lead_id, status, generated_message', options).order('lead_id'),
     );
-    addPaginated('leadComments', () => supabase.from('lead_comments').select('lead_id, post_id, comment_text, commented_at, created_at')
+    addPaginated('leadComments', (options) => supabase.from('lead_comments').select('lead_id, post_id, comment_text, commented_at, created_at', options)
       .order('lead_id').order('post_id'));
     // Telefone vindo da Base Tally. A view já filtra por qualification_status =
     // 'qualified' e traz o match com evidências e candidatos — a tela não precisa
     // saber nada do matcher, só ler o resultado.
-    addPaginated('leadPhones', () => supabase.from('v_lead_phones').select('*').order('lead_id'));
+    addPaginated('leadPhones', (options) => supabase.from('v_lead_phones').select(LEAD_PHONE_COLUMNS, options).order('lead_id'));
     // Resumo da Base Tally para o rótulo de última sincronização. São três consultas
     // sem payload de linha (head + count, e um order/limit 1) em vez de baixar a
     // tabela: ela já tem ~1k linhas e vai para ~19k quando os 59 formulários entrarem.
@@ -202,8 +294,8 @@ function queryPlan(supabase, mode) {
     add('tallyPhones', supabase.from('tally_submissions').select('submission_id', { count: 'exact', head: true }).not('phone_e164', 'is', null).eq('is_junk', false));
     // Veredito por ICP: o filtro de ICP da tela troca status/score/motivo por estes.
     // Paginado pelo mesmo motivo das outras — são até um registro por lead por ICP.
-    addOptionalPaginated('leadQualifications', () => supabase.from('lead_qualifications')
-      .select('lead_id, icp_id, status, score, reason, suggested_angle, decided_by')
+    addOptionalPaginated('leadQualifications', (options) => supabase.from('lead_qualifications')
+      .select('lead_id, icp_id, status, score, reason, suggested_angle, decided_by', options)
       .order('lead_id').order('icp_id'));
     addOptional('icpProfiles', supabase.from('icp_profiles').select('*').order('is_default', { ascending: false }).order('name'));
   } else if (mode === 'pipeline') {
@@ -211,12 +303,12 @@ function queryPlan(supabase, mode) {
     // a fila "precisa de contato hoje" calculados. Uma linha por lead SELECIONADO —
     // centenas, não os 3.1k de `leads` — mas pagina do mesmo jeito, porque foi
     // exatamente assim que a lista de leads passou meses mostrando 230 de 2.199.
-    addPaginated('pipeline', () => supabase.from('v_lead_pipeline').select('*')
+    addPaginated('pipeline', (options) => supabase.from('v_lead_pipeline').select('*', options)
       .order('lead_id'));
     // Timeline do card. Inclui os anulados: a view os ignora nos cálculos, mas quem
     // abre o histórico precisa ver que houve uma correção — é a auditoria.
-    addPaginated('touchpoints', () => supabase.from('lead_touchpoints')
-      .select('id, lead_id, direction, channel, touch_number, touched_at, note, created_by, cancelled_at, cancelled_by, cancel_reason')
+    addPaginated('touchpoints', (options) => supabase.from('lead_touchpoints')
+      .select('id, lead_id, direction, channel, touch_number, touched_at, note, created_by, cancelled_at, cancelled_by, cancel_reason', options)
       .order('lead_id').order('touched_at'));
     add('pipelineSettings', supabase.from('pipeline_settings').select('cadence').eq('id', true).limit(1));
     add('icpProfiles', supabase.from('icp_profiles').select('id, name').order('name'));
@@ -234,6 +326,11 @@ function queryPlan(supabase, mode) {
 
 async function fetchContentMetrics({ supabase, fallback, mode }) {
   try {
+    // No dashboard completo o histórico empacotado cobre o que o banco ainda não
+    // tem de YouTube/Instagram, então ele desce EM PARALELO com as consultas — quem
+    // abre o dashboard não espera nada a mais por isso. As telas comerciais nem
+    // tocam nele.
+    const bundledForFull = mode === 'full' ? bundledHistories() : null;
     const queries = queryPlan(supabase, mode);
     const entries = await Promise.all([...queries.entries()].map(async ([key, query]) => {
       const run = async (spec) => (spec?.paginate ? fetchAllPages(spec.paginate) : (spec?.query ?? spec));
@@ -257,6 +354,7 @@ async function fetchContentMetrics({ supabase, fallback, mode }) {
       throw new Error(`${key}: ${result.error.message || 'Falha ao carregar dados'}`);
     }
 
+    const bundled = bundledForFull ? await bundledForFull : null;
     const accounts = results.accounts?.data || [];
     const linkedin = withoutReposts(results.linkedin?.data || []);
     const growth = buildAccountGrowth(results.accountMetrics?.data || [], accounts);
@@ -265,8 +363,8 @@ async function fetchContentMetrics({ supabase, fallback, mode }) {
       source: 'supabase',
       ...empty,
       linkedin,
-      youtube: results.youtube?.data?.length ? results.youtube.data : (mode === 'full' ? bundledYoutubeHistory.records || [] : []),
-      instagram: results.instagram?.data?.length ? results.instagram.data : (mode === 'full' ? bundledInstagramHistory.records || [] : []),
+      youtube: results.youtube?.data?.length ? results.youtube.data : (bundled?.youtube?.records || []),
+      instagram: results.instagram?.data?.length ? results.instagram.data : (bundled?.instagram?.records || []),
       accounts,
       imports: results.imports?.data || [],
       runs: results.runs?.data || [],
@@ -334,7 +432,9 @@ function buildAccountGrowth(metrics = [], accounts = []) {
     .sort((a, b) => String(a.metric_date).localeCompare(String(b.metric_date)));
 }
 
-export async function loadContentMetrics({ supabase, fallback = bundledHistory, mode = 'full', force = false } = {}) {
+// `fallback` sem valor significa "use o snapshot empacotado" — resolvido lá dentro,
+// só no caminho que precisa dele.
+export async function loadContentMetrics({ supabase, fallback = null, mode = 'full', force = false } = {}) {
   if (!supabase) {
     return localSnapshot(fallback, 'Supabase não configurado', { loadError: mode !== 'full' });
   }
@@ -356,4 +456,3 @@ export async function loadContentMetrics({ supabase, fallback = bundledHistory, 
   return inFlight;
 }
 
-export { bundledHistory };

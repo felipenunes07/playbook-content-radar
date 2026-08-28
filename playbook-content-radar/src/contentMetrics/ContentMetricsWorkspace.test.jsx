@@ -1,9 +1,9 @@
 /* @vitest-environment jsdom */
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import ContentMetricsWorkspace, { buildLeadAnalysisPlan, waitForLeadAnalysisRetry, computeRateLimitBackoff, summarizeGrowth, buildGoalsWhatsappMessage, progressBar } from './ContentMetricsWorkspace.jsx';
+import ContentMetricsWorkspace, { buildLeadAnalysisPlan, waitForLeadAnalysisRetry, computeRateLimitBackoff, summarizeGrowth, buildGoalsWhatsappMessage, buildNetworkGrowthSeries, progressBar } from './ContentMetricsWorkspace.jsx';
 
 const data = {
   source: 'local_snapshot',
@@ -584,5 +584,161 @@ describe('Leads ICP: colunas por ICP e horário do comentário', () => {
     expect(linha.textContent).toMatch(/26\/08,? \d{2}:\d{2}/);
     // E o "há quanto tempo", que é como o time realmente lê a lista.
     expect(linha.textContent).toMatch(/há \d+\s?(min|h|d|m)/);
+  });
+});
+
+// —————————————————————————————————————————————————————————————————————————
+// Renderização em janela. A aba "Todos" chegou a 3.154 leads: pintar tudo de uma
+// vez eram ~119 mil nós de DOM e ~2,4s de thread travada — a tela que "às vezes nem
+// abre". A janela é só de PINTURA: contagem, seleção e exportação continuam
+// enxergando a lista inteira, senão o comercial trabalharia achando que 150 é tudo.
+describe('Leads ICP: tabela renderiza em janela', () => {
+  // 200 = um lote cheio (150) + sobra. O número real da tela é 3.154; aqui é o
+  // mínimo que exercita a janela sem fazer o jsdom pintar milhares de linhas.
+  const muitosLeads = Array.from({ length: 200 }, (_, index) => ({
+    id: `L${String(index).padStart(3, '0')}`,
+    full_name: `Lead ${String(index).padStart(3, '0')}`,
+    qualification_status: 'qualified',
+    score: 200 - index,
+    enrichment_status: 'enriched',
+    job_title: 'CEO',
+    company_name: `Empresa ${index}`,
+  }));
+
+  const leadsData = {
+    ...data,
+    leads: muitosLeads,
+    icpProfiles: [],
+    leadQualifications: [],
+    leadComments: [],
+    leadOutreach: [],
+    leadPhones: [],
+    prospecting: [],
+  };
+
+  const linhasDeLead = () => screen.getAllByRole('row')
+    .filter((linha) => /^Lead \d{3}/.test(linha.textContent));
+
+  it('pinta só o primeiro lote, não os 200 de uma vez', () => {
+    render(<ContentMetricsWorkspace initialData={leadsData} mode="leads" />);
+    expect(linhasDeLead()).toHaveLength(150);
+  });
+
+  it('diz quantos está mostrando do total em vez de cortar em silêncio', () => {
+    render(<ContentMetricsWorkspace initialData={leadsData} mode="leads" />);
+    expect(screen.getByText(/Mostrando 150 de 200 leads do filtro/)).toBeInTheDocument();
+  });
+
+  it('avança a lista pelo botão quando não há IntersectionObserver', () => {
+    render(<ContentMetricsWorkspace initialData={leadsData} mode="leads" />);
+    fireEvent.click(screen.getByRole('button', { name: /Mostrar mais 50/ }));
+    expect(linhasDeLead()).toHaveLength(200);
+    // Chegou ao fim: a linha sentinela some junto com o aviso de lista parcial.
+    expect(screen.queryByText(/Mostrando \d+ de 200/)).not.toBeInTheDocument();
+  }, 20000);
+
+  it('cresce sozinha quando a rolagem alcança o fim da lista', () => {
+    // jsdom não tem IntersectionObserver. O dublê guarda o alvo observado e deixa o
+    // teste disparar a interseção — é o que o navegador faz ao rolar até o fim.
+    const observados = [];
+    let dispararIntersecao = null;
+    globalThis.IntersectionObserver = class {
+      constructor(callback) { dispararIntersecao = () => callback([{ isIntersecting: true }]); }
+      observe(node) { observados.push(node); }
+      disconnect() {}
+    };
+    try {
+      render(<ContentMetricsWorkspace initialData={leadsData} mode="leads" />);
+      // O que está sendo observado é a linha sentinela, não uma linha de lead.
+      expect(observados).toHaveLength(1);
+      expect(observados[0].textContent).toMatch(/Mostrando 150 de 200/);
+
+      act(() => dispararIntersecao());
+      expect(linhasDeLead()).toHaveLength(200);
+    } finally {
+      delete globalThis.IntersectionObserver;
+    }
+  }, 20000);
+
+  it('conta e seleciona para exportação a lista inteira, não só o que está pintado', () => {
+    render(<ContentMetricsWorkspace initialData={leadsData} mode="leads" />);
+    // O contador da aba e o rótulo do topo falam dos 200, não dos 150 pintados.
+    expect(screen.getByRole('button', { name: /Aprovados · 200/ })).toBeInTheDocument();
+    expect(screen.getByText('200 leads')).toBeInTheDocument();
+    // "Selecionar todos" marca os 200 elegíveis, e é isso que vai para a planilha.
+    expect(screen.getByLabelText('Selecionar todos os leads para exportação')).toBeChecked();
+    expect(screen.getByText(/Exportar 200 selecionado\(s\)/)).toBeInTheDocument();
+  }, 20000);
+});
+
+// —————————————————————————————————————————————————————————————————————————
+// "Seguidores por rede". O gráfico plota VARIAÇÃO de uma coleta para a outra, e
+// somar as contas antes de derivar fazia uma coleta que falhou virar queda de
+// seguidores. Caso real de 26/08/2026: o canal do Victor não foi coletado, a soma
+// do YouTube no dia caiu para os 2 inscritos do Fernando e o gráfico desenhou
+// −9.400 e, no dia seguinte, +9.470.
+describe('buildNetworkGrowthSeries — coleta que falha não é queda de seguidores', () => {
+  const YT_VICTOR = '3d8f4b94';
+  const YT_FERNANDO = '87b78c81';
+  const yt = (account_id, metric_date, subscribers) => ({
+    account_id, metric_date, subscribers, platform: 'youtube', owner_name: account_id === YT_VICTOR ? 'Victor Baggio' : 'Fernando Tedesco',
+  });
+
+  // Os números são os do banco: Victor 9.400 -> (sem coleta) -> 9.470,
+  // Fernando parado em 2.
+  const comBuraco = [
+    yt(YT_VICTOR, '2026-08-25', 9400), yt(YT_FERNANDO, '2026-08-25', 2),
+    /* 26/08: só o Fernando foi coletado */ yt(YT_FERNANDO, '2026-08-26', 2),
+    yt(YT_VICTOR, '2026-08-27', 9470), yt(YT_FERNANDO, '2026-08-27', 2),
+  ];
+
+  const porData = (linhas) => Object.fromEntries(linhas.map((l) => [l.metric_date, l.YouTube]));
+
+  it('não inventa perda de 9 mil inscritos no dia sem coleta', () => {
+    const serie = porData(buildNetworkGrowthSeries(comBuraco, 'daily'));
+    // O dia sem coleta do Victor não gera variação nenhuma para ele; o Fernando
+    // ficou parado, então o YouTube não se move.
+    expect(serie['2026-08-26']).toBe(0);
+    expect(serie['2026-08-26']).not.toBe(-9400);
+  });
+
+  it('lança o crescimento real na coleta seguinte, não um salto de 9 mil', () => {
+    const serie = porData(buildNetworkGrowthSeries(comBuraco, 'daily'));
+    // 9.470 − 9.400 = 70 desde a última medição de verdade. O antigo dava +9.470.
+    expect(serie['2026-08-27']).toBe(70);
+  });
+
+  it('soma as contas da mesma rede quando todas foram coletadas', () => {
+    const serie = porData(buildNetworkGrowthSeries([
+      yt(YT_VICTOR, '2026-08-24', 9360), yt(YT_FERNANDO, '2026-08-24', 2),
+      yt(YT_VICTOR, '2026-08-25', 9400), yt(YT_FERNANDO, '2026-08-25', 5),
+    ], 'daily'));
+    expect(serie['2026-08-25']).toBe(43); // +40 do Victor, +3 do Fernando
+  });
+
+  it('no semanal compara a última coleta de cada semana, e o buraco não vira queda', () => {
+    const linhas = buildNetworkGrowthSeries([
+      // Semana de 17/08: fecha em 9.360. Semana de 24/08: 26/08 sem o Victor, fecha
+      // em 9.470 no dia 27. O ponto da semana tem de sair do 27, não do buraco.
+      yt(YT_VICTOR, '2026-08-21', 9300), yt(YT_FERNANDO, '2026-08-21', 2),
+      yt(YT_VICTOR, '2026-08-23', 9360), yt(YT_FERNANDO, '2026-08-23', 2),
+      yt(YT_FERNANDO, '2026-08-26', 2),
+      yt(YT_VICTOR, '2026-08-27', 9470), yt(YT_FERNANDO, '2026-08-27', 2),
+    ], 'weekly');
+    const ultima = linhas[linhas.length - 1];
+    expect(ultima.YouTube).toBe(110); // 9.470 − 9.360
+    expect(ultima.week).toBe('2026-W35');
+  });
+
+  // Antes, a primeira coleta de uma conta nova entrava na soma da rede e o dia
+  // aparecia como um crescimento do tamanho da base inteira dela.
+  it('não conta a base de uma conta nova como crescimento no dia da estreia', () => {
+    const serie = porData(buildNetworkGrowthSeries([
+      yt(YT_VICTOR, '2026-08-24', 9360),
+      yt(YT_VICTOR, '2026-08-25', 9400), yt(YT_FERNANDO, '2026-08-25', 8000),
+      yt(YT_VICTOR, '2026-08-26', 9410), yt(YT_FERNANDO, '2026-08-26', 8010),
+    ], 'daily'));
+    expect(serie['2026-08-25']).toBe(40);  // e não 8.040
+    expect(serie['2026-08-26']).toBe(20);  // +10 de cada, agora que os dois têm base
   });
 });

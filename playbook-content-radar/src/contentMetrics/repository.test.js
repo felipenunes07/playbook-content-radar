@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { loadContentMetrics } from './repository.js';
 import bundledYoutubeHistory from './data/youtube-history.json';
 
-function fakeSupabase(results, calls = []) {
+// `withCount: false` imita um servidor que nao devolve o total no Content-Range —
+// e o que faz o loader voltar a pedir pagina por pagina.
+function fakeSupabase(results, calls = [], { withCount = true, concurrency = null } = {}) {
   return {
     from(name) {
       return {
@@ -22,12 +24,33 @@ function fakeSupabase(results, calls = []) {
             // do PostgREST. O fake precisa FATIAR de verdade, senão cada página
             // devolveria a lista inteira e o loop de paginação nunca terminaria.
             range(from, to) {
+              const all = resolved.data || [];
               const ranged = resolved.error
                 ? resolved
-                : { data: (resolved.data || []).slice(from, to + 1), error: null };
+                : {
+                  data: all.slice(from, to + 1),
+                  error: null,
+                  // O PostgREST so manda o total quando a consulta pediu `count`, e e
+                  // esse total que permite disparar as paginas restantes de uma vez.
+                  count: withCount && options.count === 'exact' ? all.length : null,
+                };
+              // Registra quantas paginas desta tabela estao no ar ao mesmo tempo: e a
+              // diferenca entre pedir em fila indiana e pedir em paralelo.
+              if (concurrency) {
+                const state = concurrency[name] || (concurrency[name] = { emVoo: 0, pico: 0 });
+                state.emVoo += 1;
+                state.pico = Math.max(state.pico, state.emVoo);
+              }
+              const settle = () => {
+                if (concurrency && concurrency[name]) concurrency[name].emVoo -= 1;
+                return ranged;
+              };
+              // Resolve num tick posterior para que paginas disparadas juntas de fato
+              // se sobreponham — resolvendo na hora, nada nunca ficaria concorrente.
+              const pending = new Promise((resolve) => { setTimeout(() => resolve(settle()), 0); });
               return {
-                then(resolve, reject) { return Promise.resolve(ranged).then(resolve, reject); },
-                catch(fn) { return Promise.resolve(ranged).catch(fn); },
+                then(resolve, reject) { return pending.then(resolve, reject); },
+                catch(fn) { return pending.catch(fn); },
               };
             },
             then(resolve, reject) { return Promise.resolve(resolved).then(resolve, reject); },
@@ -197,10 +220,48 @@ describe('paginação das consultas de lead', () => {
 
     expect(result.leads).toHaveLength(2199);
     expect(result.leadComments).toHaveLength(2263);
-    // 2.199 leads = 3 páginas (1.000 + 1.000 + 199); a última página vem incompleta
-    // e é isso que encerra o loop.
+    // 2.199 leads = 3 páginas (1.000 + 1.000 + 199). A contagem vem junto da
+    // primeira, então são exatamente 3 consultas — nenhuma sonda extra.
     expect(calls.filter((call) => call.name === 'leads')).toHaveLength(3);
     expect(calls.filter((call) => call.name === 'lead_comments')).toHaveLength(3);
+    // A primeira página é quem pede o total; as seguintes não repetem a contagem.
+    const leadCalls = calls.filter((call) => call.name === 'leads');
+    expect(leadCalls[0].count).toBe('exact');
+    expect(leadCalls.slice(1).every((call) => !call.count)).toBe(true);
+  });
+
+  // Doze idas e voltas encadeadas (4 páginas × leads, lead_comments e
+  // lead_qualifications) eram metade do tempo de abrir a tela de Leads ICP.
+  it('dispara as páginas restantes juntas em vez de uma esperar a outra', async () => {
+    const concurrency = {};
+    await loadContentMetrics({
+      supabase: fakeSupabase({
+        v_latest_linkedin_post_metrics: { data: [{ id: 'post-1', hook: 'Post' }], error: null },
+        leads: { data: manyLeads, error: null },
+      }, [], { concurrency }),
+      mode: 'leads',
+      force: true,
+    });
+
+    // 3 páginas: a 1ª sozinha (é ela que traz o total), a 2ª e a 3ª sobrepostas.
+    expect(concurrency.leads.pico).toBe(2);
+  });
+
+  it('volta a paginar em sequência quando o servidor não informa o total', async () => {
+    const calls = [];
+    const result = await loadContentMetrics({
+      supabase: fakeSupabase({
+        v_latest_linkedin_post_metrics: { data: [{ id: 'post-1', hook: 'Post' }], error: null },
+        leads: { data: manyLeads, error: null },
+      }, calls, { withCount: false }),
+      mode: 'leads',
+      force: true,
+    });
+
+    // Sem total, a única forma segura de saber que acabou é a página incompleta —
+    // mais lento, mas nunca uma lista cortada passando por completa.
+    expect(result.leads).toHaveLength(2199);
+    expect(calls.filter((call) => call.name === 'leads')).toHaveLength(3);
   });
 
   it('propaga erro de uma página em vez de devolver lista parcial como sucesso', async () => {

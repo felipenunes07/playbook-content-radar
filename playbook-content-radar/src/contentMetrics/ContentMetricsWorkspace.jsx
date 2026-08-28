@@ -392,6 +392,7 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
   const [distributionView, setDistributionView] = useState('frequency'); // 'frequency' | 'followers'
   const [followersPeriod, setFollowersPeriod] = useState('weekly'); // 'daily' | 'weekly'
   const [cadenceGroup, setCadenceGroup] = useState('creator'); // 'creator' | 'platform'
+  const [followersWindow, setFollowersWindow] = useState('curto'); // 'curto' | 'longo' | 'tudo'
 
   const handleDateClick = (dayInfo) => {
     if (selectedDate && selectedDate.date === dayInfo.date) {
@@ -610,10 +611,13 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
   }, [platformFiltered, cadenceGroup, followersPeriod, daily, weekly]);
   const heatmap = buildCalendarHeatmap(platformFiltered);
   const comparison = buildCreatorComparison(interactiveFiltered);
-  const networkGrowth = useMemo(
-    () => buildNetworkGrowthSeries(data.growth, followersPeriod, filters, selectedPlatform),
-    [data.growth, followersPeriod, filters, selectedPlatform],
-  );
+  const followersWindows = FOLLOWERS_WINDOWS[followersPeriod] || FOLLOWERS_WINDOWS.daily;
+  const networkGrowth = useMemo(() => {
+    const serie = buildNetworkGrowthSeries(data.growth, followersPeriod, filters, selectedPlatform);
+    const janela = (FOLLOWERS_WINDOWS[followersPeriod] || FOLLOWERS_WINDOWS.daily)
+      .find((opcao) => opcao.id === followersWindow);
+    return janela?.pontos ? serie.slice(-janela.pontos) : serie;
+  }, [data.growth, followersPeriod, filters, selectedPlatform, followersWindow]);
   const youtubeViews = data.youtube.reduce((sum, video) => sum + Number(video.views || 0), 0);
 
   const activeFilterLabel = selectedDate 
@@ -739,10 +743,28 @@ function Overview({ filtered, allPosts, data, filters, setFilters }) {
           <div>
             <span className="cm-eyebrow">Distribuição</span>
             <h2>{distributionView === 'followers' ? 'Seguidores por rede' : 'Frequência diária'}</h2>
-            <p>{distributionView === 'followers' ? 'Total de seguidores/inscritos de cada rede ao longo do tempo.' : 'Consistência de conteúdos dia a dia ao longo do ano.'}</p>
+            <p>{distributionView === 'followers' ? 'Quanto cada rede ganhou de seguidores/inscritos de uma coleta para a outra.' : 'Consistência de conteúdos dia a dia ao longo do ano.'}</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {distributionView !== 'followers' && <small>{heatmap.days.length} dias</small>}
+            {/* Recorte de tempo do gráfico de seguidores. Segue o período escolhido
+                lá em cima (Diário/Semanal), por isso os rótulos mudam junto. */}
+            {distributionView === 'followers' && (
+              <div className="cm-period-toggle" role="tablist" aria-label="Janela de tempo do gráfico de seguidores">
+                {followersWindows.map((opcao) => (
+                  <button
+                    key={opcao.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={followersWindow === opcao.id}
+                    className={followersWindow === opcao.id ? 'active' : ''}
+                    onClick={() => setFollowersWindow(opcao.id)}
+                  >
+                    {opcao.label}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="cm-period-toggle" role="tablist" aria-label="Tipo de gráfico de distribuição">
               <button type="button" role="tab" aria-selected={distributionView === 'frequency'} className={distributionView === 'frequency' ? 'active' : ''} onClick={() => setDistributionView('frequency')}>Frequência</button>
               <button type="button" role="tab" aria-selected={distributionView === 'followers'} className={distributionView === 'followers' ? 'active' : ''} onClick={() => setDistributionView('followers')}>Seguidores</button>
@@ -1138,6 +1160,12 @@ const leadStatusSets = {
   pending: ['pending'],
   disqualified: ['disqualified'],
 };
+
+// Quantas linhas a tabela pinta por vez. A aba "Todos" tem 3.154 leads e cada linha
+// custa ~38 nós de DOM: montar tudo de uma vez eram 119 mil nós e ~2,4s de thread
+// travada — a tela que "às vezes nem abre". O resto entra conforme a rolagem chega
+// perto do fim, então quem só olha o topo da lista nunca paga por isso.
+const LEAD_ROWS_PER_CHUNK = 150;
 
 const seniorityLabels = { 'c-level': 'C-Level', diretoria: 'Diretoria', gerencia: 'Gerência', coordenacao: 'Coordenação', operacional: 'Operacional', desconhecido: '—' };
 
@@ -2384,6 +2412,29 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
     return sorted;
   }, [filteredLeads, filter, sortConfig, commentByLead, postHookById, outreachByLead, phoneFilter, phonesByLead]);
 
+  // Janela de renderização. Cresce sozinha ao rolar; NÃO limita nada além do que é
+  // pintado — contadores, seleção e exportação continuam olhando `visible` inteiro.
+  const [renderLimit, setRenderLimit] = useState(LEAD_ROWS_PER_CHUNK);
+  const sentinelRef = React.useRef(null);
+  // Volta ao topo só quando muda QUAIS leads a lista mostra. Marcar um lead como
+  // prospectado também recalcula `visible`, e recolher a lista debaixo de quem está
+  // no meio dela seria pior que o problema original.
+  useEffect(() => { setRenderLimit(LEAD_ROWS_PER_CHUNK); }, [filter, postFilter, creatorFilter, icpFilter, phoneFilter, sortConfig]);
+  const visibleRows = useMemo(() => visible.slice(0, renderLimit), [visible, renderLimit]);
+  const hasMoreRows = visible.length > visibleRows.length;
+  useEffect(() => {
+    const node = sentinelRef.current;
+    // Sem IntersectionObserver (jsdom, navegador antigo) o botão da própria linha
+    // sentinela continua avançando a lista.
+    if (!node || !hasMoreRows || typeof IntersectionObserver === 'undefined') return undefined;
+    // Antecipa antes de o usuário chegar ao fim, para a lista não dar solavanco.
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setRenderLimit((current) => current + LEAD_ROWS_PER_CHUNK);
+    }, { rootMargin: '600px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMoreRows, visible.length]);
+
   const requestSort = (key) => {
     setSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc' }));
   };
@@ -2889,7 +2940,7 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
               <th title="Motivo da decisão + ângulo sugerido de abordagem">Motivo / ângulo</th><th>Mensagem</th><th style={{ textAlign: 'center' }}>Prospectado</th><th style={{ textAlign: 'center' }}>Ignorar</th>
             </tr></thead>
             <tbody>
-              {visible.map((lead) => {
+              {visibleRows.map((lead) => {
                 const outreach = outreachByLead[lead.id];
                 const prospected = outreach?.status === 'prospected';
                 const ignored = outreach?.status === 'ignored';
@@ -2975,6 +3026,21 @@ function LeadsSection({ data, client, currentUser = '', onNotice, onReload }) {
                   </tr>
                 );
               })}
+              {hasMoreRows && (
+                <tr ref={sentinelRef}>
+                  {/* Diz em números quantos estão pintados: lista cortada em silêncio
+                      nesta tela já fez o comercial trabalhar achando que via tudo. */}
+                  <td colSpan={14 + colunasIcp.length} style={{ textAlign: 'center', padding: 14 }}>
+                    <button type="button" onClick={() => setRenderLimit((current) => current + LEAD_ROWS_PER_CHUNK)}
+                      style={{ background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 7, padding: '7px 14px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>
+                      Mostrar mais {integer.format(Math.min(LEAD_ROWS_PER_CHUNK, visible.length - visibleRows.length))}
+                    </button>
+                    <small style={{ display: 'block', marginTop: 6, color: '#94a3b8' }}>
+                      Mostrando {integer.format(visibleRows.length)} de {integer.format(visible.length)} leads do filtro — role para carregar o resto.
+                    </small>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -3017,6 +3083,25 @@ function VideosSection({ data, onSettings }) {
 // ─── Metas / Objetivos de crescimento ──────────────────────────────────────
 // As metas ficam na tabela `content_goals` do Supabase (não no navegador): assim
 // tanto o Felipe quanto o Victor conseguem abrir o app e editar a mesma meta.
+// Quantas barras a "Seguidores por rede" mostra por padrão. Com dois meses de
+// coleta diária o gráfico virava 58 barras de ~3 px: variação de 20-50 seguidores
+// some ao lado de qualquer dia atípico, e o eixo se estica para caber o maior pico.
+// A janela recorta o FIM da série (o período recente é o que se olha), sempre
+// depois de calcular a variação — a primeira barra visível continua comparada com
+// o ponto anterior a ela, não com o vazio.
+const FOLLOWERS_WINDOWS = {
+  daily: [
+    { id: 'curto', pontos: 30, label: '30 dias' },
+    { id: 'longo', pontos: 90, label: '90 dias' },
+    { id: 'tudo', pontos: null, label: 'Tudo' },
+  ],
+  weekly: [
+    { id: 'curto', pontos: 12, label: '12 semanas' },
+    { id: 'longo', pontos: 26, label: '26 semanas' },
+    { id: 'tudo', pontos: null, label: 'Tudo' },
+  ],
+};
+
 const GOAL_PLATFORMS = [
   { id: 'linkedin', label: 'LinkedIn', metric: 'followers', unit: 'seguidores', Icon: LinkedInIcon, color: '#0a66c2', emoji: '🔵' },
   { id: 'youtube', label: 'YouTube', metric: 'subscribers', unit: 'inscritos', Icon: YouTubeIcon, color: '#e52d27', emoji: '🔴' },
@@ -3043,63 +3128,86 @@ function weekKeyToMondayDate(weekKey) {
   return monday.toISOString().slice(0, 10);
 }
 
-function buildNetworkGrowthSeries(growth, period = 'daily', filters = {}, selectedPlatform = 'all') {
-  const byDate = new Map();
-  (growth || []).forEach((g) => {
-    // 1. Filtrar por Criador (Owner)
-    if (filters.owner && g.owner_name !== filters.owner) return;
-
-    const platform = GOAL_PLATFORMS.find((p) => p.id === g.platform);
-    if (!platform) return;
-    const value = Number(g[platform.metric]);
-    if (!Number.isFinite(value) || value <= 0) return;
-    const date = String(g.metric_date);
-    const row = byDate.get(date) || { metric_date: date };
-    row[platform.label] = (row[platform.label] || 0) + value;
-    byDate.set(date, row);
-  });
-  const daily = [...byDate.values()].sort((a, b) => a.metric_date.localeCompare(b.metric_date));
-  const networkKeys = GOAL_PLATFORMS.map((p) => p.label);
+export function buildNetworkGrowthSeries(growth, period = 'daily', filters = {}, selectedPlatform = 'all') {
   const activePlatforms = selectedPlatform === 'all' ? null : selectedPlatform.split(',');
-  const activeLabels = activePlatforms 
-    ? GOAL_PLATFORMS.filter(p => activePlatforms.includes(p.id)).map(p => p.label)
+  const activeLabels = activePlatforms
+    ? GOAL_PLATFORMS.filter((p) => activePlatforms.includes(p.id)).map((p) => p.label)
     : null;
 
-  const toDeltas = (rows) => rows.map((row, index) => {
-    const prev = rows[index - 1];
-    const out = { metric_date: row.metric_date, week: row.week, label: row.label };
-    networkKeys.forEach((key) => {
-      if (activeLabels && !activeLabels.includes(key)) return;
-      if (row[key] == null || !prev || prev[key] == null) return;
-      out[key] = row[key] - prev[key];
-    });
-    return out;
-  }).slice(1); // o primeiro ponto não tem "anterior" pra comparar
-
-  let deltas;
-  // `label` usa o mesmo formato de WeeklyCadenceChart/WeeklyEngagementChart (dd/mm
-  // da segunda-feira da semana), pra alinhar com o eixo X delas via syncId.
-  if (period !== 'weekly') {
-    deltas = toDeltas(daily.map((row) => ({ ...row, label: shortDay(row.metric_date) })));
-  } else {
-    const byWeek = new Map();
-    daily.forEach((row) => {
-      const week = isoWeekKey(new Date(`${row.metric_date}T00:00:00Z`));
-      byWeek.set(week, { ...row, week, label: weekLabel(week) }); // `daily` está em ordem crescente, então a última coleta da semana sobrescreve
-    });
-    deltas = toDeltas([...byWeek.values()].sort((a, b) => a.week.localeCompare(b.week)));
-  }
-
-  // Filtrar deltas pelo intervalo de datas
-  return deltas.filter((row) => {
-    let compareDate = row.metric_date;
-    if (period === 'weekly' && row.week) {
-      compareDate = weekKeyToMondayDate(row.week);
+  // Uma série por CONTA (canal/perfil), não por rede. A soma por rede acontece
+  // depois, sobre as variações — ver o comentário do cálculo mais abaixo.
+  const porConta = new Map();
+  (growth || []).forEach((g) => {
+    if (filters.owner && g.owner_name !== filters.owner) return;
+    const platform = GOAL_PLATFORMS.find((p) => p.id === g.platform);
+    if (!platform) return;
+    if (activeLabels && !activeLabels.includes(platform.label)) return;
+    const value = Number(g[platform.metric]);
+    if (!Number.isFinite(value) || value <= 0) return;
+    const chave = `${g.account_id || g.owner_name}|${g.platform}`;
+    let conta = porConta.get(chave);
+    if (!conta) {
+      conta = { label: platform.label, porData: new Map() };
+      porConta.set(chave, conta);
     }
-    if (filters.from && compareDate < filters.from) return false;
-    if (filters.to && compareDate > filters.to) return false;
-    return true;
+    conta.porData.set(String(g.metric_date), value);
   });
+
+  // No semanal cada conta vira um ponto por semana ISO — a ÚLTIMA coleta da semana
+  // ganha, por isso as datas entram em ordem crescente.
+  const contas = [];
+  porConta.forEach((conta) => {
+    const serie = new Map();
+    [...conta.porData.keys()].sort().forEach((date) => {
+      const ponto = period === 'weekly' ? isoWeekKey(new Date(`${date}T00:00:00Z`)) : date;
+      serie.set(ponto, { valor: conta.porData.get(date), metric_date: date });
+    });
+    contas.push({ label: conta.label, serie });
+  });
+
+  const pontos = [...new Set(contas.flatMap((conta) => [...conta.serie.keys()]))].sort();
+  const indicePorPonto = new Map(pontos.map((ponto, index) => [ponto, index]));
+  const linhas = pontos.map((ponto) => ({ ponto, metric_date: '', valores: {} }));
+
+  // A variação é calculada POR CONTA e só então somada por rede. Somar primeiro e
+  // derivar depois fazia QUALQUER falha de coleta virar queda de seguidores: em
+  // 26/08/2026 o canal do Victor não foi coletado, a soma do YouTube naquele dia caiu
+  // para os 2 inscritos do Fernando, e o gráfico desenhou −9.400 seguido de +9.470 no
+  // dia seguinte — como se o canal tivesse perdido e recuperado 9 mil inscritos em
+  // 24 h. Por conta, um ponto sem coleta apenas não gera variação, e a próxima coleta
+  // mede o crescimento desde a última medição de verdade. Isso também protege a
+  // estreia de uma conta nova, que somando antes entraria como um salto do tamanho
+  // da base inteira dela.
+  contas.forEach((conta) => {
+    let anterior = null;
+    conta.serie.forEach((registro, ponto) => {
+      const linha = linhas[indicePorPonto.get(ponto)];
+      if (linha && registro.metric_date > linha.metric_date) linha.metric_date = registro.metric_date;
+      if (anterior != null && linha) {
+        linha.valores[conta.label] = (linha.valores[conta.label] || 0) + (registro.valor - anterior);
+      }
+      anterior = registro.valor;
+    });
+  });
+
+  return linhas
+    // O primeiro ponto de cada conta não tem anterior para comparar, então a linha
+    // mais antiga costuma sair sem nenhuma rede — não vira barra vazia no gráfico.
+    .filter((linha) => Object.keys(linha.valores).length > 0)
+    .map((linha) => ({
+      metric_date: linha.metric_date,
+      ...(period === 'weekly' ? { week: linha.ponto } : {}),
+      label: period === 'weekly' ? weekLabel(linha.ponto) : shortDay(linha.ponto),
+      ...linha.valores,
+    }))
+    .filter((linha) => {
+      // O recorte por data usa a segunda-feira da semana no modo semanal, para bater
+      // com o início do período que a barra representa.
+      const compareDate = period === 'weekly' && linha.week ? weekKeyToMondayDate(linha.week) : linha.metric_date;
+      if (filters.from && compareDate < filters.from) return false;
+      if (filters.to && compareDate > filters.to) return false;
+      return true;
+    });
 }
 
 // Converte as linhas de `content_goals` (platform, owner_name, month_key, target)
