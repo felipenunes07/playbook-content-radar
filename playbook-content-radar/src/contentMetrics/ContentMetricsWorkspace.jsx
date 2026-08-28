@@ -60,7 +60,7 @@ import {
 import { loadContentMetrics } from './repository.js';
 import { buildLeadExportFilename, buildLeadExportRows, downloadLeadCsv, downloadLeadExcel, leadExportColumns, selectLeadsForExport } from './leadExport.js';
 import {
-  PHONE_FILTERS, countByPhoneFilter, evidenceLabel, indexPhonesByLead, isAutoMatch, matchesPhoneFilter,
+  PHONE_FILTERS, countByPhoneFilter, downloadedMagnet, evidenceLabel, indexPhonesByLead, isAutoMatch, matchesPhoneFilter,
   phoneDisplay, phoneStatusMeta, phoneStatusOf, reviewCandidates, reviewReason, whatsappLink,
 } from './leadPhones.js';
 import { METRICS_SECTIONS } from './routes.js';
@@ -2072,9 +2072,28 @@ function PhoneCell({ row, onDetail, onReview }) {
     );
   }
 
+  // Achou a pessoa mas ela não deixou telefone. Em vez de dizer "aguardando" (não há
+  // o que aguardar), mostra por qual material ela entrou: é o que dá para usar numa
+  // abordagem pelo LinkedIn, o canal que sobra.
+  if (status === 'MATCHED_NO_PHONE') {
+    const material = downloadedMagnet(row);
+    return (
+      <span title={material
+        ? `Esta pessoa baixou "${material}". O formulário não pedia telefone, então não há número — mas ela já é um contato morno. Se preencher outro formulário com telefone, aparece aqui sozinho.`
+        : 'Pessoa identificada nas nossas submissions do Tally, mas nenhuma delas tem telefone.'}
+        style={{ display: 'inline-flex', flexDirection: 'column', gap: 2, border: `1px solid ${tone.border}`, background: tone.bg, color: tone.color, borderRadius: 7, padding: '4px 8px', fontSize: 11, fontWeight: 700, maxWidth: 160 }}>
+        <span>{meta.short}</span>
+        {material && (
+          <small style={{ fontWeight: 600, opacity: 0.85, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {material}
+          </small>
+        )}
+      </span>
+    );
+  }
+
   return (
-    <span title={status === 'MATCHED_NO_PHONE' ? 'Pessoa identificada no Tally, mas a submission não tem telefone' : undefined}
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${tone.border}`, background: tone.bg, color: tone.color, borderRadius: 7, padding: '4px 8px', fontSize: 11, fontWeight: 700 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: `1px solid ${tone.border}`, background: tone.bg, color: tone.color, borderRadius: 7, padding: '4px 8px', fontSize: 11, fontWeight: 700 }}>
       {meta.short}
     </span>
   );

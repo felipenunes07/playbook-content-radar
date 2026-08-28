@@ -25,7 +25,7 @@ describe('buildLeadExportRows: telefone na planilha só quando MATCHED', () => {
   });
 
   it('deixa telefone vazio em MATCHED_NO_PHONE, REVIEW e NOT_FOUND', () => {
-    expect(rows[1]).toMatchObject({ telefone: '', status_tally: 'Aguardando telefone', formulario_telefone: '' });
+    expect(rows[1]).toMatchObject({ telefone: '', status_tally: 'Baixou material, sem telefone', formulario_telefone: '' });
     expect(rows[2]).toMatchObject({ telefone: '', status_tally: 'Revisar match', formulario_telefone: '' });
     expect(rows[3]).toMatchObject({ telefone: '', status_tally: 'Não encontrado no Tally', formulario_telefone: '' });
   });

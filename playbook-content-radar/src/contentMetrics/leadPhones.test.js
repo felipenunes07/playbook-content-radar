@@ -38,7 +38,9 @@ describe('leadPhones: a regra absoluta na fronteira da UI', () => {
 describe('leadPhones: rótulos e formatação', () => {
   it('rotula os quatro estados que a tela mostra', () => {
     expect(phoneStatusMeta({ match_status: 'MATCHED' }).label).toBe('Telefone encontrado');
-    expect(phoneStatusMeta({ match_status: 'MATCHED_NO_PHONE' }).label).toBe('Aguardando telefone');
+    // Não é fila: "Aguardando" prometia um telefone que não vem. A pessoa está na
+    // base porque baixou um material; o formulário é que não pedia telefone.
+    expect(phoneStatusMeta({ match_status: 'MATCHED_NO_PHONE' }).label).toBe('Baixou material, sem telefone');
     expect(phoneStatusMeta({ match_status: 'REVIEW' }).label).toBe('Revisar match');
     expect(phoneStatusMeta({ match_status: 'NOT_FOUND' }).label).toBe('Não encontrado no Tally');
   });

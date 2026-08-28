@@ -7,7 +7,13 @@
 
 export const PHONE_STATUSES = {
   MATCHED: { label: 'Telefone encontrado', short: 'Encontrado', tone: 'ok' },
-  MATCHED_NO_PHONE: { label: 'Aguardando telefone', short: 'Aguardando', tone: 'wait' },
+  // NÃO é fila de espera: ninguém está processando nada e nenhum telefone está a
+     // caminho. É "achamos a pessoa nas nossas submissions do Tally, mas o formulário
+     // que ela preencheu não tinha campo de telefone (ou ela deixou em branco)".
+     // O rótulo antigo era "Aguardando telefone", que prometia uma chegada que não
+     // vem — e escondia o que isso realmente diz: essa pessoa comentou no post E já
+     // baixou um material seu. Isso é temperatura de lead, não pendência.
+  MATCHED_NO_PHONE: { label: 'Baixou material, sem telefone', short: 'Baixou material', tone: 'wait' },
   // Herança: o matcher não produz mais REVIEW (o caso difuso se resolve sozinho desde
   // 27/08/2026), mas linhas antigas carregam o status até o próximo sync reprocessá-las.
   REVIEW: { label: 'Revisar match', short: 'Revisar', tone: 'review' },
@@ -32,7 +38,7 @@ export function isAutoMatchToAudit(row) {
 export const PHONE_FILTERS = [
   { id: 'todos', label: 'Todos', status: null },
   { id: 'matched', label: 'Telefone encontrado', status: 'MATCHED' },
-  { id: 'aguardando', label: 'Aguardando telefone', status: 'MATCHED_NO_PHONE' },
+  { id: 'aguardando', label: 'Já baixou material', status: 'MATCHED_NO_PHONE' },
   { id: 'nao_encontrado', label: 'Não encontrado', status: 'NOT_FOUND' },
   // Auditoria opcional, não fila: nada trava esperando decisão aqui.
   { id: 'auto', label: 'Decidido automático', status: null, predicate: isAutoMatchToAudit },
@@ -116,6 +122,16 @@ export function countByPhoneFilter(rows = []) {
     }
   }
   return counts;
+}
+
+/** Qual material a pessoa baixou. Serve para o caso MATCHED_NO_PHONE: sem telefone,
+ *  o que sobra de útil é saber por qual isca ela entrou — dá para citar na abordagem
+ *  pelo LinkedIn, que é o canal que resta. */
+export function downloadedMagnet(row) {
+  if (row?.phone_form_name) return String(row.phone_form_name);
+  const candidatos = Array.isArray(row?.candidates) ? row.candidates : [];
+  const comNome = candidatos.find((candidate) => candidate?.formName);
+  return comNome ? String(comNome.formName) : '';
 }
 
 /** Candidatos do REVIEW para a fila, já sem telefone: a UI não recebe o número
