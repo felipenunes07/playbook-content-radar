@@ -136,12 +136,23 @@
 .pb-card-actions button:hover:not(:disabled) { color: #0a66c2; background: #f8fafc; }
 .pb-card-actions button:disabled { opacity: .45; cursor: default; }
 
-/* ── Drawer ── */
-.pb-drawer {
-  width: 330px; flex-shrink: 0; max-height: 78vh; overflow-y: auto;
-  padding: 14px; background: white; border: 1px solid #e2e8f0; border-radius: 12px;
-  box-shadow: 0 8px 26px rgba(15,23,42,.08);
+/* ── Modal central (detalhe do lead) ── */
+.pb-modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 5vh 16px; overflow-y: auto;
+  background: rgba(15,23,42,.55); backdrop-filter: blur(2px);
+  animation: pb-fade .12s ease-out;
 }
+@keyframes pb-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.pb-drawer {
+  width: 100%; max-width: 640px; margin: auto 0; max-height: 90vh; overflow-y: auto;
+  padding: 22px 26px; background: white; border: 1px solid #e2e8f0; border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(15,23,42,.28);
+  animation: pb-pop .14s cubic-bezier(.16,.84,.44,1);
+}
+@keyframes pb-pop { from { transform: translateY(8px) scale(.985); opacity: 0; } to { transform: none; opacity: 1; } }
 .pb-drawer-head { display: flex; align-items: flex-start; gap: 9px; padding-bottom: 11px; border-bottom: 1px solid #eef1f5; }
 .pb-drawer-close {
   display: grid; place-items: center; width: 26px; height: 26px; flex-shrink: 0;
@@ -214,5 +225,8 @@
 
 @media (max-width: 1100px) {
   .pb-layout { flex-direction: column; }
-  .pb-drawer { width: 100%; max-height: none; }
+}
+@media (max-width: 680px) {
+  .pb-modal-overlay { padding: 0; }
+  .pb-drawer { max-width: none; min-height: 100vh; max-height: 100vh; border-radius: 0; padding: 18px; }
 }
