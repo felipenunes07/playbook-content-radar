@@ -136,6 +136,21 @@
 .pb-card-actions button:hover:not(:disabled) { color: #0a66c2; background: #f8fafc; }
 .pb-card-actions button:disabled { opacity: .45; cursor: default; }
 
+/* ── Links diretos de contato (LinkedIn / WhatsApp / telefone / e-mail) ── */
+.pb-contacts { display: flex; gap: 6px; padding: 8px 11px; border-top: 1px solid #eef1f5; }
+.pb-contact {
+  display: grid; place-items: center; width: 27px; height: 27px;
+  color: #64748b; background: #f1f5f9; border: 1px solid #e6e9ee; border-radius: 8px;
+  text-decoration: none; transition: transform .08s ease, background .12s ease, color .12s ease;
+}
+.pb-contact:hover { transform: translateY(-1px); }
+.pb-contact.linkedin:hover { color: #fff; background: #0a66c2; border-color: #0a66c2; }
+.pb-contact.whatsapp:hover { color: #fff; background: #25d366; border-color: #25d366; }
+.pb-contact.phone:hover    { color: #fff; background: #0f766e; border-color: #0f766e; }
+.pb-contact.email:hover    { color: #fff; background: #475569; border-color: #475569; }
+/* No modal os links viram uma faixa própria, sem a borda de topo do card. */
+.pb-contacts.drawer { padding: 11px 0 0; border-top: 0; }
+
 /* ── Modal central (detalhe do lead) ── */
 .pb-modal-overlay {
   position: fixed; inset: 0; z-index: 1000;

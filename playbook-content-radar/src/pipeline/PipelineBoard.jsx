@@ -4,9 +4,13 @@ import {
 } from '@dnd-kit/core';
 import {
   AlertTriangle, Ban, Building2, Calendar, Check, ExternalLink, Inbox,
-  MessageSquare, Pencil, RefreshCw, Send, User, X,
+  Mail, MessageCircle, MessageSquare, Pencil, Phone, RefreshCw, Send, User, X,
 } from 'lucide-react';
 import { loadContentMetrics } from '../contentMetrics/repository.js';
+// Telefone e WhatsApp passam pelas MESMAS funções do resto do app: só MATCHED expõe
+// número, e o link do wa.me só existe se o número está completo. Reusar aqui é o que
+// garante que o card não vaze um telefone que a tela de Leads esconderia.
+import { formatPhone, phoneToShow, whatsappLink } from '../contentMetrics/leadPhones.js';
 // As regras vêm do MESMO módulo que a edge function usa. Reimplementar os limiares
 // aqui era o caminho garantido pro board dizer "sem resposta há 7 dias" enquanto o
 // servidor achava que ainda eram 3.
@@ -52,6 +56,65 @@ function daysAgoLabel(value) {
   if (diff <= 0) return 'hoje';
   if (diff === 1) return 'ontem';
   return `há ${diff} dias`;
+}
+
+// O lucide desta versão não traz ícone de marca; o logo do LinkedIn vai inline pra
+// manter o link inconfundível (os outros canais usam ícones lucide normais).
+function LinkedinGlyph({ size = 13 }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
+      <path d="M20.45 20.45h-3.56v-5.57c0-1.33-.03-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.45v6.29zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.72v20.56C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.72V1.72C24 .77 23.2 0 22.22 0z" />
+    </svg>
+  );
+}
+
+// URL do perfil: usa a que veio enriquecida e, se faltar, remonta pelo slug do /in/.
+function linkedinUrl(row) {
+  if (row.profile_url) return row.profile_url;
+  if (row.public_identifier) return `https://www.linkedin.com/in/${row.public_identifier}`;
+  return '';
+}
+
+// ── Links diretos de contato ──────────────────────────────────────────────────
+// Ficam FORA do botão que abre o card (aninhar link/botão dentro de <button> é HTML
+// inválido) e param a propagação do ponteiro: sem isso, arrastar em cima de um link
+// dispararia o drag do card em vez de abrir o contato.
+function ContactLinks({ row, className = '' }) {
+  const linkedin = linkedinUrl(row);
+  const phone = phoneToShow(row); // '' fora de MATCHED
+  const wa = whatsappLink(row);
+  const email = row.email || '';
+  if (!linkedin && !phone && !wa && !email) return null;
+
+  const stop = (e) => e.stopPropagation();
+  return (
+    <div className={`pb-contacts ${className}`} onPointerDown={stop} onClick={stop}>
+      {linkedin && (
+        <a className="pb-contact linkedin" href={linkedin} target="_blank" rel="noreferrer"
+          title="Abrir perfil no LinkedIn" aria-label="LinkedIn">
+          <LinkedinGlyph size={13} />
+        </a>
+      )}
+      {wa && (
+        <a className="pb-contact whatsapp" href={wa} target="_blank" rel="noreferrer"
+          title={`WhatsApp · ${formatPhone(phone)}`} aria-label="WhatsApp">
+          <MessageCircle size={13} />
+        </a>
+      )}
+      {phone && (
+        <a className="pb-contact phone" href={`tel:${phone}`}
+          title={`Ligar · ${formatPhone(phone)}`} aria-label="Telefone">
+          <Phone size={13} />
+        </a>
+      )}
+      {email && (
+        <a className="pb-contact email" href={`mailto:${email}`}
+          title={`E-mail · ${email}`} aria-label="E-mail">
+          <Mail size={13} />
+        </a>
+      )}
+    </div>
+  );
 }
 
 // ── Card ────────────────────────────────────────────────────────────────────
@@ -126,6 +189,8 @@ function LeadCard({ row, cadence, icpName, postLabel, onOpen, onQuickTouch, busy
           </div>
         )}
       </button>
+
+      {!overlay && <ContactLinks row={row} />}
 
       {!overlay && (
         <div className="pb-card-actions">
@@ -204,6 +269,8 @@ function LeadDrawer({ row, touchpoints, cadence, icpName, postLabel, onClose, on
           <span>{row.job_title || '—'}{row.company_name ? ` · ${row.company_name}` : ''}</span>
         </div>
       </header>
+
+      <ContactLinks row={row} className="drawer" />
 
       <div className="pb-drawer-meta">
         <div><User size={12} /> {row.owner || 'sem responsável'}</div>
