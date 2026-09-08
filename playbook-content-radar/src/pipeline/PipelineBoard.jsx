@@ -3,7 +3,7 @@ import {
   DndContext, DragOverlay, PointerSensor, closestCorners, useDraggable, useDroppable, useSensor, useSensors,
 } from '@dnd-kit/core';
 import {
-  AlertTriangle, ArrowLeft, Ban, Building2, Calendar, Check, ExternalLink, Inbox,
+  AlertTriangle, Ban, Building2, Calendar, Check, ExternalLink, Inbox,
   MessageSquare, Pencil, RefreshCw, Send, User, X,
 } from 'lucide-react';
 import { loadContentMetrics } from '../contentMetrics/repository.js';
@@ -185,12 +185,20 @@ function LeadDrawer({ row, touchpoints, cadence, icpName, postLabel, onClose, on
     setEditing(null);
   }, [row.lead_id, row.notes, row.next_action_at]);
 
+  // Fecha com Esc — como todo modal, a tecla mais previsível pra sair.
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const ativos = touchpoints.filter((t) => !t.cancelled_at);
 
   return (
-    <aside className="pb-drawer">
+    <div className="pb-modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <aside className="pb-drawer" role="dialog" aria-modal="true">
       <header className="pb-drawer-head">
-        <button type="button" className="pb-drawer-close" onClick={onClose}><ArrowLeft size={16} /></button>
+        <button type="button" className="pb-drawer-close" onClick={onClose} title="Fechar"><X size={16} /></button>
         <div>
           <strong>{row.full_name || 'Sem nome'}</strong>
           <span>{row.job_title || '—'}{row.company_name ? ` · ${row.company_name}` : ''}</span>
@@ -313,6 +321,7 @@ function LeadDrawer({ row, touchpoints, cadence, icpName, postLabel, onClose, on
         <small>Arquivar preserva contatos e movimentações. Diferente de “Perdido”, que conta como perda no funil.</small>
       </section>
     </aside>
+    </div>
   );
 }
 
