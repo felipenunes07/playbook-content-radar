@@ -55,6 +55,50 @@ Deno.serve(async (request) => {
       return json({ success: true, cadence });
     }
 
+    // Card manual: cria um lead do zero e o coloca no board. É a saída para quando a
+    // pessoa não veio do fluxo normal (comentou num post → Leads ICP → Prospectado).
+    if (action === 'create_lead') {
+      const clean = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+      const fullName = clean(body.fullName);
+      if (!fullName) throw new Error('Nome é obrigatório para criar um card');
+      const profileUrl = clean(body.profileUrl);
+      // Slug do /in/ só para deduplicar. Sem URL fica null — o unique aceita vários
+      // nulls, então dois cards manuais sem LinkedIn não colidem.
+      const publicIdentifier = profileUrl
+        ? (profileUrl.match(/linkedin\.com\/in\/([^/?#]+)/i)?.[1]?.toLowerCase() ?? null)
+        : null;
+
+      // Se o LinkedIn já existe na base, reaproveita o lead em vez de estourar o unique:
+      // enterPipeline lida com "já está no board" e com "arquivado → reativa".
+      let leadRow: { id: string } | null = null;
+      let reused = false;
+      if (publicIdentifier) {
+        const { data: existing } = await client.from('leads')
+          .select('id').eq('public_identifier', publicIdentifier).maybeSingle();
+        if (existing) { leadRow = existing; reused = true; }
+      }
+      if (!leadRow) {
+        const { data: lead, error: leadError } = await client.from('leads').insert({
+          full_name: fullName,
+          job_title: clean(body.jobTitle),
+          company_name: clean(body.companyName),
+          profile_url: profileUrl,
+          public_identifier: publicIdentifier,
+          // Card manual já entra pronto para operar: não passa por enriquecimento nem
+          // qualificação automática.
+          qualification_status: 'qualified',
+          enrichment_status: 'skipped',
+        }).select('id').single();
+        if (leadError) throw leadError;
+        leadRow = lead;
+      }
+
+      const pipeline = await enterPipeline(client, {
+        leadId: leadRow.id, owner: clean(body.owner), icpId: clean(body.icpId), actor,
+      });
+      return json({ success: true, leadId: leadRow.id, stage: pipeline.stage, reused });
+    }
+
     const leadId = String(body.leadId || '');
     if (!leadId) throw new Error('leadId é obrigatório');
 

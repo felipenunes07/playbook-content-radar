@@ -78,10 +78,22 @@
 
 /* ── Card ── */
 .pb-card {
+  position: relative;
   background: white; border: 1px solid #e4e8ee; border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(15,23,42,.04); cursor: grab; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04); overflow: hidden;
 }
 .pb-card.dragging { opacity: .4; }
+
+/* Alça de arrasto: faixa fina no topo do card, o único ponto que inicia o drag. */
+.pb-drag-handle {
+  display: flex; align-items: center; justify-content: center;
+  height: 15px; color: #cbd5e1; background: #fafbfc;
+  border-bottom: 1px solid #f1f5f9; cursor: grab;
+  touch-action: none; /* impede o navegador de rolar em vez de arrastar no touch */
+}
+.pb-drag-handle:hover { color: #64748b; background: #eef2f7; }
+.pb-drag-handle:active, .pb-card.dragging .pb-drag-handle { cursor: grabbing; }
+.pb-drag-handle svg { transform: rotate(90deg); opacity: .9; }
 .pb-card.overlay { cursor: grabbing; box-shadow: 0 14px 30px rgba(15,23,42,.18); transform: rotate(1.5deg); }
 .pb-card.overdue { border-color: #fca5a5; }
 
@@ -150,6 +162,20 @@
 .pb-contact.email:hover    { color: #fff; background: #475569; border-color: #475569; }
 /* No modal os links viram uma faixa própria, sem a borda de topo do card. */
 .pb-contacts.drawer { padding: 11px 0 0; border-top: 0; }
+
+/* ── Formulário do novo card ── */
+.pb-field { display: block; margin-bottom: 11px; }
+.pb-field > span {
+  display: block; margin-bottom: 4px; color: #475569;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .01em;
+}
+.pb-field input, .pb-field select {
+  width: 100%; padding: 8px 10px; font-size: 12px;
+  border: 1px solid #e2e8f0; border-radius: 8px; background: #fff;
+}
+.pb-field input:focus, .pb-field select:focus {
+  outline: none; border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+}
 
 /* ── Modal central (detalhe do lead) ── */
 .pb-modal-overlay {

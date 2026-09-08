@@ -189,6 +189,58 @@ button:active {
   min-height: 100vh;
 }
 
+/* Sidebar recolhida: vira coluna ÚNICA para o conteúdo (Kanban) ganhar a largura
+   toda. Precisa ser 1fr e não "0 1fr" — o botão de reabrir é position:fixed, sai do
+   fluxo do grid, e aí o conteúdo (único item restante) cairia na track de 0px. */
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 1fr;
+}
+.app-shell.sidebar-collapsed > .sidebar {
+  display: none;
+}
+
+/* Botão que recolhe, no cabeçalho da própria sidebar. */
+.sidebar-collapse-btn {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: #64748b;
+  background: transparent;
+  border: 1px solid var(--linkedin-light-gray);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+.sidebar-collapse-btn:hover {
+  color: var(--linkedin-blue);
+  background: #f1f5f9;
+}
+
+/* Botão flutuante que reabre, visível só quando recolhida. */
+.sidebar-expand-btn {
+  position: fixed;
+  top: 14px;
+  left: 12px;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: #475569;
+  background: #ffffff;
+  border: 1px solid var(--linkedin-light-gray);
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, .12);
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+.sidebar-expand-btn:hover {
+  color: var(--linkedin-blue);
+  background: #f8fafc;
+}
+
 .sidebar {
   background: #ffffff;
   border-right: 1px solid var(--linkedin-light-gray);
