@@ -198,6 +198,14 @@ button:active {
 .app-shell.sidebar-collapsed > .sidebar {
   display: none;
 }
+/* Recolhida, o conteúdo estica: sem o teto de 1760px e com menos padding lateral,
+   o Kanban ganha a largura toda. A folga à esquerda é só o suficiente para o botão
+   flutuante de reabrir não cobrir o cabeçalho. */
+.app-shell.sidebar-collapsed .main-area {
+  max-width: none;
+  padding-left: 58px;
+  padding-right: 20px;
+}
 
 /* Botão que recolhe, no cabeçalho da própria sidebar. */
 .sidebar-collapse-btn {
