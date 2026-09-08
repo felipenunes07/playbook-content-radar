@@ -7,7 +7,7 @@ import {
   CheckCircle2, XCircle, AlertTriangle, ArrowLeft, Archive,
   ThumbsUp, ThumbsDown, Lightbulb, MoreHorizontal, Calendar,
   TrendingUp, Sparkles, Zap, Eye, Award, Flame, Clock, Users, Target, ListTodo,
-  KanbanSquare
+  KanbanSquare, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import './styles.css';
 import { createClient } from '@supabase/supabase-js';
@@ -769,6 +769,16 @@ function App() {
   const [user, setUser] = useState(sharedUrl || startsInMetrics ? 'Felipe' : null);
   const [view, setView] = useState(sharedUrl ? 'new' : startsInMetrics ? 'metrics' : 'vote'); // vote | dashboard | metrics | new | ideas | data
   const [metricsSection, setMetricsSection] = useState(() => pathToMetricsSection(typeof window !== 'undefined' ? window.location.pathname : ''));
+  // Colapso da barra lateral: lembra a escolha entre sessões. Útil no Kanban, onde
+  // cada pixel a mais de largura significa uma coluna a mais visível sem rolar.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem('pb_sidebar_collapsed') === '1'; } catch { return false; }
+  });
+  const toggleSidebar = () => setSidebarCollapsed((v) => {
+    const next = !v;
+    try { localStorage.setItem('pb_sidebar_collapsed', next ? '1' : '0'); } catch { /* modo privado */ }
+    return next;
+  });
 
   React.useEffect(() => {
     const handlePopState = () => {
@@ -1089,7 +1099,18 @@ function App() {
   };
 
   return (
-    <div className={user ? "app-shell" : "app-shell-centered"}>
+    <div className={user ? `app-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}` : "app-shell-centered"}>
+      {user && sidebarCollapsed && (
+        <button
+          type="button"
+          className="sidebar-expand-btn"
+          onClick={toggleSidebar}
+          title="Mostrar menu"
+          aria-label="Mostrar menu lateral"
+        >
+          <PanelLeftOpen size={18} />
+        </button>
+      )}
       {user && (
         <aside className="sidebar">
           <div className="brand-block">
@@ -1112,6 +1133,15 @@ function App() {
                 </span>
               </p>
             </div>
+            <button
+              type="button"
+              className="sidebar-collapse-btn"
+              onClick={toggleSidebar}
+              title="Recolher menu"
+              aria-label="Recolher menu lateral"
+            >
+              <PanelLeftClose size={16} />
+            </button>
           </div>
 
           <div className="mobile-header-profile" style={{ display: 'none' }}>

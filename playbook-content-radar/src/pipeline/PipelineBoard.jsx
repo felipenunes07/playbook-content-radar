@@ -3,8 +3,8 @@ import {
   DndContext, DragOverlay, PointerSensor, closestCorners, useDraggable, useDroppable, useSensor, useSensors,
 } from '@dnd-kit/core';
 import {
-  AlertTriangle, Ban, Building2, Calendar, Check, ExternalLink, Inbox,
-  Mail, MessageCircle, MessageSquare, Pencil, Phone, RefreshCw, Send, User, X,
+  AlertTriangle, Ban, Building2, Calendar, Check, ExternalLink, GripVertical, Inbox,
+  Mail, MessageCircle, MessageSquare, Pencil, Phone, Plus, RefreshCw, Send, User, X,
 } from 'lucide-react';
 import { loadContentMetrics } from '../contentMetrics/repository.js';
 // Telefone e WhatsApp passam pelas MESMAS funções do resto do app: só MATCHED expõe
@@ -119,9 +119,9 @@ function ContactLinks({ row, className = '' }) {
 
 // ── Card ────────────────────────────────────────────────────────────────────
 function LeadCard({ row, cadence, icpName, postLabel, onOpen, onQuickTouch, busy, overlay = false }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: row.lead_id, data: { row }, disabled: overlay,
-  });
+  const {
+    attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging,
+  } = useDraggable({ id: row.lead_id, data: { row }, disabled: overlay });
   const style = transform && !overlay
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
@@ -144,9 +144,23 @@ function LeadCard({ row, cadence, icpName, postLabel, onOpen, onQuickTouch, busy
       ref={setNodeRef}
       style={style}
       className={`pb-card ${isDragging ? 'dragging' : ''} ${overlay ? 'overlay' : ''} ${followUp === 'atrasado' ? 'overdue' : ''}`}
-      {...attributes}
-      {...listeners}
     >
+      {/* Alça dedicada: o arrasto vive SÓ aqui. Antes o card inteiro era draggable e
+          também um botão que abre o modal — qualquer micro-movimento no clique virava
+          arrasto. Separar os dois é o que faz o drag parar de "engasgar". */}
+      {!overlay && (
+        <div
+          className="pb-drag-handle"
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          title="Arraste para mover de etapa"
+          aria-label="Mover card"
+        >
+          <GripVertical size={13} />
+        </div>
+      )}
+
       <button type="button" className="pb-card-open" onClick={() => onOpen(row)} title="Abrir detalhes">
         <header className="pb-card-head">
           <strong>{row.full_name || 'Sem nome'}</strong>
@@ -414,6 +428,73 @@ function EditTouch({ touch, onSave, onCancel, busy }) {
   );
 }
 
+// ── Novo card manual ──────────────────────────────────────────────────────────
+// Só nome é obrigatório. O card entra em "A prospectar", sem contato — igualzinho
+// ao que o checkbox "Prospectado" faz na aba Leads ICP, só que sem o lead ter vindo
+// de um comentário. Serve para quando a pessoa chegou por fora do funil.
+function AddLeadModal({ owners, icpProfiles, busy, onClose, onCreate }) {
+  const [form, setForm] = useState({
+    fullName: '', jobTitle: '', companyName: '', profileUrl: '', owner: '', icpId: '',
+  });
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const canSave = form.fullName.trim() && !busy;
+  return (
+    <div className="pb-modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <aside className="pb-drawer" role="dialog" aria-modal="true">
+        <header className="pb-drawer-head">
+          <button type="button" className="pb-drawer-close" onClick={onClose} title="Fechar"><X size={16} /></button>
+          <div>
+            <strong>Novo card</strong>
+            <span>Entra em “A prospectar”, ainda sem contato</span>
+          </div>
+        </header>
+
+        <section className="pb-drawer-block" style={{ borderTop: 0 }}>
+          <label className="pb-field">
+            <span>Nome *</span>
+            <input type="text" value={form.fullName} autoFocus placeholder="Nome completo" onChange={set('fullName')} />
+          </label>
+          <label className="pb-field">
+            <span>Cargo</span>
+            <input type="text" value={form.jobTitle} placeholder="Ex.: Head de Vendas" onChange={set('jobTitle')} />
+          </label>
+          <label className="pb-field">
+            <span>Empresa</span>
+            <input type="text" value={form.companyName} placeholder="Ex.: Acme" onChange={set('companyName')} />
+          </label>
+          <label className="pb-field">
+            <span>LinkedIn (URL)</span>
+            <input type="url" value={form.profileUrl} placeholder="https://www.linkedin.com/in/…" onChange={set('profileUrl')} />
+          </label>
+          <label className="pb-field">
+            <span>Responsável</span>
+            <input type="text" list="pb-owner-options" value={form.owner} placeholder="Quem vai tocar" onChange={set('owner')} />
+            <datalist id="pb-owner-options">{owners.map((o) => <option key={o} value={o} />)}</datalist>
+          </label>
+          <label className="pb-field">
+            <span>ICP</span>
+            <select value={form.icpId} onChange={set('icpId')}>
+              <option value="">Sem ICP</option>
+              {icpProfiles.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+            </select>
+          </label>
+
+          <button type="button" className="pb-btn primary" disabled={!canSave} onClick={() => onCreate(form)}>
+            <Plus size={13} /> Adicionar card
+          </button>
+        </section>
+      </aside>
+    </div>
+  );
+}
+
 // ── Board ───────────────────────────────────────────────────────────────────
 export default function PipelineBoard({ client, currentUser = '' }) {
   const [data, setData] = useState(null);
@@ -426,6 +507,7 @@ export default function PipelineBoard({ client, currentUser = '' }) {
   const [ownerFilter, setOwnerFilter] = useState('');
   const [icpFilter, setIcpFilter] = useState('');
   const [queueFilter, setQueueFilter] = useState('');
+  const [showAdd, setShowAdd] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -522,6 +604,16 @@ export default function PipelineBoard({ client, currentUser = '' }) {
       if (reason === null) return;
       extra.lostReason = reason || null;
     }
+    // Atualização otimista: o card muda de coluna NA HORA. O call() faz refresh() no
+    // fim, com sucesso ou falha, então o servidor reconcilia sozinho — se a escrita
+    // falhar, o card volta e o aviso de erro aparece. Sem isto, o card só se mexia
+    // depois da ida à rede: era esse atraso que dava o efeito de "vai e volta".
+    setData((prev) => (prev ? {
+      ...prev,
+      pipeline: (prev.pipeline || []).map((r) => (
+        r.lead_id === row.lead_id ? { ...r, stage: toStage } : r
+      )),
+    } : prev));
     const res = await call('move_stage', { leadId: row.lead_id, toStage, ...extra });
     if (res?.inboundRecorded) {
       setNotice(`${row.full_name}: resposta registrada junto, para o marco do funil ter evidência.`);
@@ -549,6 +641,9 @@ export default function PipelineBoard({ client, currentUser = '' }) {
           </p>
         </div>
         <div className="pb-header-side">
+          <button type="button" className="pb-btn primary" onClick={() => setShowAdd(true)} disabled={busy}>
+            <Plus size={13} /> Adicionar card
+          </button>
           <button type="button" className="pb-btn" onClick={() => refresh()} disabled={busy}>
             <RefreshCw size={13} className={busy ? 'spin' : ''} /> Atualizar
           </button>
@@ -627,6 +722,31 @@ export default function PipelineBoard({ client, currentUser = '' }) {
           />
         )}
       </div>
+
+      {showAdd && (
+        <AddLeadModal
+          owners={owners}
+          icpProfiles={data?.icpProfiles || []}
+          busy={busy}
+          onClose={() => setShowAdd(false)}
+          onCreate={async (form) => {
+            const res = await call('create_lead', {
+              fullName: form.fullName.trim(),
+              jobTitle: form.jobTitle || null,
+              companyName: form.companyName || null,
+              profileUrl: form.profileUrl || null,
+              owner: form.owner || null,
+              icpId: form.icpId || null,
+            });
+            if (res?.success) {
+              setShowAdd(false);
+              setNotice(res.reused
+                ? `${form.fullName}: já estava na base e foi trazido para o board.`
+                : `${form.fullName}: card criado em “A prospectar”.`);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
