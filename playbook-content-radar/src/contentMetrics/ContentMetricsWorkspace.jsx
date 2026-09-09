@@ -206,7 +206,7 @@ function SourceNotice({ data }) {
         <div style={{ flex: 1 }}>
           <strong style={{ color: '#065f46', fontSize: '13px' }}>Banco de Dados de Produção Conectado (Supabase)</strong>
           <span style={{ color: '#047857', fontSize: '11.5px', marginTop: 4, lineHeight: 1.4, display: 'block' }}>
-            Banco de dados online e sincronizado. Última coleta bem-sucedida: <b>{data.freshness || latestDateStr}</b>. As coletas automáticas rodam diariamente às <b>06:00 (YouTube)</b>, <b>06:30 (LinkedIn)</b> e <b>07:00 (Instagram)</b> via Deno Edge Functions.
+            Banco de dados online e sincronizado. Última coleta bem-sucedida: <b>{data.freshness || latestDateStr}</b>. As coletas automáticas rodam diariamente às <b>06:00 (YouTube)</b>, <b>06:30 e 14:00 (LinkedIn)</b> e <b>07:00 (Instagram)</b> via Deno Edge Functions.
           </span>
         </div>
         <span className="cm-status success" style={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: '999px', fontSize: '10.5px' }}>
@@ -225,7 +225,7 @@ function SourceNotice({ data }) {
       <div style={{ flex: 1 }}>
         <strong style={{ color: '#854d0e', fontSize: '13px' }}>Snapshot histórico local (Modo Offline de Demonstração)</strong>
         <span style={{ color: '#713f12', fontSize: '11.5px', marginTop: 4, lineHeight: 1.4, display: 'block' }}>
-          Dados locais carregados até <b>{latestDateStr}</b> com <b>{data.linkedin.length} posts no arquivo completo</b>. Para ativar coletas automáticas diárias na nuvem, publique as migrações do Supabase e configure as Edge Functions. Os agendamentos automáticos rodarão diariamente às 06:00 (YouTube), 06:30 (LinkedIn) e 07:00 (Instagram).
+          Dados locais carregados até <b>{latestDateStr}</b> com <b>{data.linkedin.length} posts no arquivo completo</b>. Para ativar coletas automáticas diárias na nuvem, publique as migrações do Supabase e configure as Edge Functions. Os agendamentos automáticos rodarão diariamente às 06:00 (YouTube), 06:30 e 14:00 (LinkedIn) e 07:00 (Instagram).
         </span>
       </div>
       <span className="cm-source-reason" style={{ alignSelf: 'center', color: '#854d0e', background: '#fef08a', borderColor: '#fef08a' }}>
@@ -3707,16 +3707,39 @@ function ImportsSection({ data }) {
 function SettingsSection({ data, client }) {
   const [running, setRunning] = useState('');
   const [message, setMessage] = useState('');
-  const run = async (name) => {
-    if (!client?.functions?.invoke) { setMessage('Publique as Edge Functions e configure os secrets antes da execução manual.'); return; }
-    setRunning(name); setMessage('');
-    const { error } = await client.functions.invoke(name, { body: { manual: true } });
-    setMessage(error ? error.message : `${name} iniciado com sucesso.`); setRunning('');
+  // A coleta manual passa por RPC (SECURITY DEFINER), não por functions.invoke: os
+  // coletores exigem o header `x-collector-secret` e o navegador não tem esse segredo,
+  // então o disparo direto daqui devolvia 401 e o botão nunca funcionou. O banco lê o
+  // segredo do Vault e dispara; o bundle público só conhece o NOME da função.
+  const run = async (coletor) => {
+    if (!client?.rpc) { setMessage('Configure a conexão com o Supabase antes da execução manual.'); return; }
+    setRunning(coletor); setMessage('Coleta em andamento. Costuma levar cerca de meio minuto.');
+    try {
+      const { data: requestId, error } = await client.rpc('trigger_content_collector', { coletor });
+      if (error) throw new Error(error.message || 'Falha ao disparar a coleta');
+      // pg_net é assíncrono: o disparo devolve o id da requisição e nós perguntamos
+      // pelo resultado depois — mesmo contrato do sync do Tally.
+      let body = null;
+      for (let tentativa = 0; tentativa < 40 && !body; tentativa++) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const { data: parcial, error: resultError } = await client.rpc('content_collector_result', { p_request_id: requestId });
+        if (resultError) throw new Error(resultError.message || 'Falha ao ler o resultado da coleta');
+        body = parcial;
+      }
+      if (!body) throw new Error('A coleta demorou mais que o esperado. Os dados podem chegar em instantes.');
+      if (body.success === false) throw new Error(body.error || 'A coleta falhou');
+      const falhas = Array.isArray(body.errors) ? body.errors.length : 0;
+      setMessage(`Coleta concluída: ${body.itemsProcessed ?? 0} item(ns) em ${body.accountsProcessed ?? 0} conta(s).${falhas ? ` ${falhas} conta(s) falharam.` : ''}`);
+    } catch (erro) {
+      setMessage(erro.message);
+    } finally {
+      setRunning('');
+    }
   };
   const secrets = [
     ['Apify token', 'APIFY_TOKEN'], ['Apify LinkedIn actor', 'APIFY_LINKEDIN_ACTOR_ID'], ['Apify YouTube actor', 'APIFY_YOUTUBE_ACTOR_ID'], ['Apify Instagram actor', 'APIFY_INSTAGRAM_ACTOR_ID'], ['Classificação', 'CLASSIFICATION_API_KEY'],
   ];
-  return <div className="cm-settings-grid"><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Secrets</span><h2>Integrações sem chave no front</h2></div></div><div className="cm-secret-list">{secrets.map(([label, name]) => <div key={name}><span>{label}</span><code>{name}</code><StatusPill status={data.source === 'supabase' ? 'pending' : 'paused'} /></div>)}</div><p className="cm-table-note">Tokens reais nunca são exibidos no frontend. O token da Apify deve ficar só nos Edge Function Secrets.</p></section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Agenda</span><h2>Coletas automáticas</h2></div></div><div className="cm-schedule"><div><span>YouTube via Apify</span><strong>Todos os dias · 06:00</strong><button onClick={() => run('collect-youtube')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'collect-youtube' ? 'spin' : ''} /> Executar agora</button></div><div><span>LinkedIn via Apify</span><strong>Todos os dias · 06:30</strong><button onClick={() => run('collect-linkedin')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'collect-linkedin' ? 'spin' : ''} /> Executar agora</button></div></div>{message && <div className="cm-settings-message">{message}</div>}</section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Incremental</span><h2>Onde parou e o que entra novo</h2></div></div><div className="cm-config-summary"><div><span>LinkedIn histórico importado</span><strong>12/05/2026</strong></div><div><span>Deduplicação</span><strong>external_post_id / video_id</strong></div><div><span>Novas coletas</span><strong>Upsert + snapshot diário</strong></div><div><span>Classificação</span><strong>Formato, tema, CTA, funil e intenção</strong></div></div><p className="cm-table-note">A coleta consulta os perfis/canais ativos, salva só registros novos ou métricas novas e marca erro por conta quando algum scraper falha.</p></section></div>;
+  return <div className="cm-settings-grid"><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Secrets</span><h2>Integrações sem chave no front</h2></div></div><div className="cm-secret-list">{secrets.map(([label, name]) => <div key={name}><span>{label}</span><code>{name}</code><StatusPill status={data.source === 'supabase' ? 'pending' : 'paused'} /></div>)}</div><p className="cm-table-note">Tokens reais nunca são exibidos no frontend. O token da Apify deve ficar só nos Edge Function Secrets.</p></section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Agenda</span><h2>Coletas automáticas</h2></div></div><div className="cm-schedule"><div><span>YouTube via Apify</span><strong>Todos os dias · 06:00</strong><button onClick={() => run('youtube')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'youtube' ? 'spin' : ''} /> Executar agora</button></div><div><span>LinkedIn via Apify</span><strong>Todos os dias · 06:30 e 14:00</strong><button onClick={() => run('linkedin')} disabled={Boolean(running)}><RefreshCw size={14} className={running === 'linkedin' ? 'spin' : ''} /> Executar agora</button></div></div>{message && <div className="cm-settings-message">{message}</div>}</section><section className="cm-panel"><div className="cm-section-heading"><div><span className="cm-eyebrow">Incremental</span><h2>Onde parou e o que entra novo</h2></div></div><div className="cm-config-summary"><div><span>LinkedIn histórico importado</span><strong>12/05/2026</strong></div><div><span>Deduplicação</span><strong>external_post_id / video_id</strong></div><div><span>Novas coletas</span><strong>Upsert + snapshot diário</strong></div><div><span>Classificação</span><strong>Formato, tema, CTA, funil e intenção</strong></div></div><p className="cm-table-note">A coleta consulta os perfis/canais ativos, salva só registros novos ou métricas novas e marca erro por conta quando algum scraper falha.</p></section></div>;
 }
 
 export default function ContentMetricsWorkspace({ client, initialData, initialSection = 'overview', onSectionChange, mode = 'full', currentUser = '' }) {
