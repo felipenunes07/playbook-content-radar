@@ -680,6 +680,14 @@ Deno.serve(async (request) => {
         const identifier = String(info?.public_identifier || info?.publicIdentifier || '').toLowerCase();
         if (identifier) profileByIdentifier.set(identifier, profile);
       }
+      // Lote inteiro sem perfil é o provedor falhando (snapshot vazio, cota, timeout),
+      // não 10 pessoas sem LinkedIn. Antes cada lead virava 'error' e a rodada
+      // seguinte convertia em "descartado" — 20 leads perdidos assim em 11/09/2026.
+      // Aborta a rodada sem tocar nos leads: eles continuam 'pending' e o próximo
+      // tick tenta de novo.
+      if (profileByIdentifier.size === 0) {
+        throw new Error(`Provedor de perfil (${provider}) devolveu 0 perfis para ${toEnrich.length} leads — tratado como falha temporária, leads seguem na fila`);
+      }
     }
 
     // (3) Company em lotes pequenos. URL e nome usam campos de input distintos no
