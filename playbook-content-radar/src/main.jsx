@@ -146,6 +146,27 @@ const USER_AVATARS = {
 // FERNANDO_ATIVO (perfil do Fernando desativado; troque a flag para restaurar).
 const isAdmin = (name) => name === 'Felipe';
 const isCurator = (name) => CURATORS.includes(name);
+
+// Sessão lembrada entre refreshes. O perfil e a tela viviam só no estado do React,
+// então qualquer F5 fora de /content-dashboard voltava pra tela de escolha de perfil
+// (reportado em 11/09/2026 na tela de Leads ICP). "Trocar de Perfil" limpa a sessão.
+const SESSION_USER_KEY = 'pb_session_user';
+const SESSION_VIEW_KEY = 'pb_session_view';
+function loadSessionUser() {
+  try {
+    const stored = localStorage.getItem(SESSION_USER_KEY);
+    return TEAM_MEMBERS.includes(stored) ? stored : null;
+  } catch { return null; }
+}
+function loadSessionView() {
+  try { return localStorage.getItem(SESSION_VIEW_KEY) || null; } catch { return null; }
+}
+// Tela inicial de cada papel (mesma regra de selectUser).
+function defaultViewFor(name) {
+  if (isAdmin(name)) return 'dashboard';
+  if (isCurator(name)) return 'vote';
+  return 'team-workspace';
+}
 const roleLabel = (name) => isAdmin(name)
   ? 'Administrador'
   : isCurator(name)
@@ -766,8 +787,19 @@ function App() {
   // como Felipe direto na tela de "Nova ideia" com o link pronto para importar.
   const [sharedUrl, setSharedUrl] = useState(getSharedLinkedInUrl);
   const startsInMetrics = typeof window !== 'undefined' && window.location.pathname.startsWith('/content-dashboard');
-  const [user, setUser] = useState(sharedUrl || startsInMetrics ? 'Felipe' : null);
-  const [view, setView] = useState(sharedUrl ? 'new' : startsInMetrics ? 'metrics' : 'vote'); // vote | dashboard | metrics | new | ideas | data
+  const [user, setUser] = useState(() => {
+    if (sharedUrl) return 'Felipe';
+    return loadSessionUser() || (startsInMetrics ? 'Felipe' : null);
+  });
+  const [view, setView] = useState(() => { // vote | dashboard | metrics | new | ideas | data | leads | pipeline | ...
+    if (sharedUrl) return 'new';
+    if (startsInMetrics) return 'metrics';
+    const sessionUser = loadSessionUser();
+    if (!sessionUser) return 'vote';
+    // 'metrics' depende do caminho /content-dashboard; fora dele cai na tela padrão do papel.
+    const stored = loadSessionView();
+    return stored && stored !== 'metrics' ? stored : defaultViewFor(sessionUser);
+  });
   const [metricsSection, setMetricsSection] = useState(() => pathToMetricsSection(typeof window !== 'undefined' ? window.location.pathname : ''));
   // Colapso da barra lateral: lembra a escolha entre sessões. Útil no Kanban, onde
   // cada pixel a mais de largura significa uma coluna a mais visível sem rolar.
@@ -779,6 +811,18 @@ function App() {
     try { localStorage.setItem('pb_sidebar_collapsed', next ? '1' : '0'); } catch { /* modo privado */ }
     return next;
   });
+
+  // Lembra perfil e tela para o refresh voltar exatamente onde estava.
+  React.useEffect(() => {
+    try {
+      if (user) localStorage.setItem(SESSION_USER_KEY, user);
+      else { localStorage.removeItem(SESSION_USER_KEY); localStorage.removeItem(SESSION_VIEW_KEY); }
+    } catch { /* modo privado */ }
+  }, [user]);
+  React.useEffect(() => {
+    if (!user) return;
+    try { localStorage.setItem(SESSION_VIEW_KEY, view); } catch { /* modo privado */ }
+  }, [user, view]);
 
   React.useEffect(() => {
     const handlePopState = () => {
@@ -1088,14 +1132,8 @@ function App() {
     setUser(name);
     setCuratorFilter('todos');
     setActiveFilter('todas');
-    if (isAdmin(name)) {
-      setView('dashboard');
-    } else if (isCurator(name)) {
-      setView('vote');
-    } else {
-      // Colaboradores entram direto na área compartilhada de tarefas e anotações.
-      setView('team-workspace');
-    }
+    // Admin → dashboard; curador → votação; colaborador → área compartilhada de tarefas.
+    setView(defaultViewFor(name));
   };
 
   return (
